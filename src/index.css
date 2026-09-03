@@ -1,0 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600&display=swap');
+
+:root {
+  --color-bg: #f7f3ee;
+  --color-card: #fcfaf7;
+  --color-card-muted: #f6f1eb;
+  --color-card-alt: #fbf8f4;
+  --color-brand: #e6c7a6;
+  --color-brand-strong: #d9b389;
+  --color-support: #a7b59f;
+  --color-risk: #c97b6b;
+  --color-pill-warm: #f1e2d1;
+  --color-ink: #40352e;
+  --color-body: #5a4d45;
+  --color-soft: #8a786a;
+  --color-muted: #9a8879;
+  --color-border: #e7ded3;
+  --shadow-sm: 0 8px 20px rgba(64, 53, 46, 0.05);
+  --shadow-md: 0 12px 28px rgba(64, 53, 46, 0.07);
+  --radius-xl: 28px;
+  --font-sans:
+    'Noto Sans SC',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    sans-serif;
+  --font-display:
+    'Noto Serif SC',
+    'Songti SC',
+    'STSong',
+    serif;
+
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--color-body);
+  background: var(--color-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    linear-gradient(180deg, #fbf8f2 0%, #f4eee4 100%);
+  color: var(--color-body);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+ol,
+blockquote {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding-left: 1.2rem;
+}
+
+::selection {
+  background: rgba(230, 199, 166, 0.5);
+}
