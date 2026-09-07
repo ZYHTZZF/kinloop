@@ -1,7 +1,11 @@
 import { HomeModuleCard } from '../../../components/common/HomeModuleCard'
 import { echoItems } from '../data/echoData'
 
-export function EchoModule() {
+type EchoModuleProps = {
+  onOpen: () => void
+}
+
+export function EchoModule({ onOpen }: EchoModuleProps) {
   return (
     <HomeModuleCard
       title="回音"
@@ -9,6 +13,7 @@ export function EchoModule() {
       owner="长辈端回音负责人"
       path="src/features/elder-echo"
       actionLabel="查看回应"
+      onAction={onOpen}
     >
       <div className="stack-list">
         {echoItems.map((item) => (

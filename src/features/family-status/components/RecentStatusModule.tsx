@@ -1,7 +1,11 @@
 import { HomeModuleCard } from '../../../components/common/HomeModuleCard'
 import { statusItems } from '../data/statusData'
 
-export function RecentStatusModule() {
+type RecentStatusModuleProps = {
+  onOpen: () => void
+}
+
+export function RecentStatusModule({ onOpen }: RecentStatusModuleProps) {
   return (
     <HomeModuleCard
       title="最近状态"
@@ -9,6 +13,7 @@ export function RecentStatusModule() {
       owner="子女端状态负责人"
       path="src/features/family-status"
       actionLabel="查看变化"
+      onAction={onOpen}
     >
       <div className="stack-list">
         {statusItems.map((item) => (

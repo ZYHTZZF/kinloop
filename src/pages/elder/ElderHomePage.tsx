@@ -2,7 +2,13 @@ import { TalkModule } from '../../features/elder-talk/components/TalkModule'
 import { EchoModule } from '../../features/elder-echo/components/EchoModule'
 import { HelpModule } from '../../features/elder-help/components/HelpModule'
 
-export function ElderHomePage() {
+type ElderHomePageProps = {
+  onOpenTalk: () => void
+  onOpenEcho: () => void
+  onOpenHelp: () => void
+}
+
+export function ElderHomePage({ onOpenTalk, onOpenEcho, onOpenHelp }: ElderHomePageProps) {
   return (
     <section className="page-shell">
       <header className="page-shell__intro">
@@ -14,9 +20,9 @@ export function ElderHomePage() {
       </header>
 
       <div className="module-grid module-grid--elder">
-        <TalkModule />
-        <EchoModule />
-        <HelpModule />
+        <TalkModule onOpen={onOpenTalk} />
+        <EchoModule onOpen={onOpenEcho} />
+        <HelpModule onOpen={onOpenHelp} />
       </div>
     </section>
   )

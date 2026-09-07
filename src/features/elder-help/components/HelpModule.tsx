@@ -1,7 +1,11 @@
 import { HomeModuleCard } from '../../../components/common/HomeModuleCard'
 import { helpActions } from '../data/helpData'
 
-export function HelpModule() {
+type HelpModuleProps = {
+  onOpen: () => void
+}
+
+export function HelpModule({ onOpen }: HelpModuleProps) {
   return (
     <HomeModuleCard
       title="找人帮忙"
@@ -9,6 +13,7 @@ export function HelpModule() {
       owner="长辈端求助负责人"
       path="src/features/elder-help"
       actionLabel="进入帮助页"
+      onAction={onOpen}
     >
       <div className="action-row">
         {helpActions.map((action) => (

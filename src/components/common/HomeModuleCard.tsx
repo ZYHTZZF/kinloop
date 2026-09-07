@@ -6,6 +6,7 @@ type HomeModuleCardProps = {
   owner: string
   path: string
   actionLabel: string
+  onAction: () => void
   children: ReactNode
 }
 
@@ -15,6 +16,7 @@ export function HomeModuleCard({
   owner,
   path,
   actionLabel,
+  onAction,
   children,
 }: HomeModuleCardProps) {
   return (
@@ -24,7 +26,9 @@ export function HomeModuleCard({
           <p className="module-card__subtitle">{subtitle}</p>
           <h2>{title}</h2>
         </div>
-        <span className="module-card__action">{actionLabel}</span>
+        <button className="module-card__action" type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
       </header>
 
       <div className="module-card__body">{children}</div>

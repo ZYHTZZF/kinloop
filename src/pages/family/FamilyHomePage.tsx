@@ -2,7 +2,17 @@ import { CareTodayModule } from '../../features/family-care/components/CareToday
 import { ContinueCareModule } from '../../features/family-followup/components/ContinueCareModule'
 import { RecentStatusModule } from '../../features/family-status/components/RecentStatusModule'
 
-export function FamilyHomePage() {
+type FamilyHomePageProps = {
+  onOpenCare: () => void
+  onOpenStatus: () => void
+  onOpenFollowup: () => void
+}
+
+export function FamilyHomePage({
+  onOpenCare,
+  onOpenStatus,
+  onOpenFollowup,
+}: FamilyHomePageProps) {
   return (
     <section className="page-shell">
       <header className="page-shell__intro">
@@ -14,9 +24,9 @@ export function FamilyHomePage() {
       </header>
 
       <div className="module-grid module-grid--family">
-        <CareTodayModule />
-        <RecentStatusModule />
-        <ContinueCareModule />
+        <CareTodayModule onOpen={onOpenCare} />
+        <RecentStatusModule onOpen={onOpenStatus} />
+        <ContinueCareModule onOpen={onOpenFollowup} />
       </div>
     </section>
   )

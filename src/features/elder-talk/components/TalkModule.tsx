@@ -1,7 +1,11 @@
 import { HomeModuleCard } from '../../../components/common/HomeModuleCard'
 import { talkPreview } from '../data/talkData'
 
-export function TalkModule() {
+type TalkModuleProps = {
+  onOpen: () => void
+}
+
+export function TalkModule({ onOpen }: TalkModuleProps) {
   return (
     <HomeModuleCard
       title="说一说"
@@ -9,6 +13,7 @@ export function TalkModule() {
       owner="长辈端对话负责人"
       path="src/features/elder-talk"
       actionLabel="进入 AI 聊天"
+      onAction={onOpen}
     >
       <div className="stack-list">
         {talkPreview.map((item) => (

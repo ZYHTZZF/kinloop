@@ -1,7 +1,11 @@
 import { HomeModuleCard } from '../../../components/common/HomeModuleCard'
 import { followupTasks } from '../data/followupData'
 
-export function ContinueCareModule() {
+type ContinueCareModuleProps = {
+  onOpen: () => void
+}
+
+export function ContinueCareModule({ onOpen }: ContinueCareModuleProps) {
   return (
     <HomeModuleCard
       title="继续关心"
@@ -9,6 +13,7 @@ export function ContinueCareModule() {
       owner="子女端回访负责人"
       path="src/features/family-followup"
       actionLabel="完成回填"
+      onAction={onOpen}
     >
       <div className="stack-list">
         {followupTasks.map((task) => (

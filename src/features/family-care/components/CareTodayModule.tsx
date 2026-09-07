@@ -1,7 +1,11 @@
 import { HomeModuleCard } from '../../../components/common/HomeModuleCard'
 import { careActions } from '../data/careData'
 
-export function CareTodayModule() {
+type CareTodayModuleProps = {
+  onOpen: () => void
+}
+
+export function CareTodayModule({ onOpen }: CareTodayModuleProps) {
   return (
     <HomeModuleCard
       title="今日关怀"
@@ -9,6 +13,7 @@ export function CareTodayModule() {
       owner="子女端关怀负责人"
       path="src/features/family-care"
       actionLabel="开始关怀"
+      onAction={onOpen}
     >
       <div className="stack-list">
         {careActions.map((item) => (
