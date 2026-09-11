@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 gcm-diagnose.log
+data/
+*.db
+*.db-shm
+*.db-wal
