@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import type { ElderVoiceIntentResult } from '../../domain/elderVoice'
 import { PageState } from '../../components/common/PageState'
 import { listMemories, listMembers } from '../../services/api'
 import type { Member, MemoryEntry } from '../../services/api'
 import { formatShortDate } from '../../utils/dateTime'
 
 export function ElderMemoriesPage() {
+  const location = useLocation()
+  const voiceResult = location.state?.elderVoiceResult as ElderVoiceIntentResult | undefined
   const [memories, setMemories] = useState<MemoryEntry[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,9 +52,14 @@ export function ElderMemoriesPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">回忆</p>
-            <h2>共同沉淀下来的那些片段，都从这里慢慢翻出来。</h2>
+            <h2>留住的照片、语音和一句话，都放在这里。</h2>
           </div>
+          <Link className="ghost-action ghost-action--link" to="/elder/home">
+            回到首页
+          </Link>
         </div>
+
+        {voiceResult ? <p className="state-note">{voiceResult.promptTitle}</p> : null}
 
         <div className="memory-timeline">
           {loading ? (

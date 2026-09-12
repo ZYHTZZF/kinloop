@@ -22,7 +22,7 @@ export function ElderContactsPage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载联络列表失败')
+          setError(loadError instanceof Error ? loadError.message : '加载来信列表失败')
         }
       } finally {
         if (!cancelled) {
@@ -43,12 +43,12 @@ export function ElderContactsPage() {
       <section className="surface-card">
         <div className="section-heading">
           <div>
-            <p className="surface-card__eyebrow">联络</p>
-            <h2>所有家人的对话入口都在这里。</h2>
+            <p className="surface-card__eyebrow">家人来信</p>
+            <h2>家人最近捎来的内容，都在这里。</h2>
           </div>
-          <button className="ghost-action" type="button">
-            搜索
-          </button>
+          <Link className="ghost-action ghost-action--link" to="/elder/home">
+            回到首页
+          </Link>
         </div>
 
         <div className="list-stack">
@@ -61,14 +61,14 @@ export function ElderContactsPage() {
           {error ? (
             <PageState
               variant="error"
-              title="联络列表暂时没有连上本地服务"
+              title="来信列表暂时没有连上本地服务"
               description={error}
             />
           ) : null}
           {!loading && !error && cards.length === 0 ? (
             <PageState
               title="现在还没有家人会话"
-              description="等家人发来第一条问候后，这里就会开始慢慢热闹起来。"
+              description="等家人发来第一条问候后，这里就会慢慢有内容了。"
             />
           ) : null}
 

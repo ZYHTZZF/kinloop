@@ -4,7 +4,6 @@ import { FamilyAppLayout } from './layouts/FamilyAppLayout'
 import { ElderHomePage } from '../pages/elder/ElderHomePage'
 import { ElderContactsPage } from '../pages/elder/ElderContactsPage'
 import { ElderConversationPage } from '../pages/elder/ElderConversationPage'
-import { ElderMemoriesPage } from '../pages/elder/ElderMemoriesPage'
 import { ElderHelpPage } from '../pages/elder/ElderHelpPage'
 import { FamilyTodayPage } from '../pages/family/FamilyTodayPage'
 import { FamilyStatusPage } from '../pages/family/FamilyStatusPage'
@@ -24,9 +23,10 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/elder/home" replace /> },
       { path: 'home', element: <ElderHomePage /> },
-      { path: 'contacts', element: <ElderContactsPage /> },
+      { path: 'inbox', element: <ElderContactsPage /> },
+      { path: 'contacts', element: <Navigate to="/elder/inbox" replace /> },
       { path: 'conversations/:conversationId', element: <ElderConversationPage /> },
-      { path: 'memories', element: <ElderMemoriesPage /> },
+      { path: 'memories', element: <Navigate to="/elder/home" replace /> },
       { path: 'help', element: <ElderHelpPage /> },
     ],
   },

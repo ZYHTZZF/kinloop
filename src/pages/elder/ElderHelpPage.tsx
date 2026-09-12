@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import type { ElderVoiceIntentResult } from '../../domain/elderVoice'
 import { escalationSteps, helpActions, helpRequests } from '../../domain/content/helpGuidance'
 import { createAlert, listActiveAlerts } from '../../services/api'
 import type { Alert } from '../../services/api'
 import { formatShortDateTime } from '../../utils/dateTime'
 
 export function ElderHelpPage() {
+  const location = useLocation()
+  const voiceResult = location.state?.elderVoiceResult as ElderVoiceIntentResult | undefined
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
@@ -39,10 +43,15 @@ export function ElderHelpPage() {
       <section className="surface-card surface-card--help">
         <div className="section-heading">
           <div>
-            <p className="surface-card__eyebrow">求助</p>
-            <h2>联系家人、说我不舒服、或者紧急求助，都应该一眼就找到。</h2>
+            <p className="surface-card__eyebrow">紧急求助</p>
+            <h2>如果你现在需要人，先点这里。</h2>
           </div>
+          <Link className="ghost-action ghost-action--link" to="/elder/home">
+            回到首页
+          </Link>
         </div>
+
+        {voiceResult ? <p className="state-note">{voiceResult.promptTitle}</p> : null}
 
         <div className="help-stack">
           {helpActions.map((action) => (
