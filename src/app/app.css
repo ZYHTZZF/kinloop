@@ -188,6 +188,65 @@
   margin: 0 auto;
 }
 
+.app-shell--family .bottom-tab-nav {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(88px, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: min(560px, calc(100vw - 28px));
+  padding: 10px;
+  border: 1px solid rgba(86, 92, 82, 0.12);
+  border-radius: 999px;
+  background: rgba(252, 250, 245, 0.92);
+  box-shadow:
+    0 18px 40px rgba(72, 70, 57, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px);
+  z-index: 18;
+}
+
+.app-shell--family .bottom-tab-nav__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: rgba(64, 73, 67, 0.78);
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  background: transparent;
+  border: 1px solid transparent;
+  transition:
+    transform 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.app-shell--family .bottom-tab-nav__item:hover {
+  transform: translateY(-1px);
+  color: var(--app-accent-strong);
+  background: rgba(255, 255, 255, 0.56);
+  border-color: rgba(79, 107, 94, 0.14);
+}
+
+.app-shell--family .bottom-tab-nav__item.is-active {
+  color: var(--app-accent-strong);
+  background: linear-gradient(180deg, rgba(239, 245, 240, 0.98), rgba(225, 236, 228, 0.94));
+  border-color: rgba(79, 107, 94, 0.18);
+  box-shadow:
+    0 10px 24px rgba(79, 107, 94, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
 .screen {
   display: grid;
   gap: var(--app-space-lg);
@@ -1432,6 +1491,20 @@
 @media (max-width: 640px) {
   .app-shell {
     padding: 20px 12px 112px;
+  }
+
+  .app-shell--family .bottom-tab-nav {
+    bottom: 12px;
+    width: calc(100vw - 24px);
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .app-shell--family .bottom-tab-nav__item {
+    min-height: 44px;
+    padding: 0 10px;
+    font-size: 0.92rem;
   }
 
   .surface-card,
