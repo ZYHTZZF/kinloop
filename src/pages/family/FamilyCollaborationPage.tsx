@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PageState } from '../../components/common/PageState'
-import { acknowledgeAlert, approveInviteCode, createInviteCode, listActiveAlerts, listInviteCodes, listMembers, resolveAlert } from '../../services/api'
+import {
+  acknowledgeAlert,
+  approveInviteCode,
+  createInviteCode,
+  listActiveAlerts,
+  listInviteCodes,
+  listMembers,
+  resolveAlert,
+} from '../../services/api'
 import type { Alert, InviteCode, Member } from '../../services/api'
 import { formatShortDateTime } from '../../utils/dateTime'
 
@@ -97,7 +105,7 @@ export function FamilyCollaborationPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">协作</p>
-            <h2>让 Circle of Care 先成为轻量工作台，而不是只剩设置项。</h2>
+            <h2>把家人的关心接成一条线，让今天该谁接力更清楚。</h2>
           </div>
         </div>
 
@@ -116,25 +124,37 @@ export function FamilyCollaborationPage() {
           </div>
         </div>
 
+        {!loading && !error ? (
+          <article className="note-card collaboration-relay-note">
+            <p className="surface-card__eyebrow">推荐接力</p>
+            <strong>{suggestedRelay ? `今天更适合由 ${suggestedRelay.displayName} 接一句。` : '当前还没有合适的接力建议。'}</strong>
+            <p>
+              {suggestedRelay
+                ? `${suggestedRelay.displayName} 最近比较久没有联系长辈，现在接上会更自然。`
+                : '成员活动数据还不够，先保持当前分工即可。'}
+            </p>
+          </article>
+        ) : null}
+
         <div className="collaboration-stack">
           {loading ? (
             <PageState
-              title="正在整理这轮家庭协作"
-              description="稍等一下，我把成员、待办任务和邀请码状态整合成一张轻工作台。"
+              title="正在整理这一轮家庭协作"
+              description="稍等一下，我把成员、待办任务和邀请码状态整合出来。"
             />
           ) : null}
           {error ? (
             <PageState
               variant="error"
-              title="协作工作台暂时没有连上本地服务"
+              title="协作页暂时没连上本地服务"
               description={error}
             />
           ) : null}
           {inviteFeedback ? <p className="state-note">{inviteFeedback}</p> : null}
 
           <article className="relay-card">
-            <p className="surface-card__eyebrow">家庭关怀接力棒</p>
-            <span className="status-pill">本轮最适合接力的人</span>
+            <p className="surface-card__eyebrow">家庭接力建议</p>
+            <span className="status-pill">这一轮更适合谁来接</span>
             <strong>
               最近联系：
               {recentContact
@@ -146,15 +166,15 @@ export function FamilyCollaborationPage() {
             </p>
             <p>
               {suggestedRelay
-                ? `${suggestedRelay.displayName} 最近最久没有和长辈产生有效互动，适合接力问候。`
+                ? `${suggestedRelay.displayName} 最近较久没有和长辈产生有效互动，适合这次先接一句。`
                 : '当前成员不足，暂时无法生成接力建议。'}
             </p>
             <div className="inline-actions">
               <button className="primary-action" type="button">
-                @提醒他
+                提醒接力
               </button>
               <button className="ghost-action" type="button">
-                更改接力人
+                重新看看分工
               </button>
             </div>
           </article>
@@ -162,7 +182,7 @@ export function FamilyCollaborationPage() {
           <article className="task-card">
             <p className="surface-card__eyebrow">当前协同任务</p>
             {alerts.length === 0 ? (
-              <p className="state-note">当前没有待接手的异常，协作状态比较平稳。</p>
+              <p className="state-note">当前没有待接手的异常提醒，协作状态比较平稳。</p>
             ) : (
               alerts.map((alert) => (
                 <div className="list-row" key={alert.id}>
@@ -180,7 +200,7 @@ export function FamilyCollaborationPage() {
                         disabled={handlingAlertId === alert.id}
                         onClick={() => void handleAcknowledgeAlert(alert.id)}
                       >
-                        {handlingAlertId === alert.id ? '接单中…' : '我来跟进'}
+                        {handlingAlertId === alert.id ? '处理中…' : '我来跟进'}
                       </button>
                     ) : null}
                     {alert.status === 'HANDLING' ? (
@@ -215,7 +235,12 @@ export function FamilyCollaborationPage() {
             </div>
             <p className="members-card__meta">紧急通知顺序：{alertOrder || '暂无'}</p>
             <div className="inline-actions">
-              <button className="primary-action" type="button" disabled={creatingInvite} onClick={() => void handleCreateInvite()}>
+              <button
+                className="primary-action"
+                type="button"
+                disabled={creatingInvite}
+                onClick={() => void handleCreateInvite()}
+              >
                 {creatingInvite ? '生成中…' : '生成家庭邀请码'}
               </button>
             </div>
@@ -333,7 +358,7 @@ function toAlertSummary(alert: Alert) {
 
 function toAlertStatus(alert: Alert) {
   if (alert.status === 'HANDLING') {
-    return '已有人接单处理中'
+    return '已经有人接单处理中'
   }
 
   if (alert.status === 'TRIGGERED') {
