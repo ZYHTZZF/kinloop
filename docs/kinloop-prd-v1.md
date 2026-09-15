@@ -930,4 +930,4 @@ Kinloop 的主线不是“聊天”，而是：
 
 前端页面结构、组件拆分与路由方案见：
 
-- [kinloop-frontend-blueprint-v1.md](C:\Users\tzc\Desktop\银龄心语\kinloop\docs\kinloop-frontend-blueprint-v1.md)
+- [kinloop-frontend-blueprint-v1.md](./kinloop-frontend-blueprint-v1.md)
