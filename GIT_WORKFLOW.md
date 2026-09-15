@@ -47,6 +47,14 @@ git merge tzc_fix_bug
 # 更新dev分支到github仓库中
 git push origin dev
 
+开发新功能时：
+1、大致说要干嘛，让ai详细给一版plan
+2、讨论，让ai明确你想要的效果
+3、当ai的plan完美符合你的需求，让ai生成一版prd.md，尽可能详细且质量高
+4、让ai根据prd.md生成一版plan.md，落实到具体要改哪些文件，落实到细节应该怎么改
+5、让ai开始改代码
+
+
 
 
 
