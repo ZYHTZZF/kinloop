@@ -135,3 +135,105 @@ export type PermissionPolicy = {
   canManageMembers: number
   canManageAlertOrder: number
 }
+
+// ============ Chat Feature Types ============
+
+export enum MessageStatus {
+  SENDING = 'sending',
+  SENT = 'sent',
+  DELIVERED = 'delivered',
+  READ = 'read'
+}
+
+export enum MessageType {
+  TEXT = 'text',
+  IMAGE = 'image',
+  VOICE = 'voice'
+}
+
+export interface IMessage {
+  id: string
+  conversationId: string
+  senderId: string
+  recipientId: string
+  senderDisplayName?: string
+  content: string
+  type: MessageType | 'text' | 'image' | 'voice'
+  status: MessageStatus | 'sending' | 'sent' | 'delivered' | 'read'
+  timestamp: number
+  mediaUrl?: string
+  voiceDurationMs?: number
+  isDeleted?: boolean
+}
+
+export interface IConversation {
+  id: string
+  userId: string
+  otherUserId: string
+  otherUserName: string
+  otherUserAvatar?: string
+  lastMessage?: string
+  lastMessageTime?: number
+  unreadCount: number
+  lastActivityAt: number
+  isDeleted?: boolean
+}
+
+export interface ICallSignal {
+  type: 'offer' | 'answer' | 'ice-candidate' | 'reject' | 'hangup'
+  from: string
+  to: string
+  callId: string
+  callType?: 'voice' | 'video'
+  data?: Record<string, any>
+  timestamp: number
+}
+
+export interface ICallOffer extends ICallSignal {
+  type: 'offer'
+  data: {
+    sdp: string // RTCSessionDescription
+  }
+}
+
+export interface ICallAnswer extends ICallSignal {
+  type: 'answer'
+  data: {
+    sdp: string
+  }
+}
+
+export interface IIceCandidate extends ICallSignal {
+  type: 'ice-candidate'
+  data: {
+    candidate: string
+    sdpMLineIndex: number
+    sdpMid: string
+  }
+}
+
+export interface IIncomingCall {
+  callId: string
+  from: string
+  fromName: string
+  fromAvatar?: string
+  callType: 'voice' | 'video'
+  timestamp: number
+}
+
+export interface INotificationOptions {
+  title: string
+  tag?: string
+  icon?: string
+  badge?: string
+  body?: string
+  data?: Record<string, any>
+  requireInteraction?: boolean
+  silent?: boolean
+}
+
+export interface IOnlineStatus {
+  userId: string
+  isOnline: boolean
+  lastSeenAt?: number
+}
