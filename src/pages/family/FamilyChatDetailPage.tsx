@@ -26,7 +26,7 @@ export function FamilyChatDetailPage() {
           setError('对话不存在')
         }
       } catch (err) {
-        setError(er instanceof Error ? err.message : '加载对话失败')
+        setError(err instanceof Error ? err.message : '加载对话失败')
       } finally {
         setIsLoading(false)
       }
