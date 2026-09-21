@@ -65,7 +65,7 @@ class WebRTCManager {
 
     try {
       // 获取本地媒体流
-      const localStream = await this.getLocalStream(callType)
+      const localStream = await this.requestMediaStream(callType)
 
       // 创建 Peer Connection
       const peerConnection = this.createPeerConnection()
@@ -146,7 +146,7 @@ class WebRTCManager {
 
     try {
       // 获取本地媒体流
-      const localStream = await this.getLocalStream(callType)
+      const localStream = await this.requestMediaStream(callType)
 
       // 创建 Peer Connection
       const peerConnection = this.createPeerConnection()
@@ -280,7 +280,7 @@ class WebRTCManager {
   /**
    * 获取本地媒体流
    */
-  private async getLocalStream(callType: CallType): Promise<MediaStream> {
+  private async requestMediaStream(callType: CallType): Promise<MediaStream> {
     const constraints: MediaStreamConstraints = {
       audio: callType === 'voice' || callType === 'video' ? this.config.audio : false,
       video: callType === 'video' ? this.config.video : false

@@ -42,7 +42,7 @@ export const router = createBrowserRouter([
       { path: 'status', element: <FamilyStatusPage /> },
       { path: 'chats', element: <FamilyChatsPage /> },
       { path: 'chats/:conversationId', element: <FamilyConversationPage /> },
-      { path: 'chats/:userId', element: <FamilyChatDetailPage /> },
+      { path: 'chats/:userId', element: <FamilyConversationPage /> },
       { path: 'memories', element: <FamilyMemoriesPage /> },
       { path: 'collaboration', element: <FamilyCollaborationPage /> },
     ],

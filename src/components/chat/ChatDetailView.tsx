@@ -50,6 +50,13 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
   useEffect(() => {
     const initializeChat = async () => {
       try {
+        if (!chatApi.isWebSocketConnected()) {
+          try {
+             await chatApi.initWebSocket('ws://localhost:3001', currentUserId)
+          } catch (e) {
+             console.error('Failed to init WS', e)
+          }
+        }
         // 获取对话
         const conv = await chatApi.getConversation(currentUserId, otherUserId)
         if (conv) {
@@ -90,7 +97,7 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
         unsubscribeMessageRef.current = unsubscribe
 
         // 标记为已读
-        const unreadMessages = msgs.filter((m) => !m.isMine && m.status !== MessageStatus.READ)
+        const unreadMessages = msgs.filter((m) => m.senderId !== currentUserId && m.status !== MessageStatus.READ)
         if (unreadMessages.length > 0) {
           await chatApi.markMessagesAsRead(unreadMessages.map((m) => m.id))
         }
@@ -112,28 +119,6 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
-
-  // WebRTC 事件监听
-  useEffect(() => {
-    const unsubscribeConnected = webrtcManager.on('call-connected', () => {
-      setCallState('connected')
-      // 开始监测网络质量
-      startNetworkQualityMonitoring()
-    })
-
-    const unsubscribeEnded = webrtcManager.on('call-ended', () => {
-      setCallState('ended')
-      setIsCallActive(false)
-      setCallDuration(0)
-      stopNetworkQualityMonitoring()
-      setTimeout(() => setCallState('idle'), 500)
-    })
-
-    return () => {
-      unsubscribeConnected()
-      unsubscribeEnded()
-    }
-  }, [])
 
   // 开始监测网络质量
   const startNetworkQualityMonitoring = () => {
@@ -160,6 +145,54 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
     }
   }
 
+  // WebRTC 事件监听
+  useEffect(() => {
+    // 绑定 WebRTC 信号层
+    webrtcManager.setSignalingClient(async (signal) => {
+      chatApi.sendWebrtcSignal({ ...signal, to: otherUserId, from: currentUserId })
+    })
+    
+    // 监听 WebSocket 收到的 WebRTC 信号
+    chatApi.setWebrtcSignalHandler(async (signal) => {
+      // 如果收到来自对方的 offer，说明有呼入来电
+      if (signal.type === 'offer') {
+        setIsCallActive(true)
+        setCallType(signal.callType || 'voice')
+        setCallState('ringing')
+        setIsIncomingCall(true)
+      } else if (signal.type === 'reject') {
+        setIsCallActive(false)
+        setCallState('idle')
+      } else if (signal.type === 'hangup') {
+        setIsCallActive(false)
+        setCallState('ended')
+        setTimeout(() => setCallState('idle'), 500)
+      }
+      
+      // 传递给底层的 WebRTC Manager 进行 ICE/SDP 处理
+      await webrtcManager.handleSignalingMessage(signal)
+    })
+
+    const unsubscribeConnected = webrtcManager.on('call-connected', () => {
+      setCallState('connected')
+      // 开始监测网络质量
+      startNetworkQualityMonitoring()
+    })
+
+    const unsubscribeEnded = webrtcManager.on('call-ended', () => {
+      setCallState('ended')
+      setIsCallActive(false)
+      setCallDuration(0)
+      stopNetworkQualityMonitoring()
+      setTimeout(() => setCallState('idle'), 500)
+    })
+
+    return () => {
+      unsubscribeConnected()
+      unsubscribeEnded()
+    }
+  }, [])
+
   // 发送消息
   const handleSendMessage = async (text: string) => {
     try {
@@ -183,14 +216,6 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
       setCallState('ringing')
       setIsIncomingCall(false)
 
-      // 设置 Signaling 客户端
-      webrtcManager.setSignalingClient(async (signal) => {
-        // 通过 WebSocket 发送信令
-        if (chatApi.isWebSocketConnected()) {
-          // 需要在生产环境中实现具体的信令发送逻辑
-        }
-      })
-
       await webrtcManager.initiateCall(currentUserId, otherUserId, 'voice')
     } catch (error) {
       console.error('[Chat] Failed to initiate voice call:', error)
@@ -206,10 +231,6 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
       setCallType('video')
       setCallState('ringing')
       setIsIncomingCall(false)
-
-      webrtcManager.setSignalingClient(async (signal) => {
-        // 通过 WebSocket 发送信令
-      })
 
       await webrtcManager.initiateCall(currentUserId, otherUserId, 'video')
     } catch (error) {

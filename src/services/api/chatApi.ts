@@ -1,5 +1,5 @@
 import { IMessage, IConversation, MessageStatus, MessageType } from './types'
-import { messageStore } from '../utils/storage'
+import { messageStore } from '../../utils/storage'
 
 interface SendMessageParams {
   conversationId: string
@@ -21,16 +21,34 @@ let wsClient: WebSocket | null = null
 let messageHandlers: Map<string, (msg: IMessage) => void> = new Map()
 let statusHandlers: Map<string, (status: string) => void> = new Map()
 
+// WebRTC Signaling Handler
+let webrtcSignalHandler: ((signal: any) => void) | null = null
+
+export function setWebrtcSignalHandler(handler: (signal: any) => void) {
+  webrtcSignalHandler = handler
+}
+
+export function sendWebrtcSignal(signal: any) {
+  if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+    wsClient.send(JSON.stringify(signal))
+  } else {
+    console.warn('[Chat] Cannot send WebRTC signal, WS not connected')
+  }
+}
+
 /**
  * 初始化 WebSocket 连接
  */
-export function initWebSocket(serverUrl: string): Promise<void> {
+export function initWebSocket(serverUrl: string, userId?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     try {
       wsClient = new WebSocket(serverUrl)
 
       wsClient.onopen = () => {
         console.log('[Chat] WebSocket connected')
+        if (userId) {
+          wsClient?.send(JSON.stringify({ type: 'register', userId }))
+        }
         resolve()
       }
 
@@ -60,8 +78,13 @@ export function initWebSocket(serverUrl: string): Promise<void> {
 /**
  * 处理 WebSocket 消息
  */
-async function handleWebSocketMessage(data: WebSocketMessage): Promise<void> {
+async function handleWebSocketMessage(data: any): Promise<void> {
   const { type, data: msgData } = data
+
+  if (['offer', 'answer', 'ice-candidate', 'reject', 'hangup'].includes(type)) {
+    if (webrtcSignalHandler) webrtcSignalHandler(data)
+    return
+  }
 
   if (type === 'message') {
     const msg = msgData as IMessage

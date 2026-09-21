@@ -138,18 +138,22 @@ export type PermissionPolicy = {
 
 // ============ Chat Feature Types ============
 
-export enum MessageStatus {
-  SENDING = 'sending',
-  SENT = 'sent',
-  DELIVERED = 'delivered',
-  READ = 'read'
-}
+export const MessageStatus = {
+  SENDING: 'sending',
+  SENT: 'sent',
+  DELIVERED: 'delivered',
+  READ: 'read',
+} as const;
 
-export enum MessageType {
-  TEXT = 'text',
-  IMAGE = 'image',
-  VOICE = 'voice'
-}
+export type MessageStatus = typeof MessageStatus[keyof typeof MessageStatus];
+
+export const MessageType = {
+  TEXT: 'text',
+  IMAGE: 'image',
+  VOICE: 'voice',
+} as const;
+
+export type MessageType = typeof MessageType[keyof typeof MessageType];
 
 export interface IMessage {
   id: string

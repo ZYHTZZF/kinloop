@@ -6,20 +6,23 @@ import { listConversationCards } from '../../services/api'
 import type { ConversationCard } from '../../services/api'
 
 export function ElderChatDetailPage() {
-  const { userId } = useParams<{ userId: string }>()
+  const { userId, conversationId } = useParams<{ userId?: string, conversationId?: string }>()
+  // Compatibility: some links map to /conversations/:conversationId, others to /chats/:userId
+  const targetId = userId || conversationId
+
   const [conversation, setConversation] = useState<ConversationCard | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
   // 获取当前登录用户信息（简化处理）
-  const currentUserId = 'elder-1'
+  const currentUserId = targetId || 'elder-1'
 
   useEffect(() => {
     const loadConversation = async () => {
       try {
         setIsLoading(true)
         const cards = await listConversationCards()
-        const card = cards.find((c) => c.id === userId)
+        const card = cards.find((c) => c.id === targetId)
         if (card) {
           setConversation(card)
           setError('')
@@ -33,10 +36,10 @@ export function ElderChatDetailPage() {
       }
     }
 
-    if (userId) {
+    if (targetId) {
       loadConversation()
     }
-  }, [userId])
+  }, [targetId])
 
   if (isLoading) {
     return <div style={{ padding: '20px', textAlign: 'center', fontSize: '18px' }}>加载中...</div>
@@ -52,11 +55,11 @@ export function ElderChatDetailPage() {
 
   return (
     <ChatDetailView
-      currentUserId={currentUserId}
-      otherUserId={userId!}
+      currentUserId={'elder-1'}
+      otherUserId={targetId!}
       otherUserName={conversation.elderDisplayName}
       otherUserAvatar={conversation.avatar}
-      isFamilyStyle={true}
+      isFamilyStyle={false}
       presetMessages={PRESET_MESSAGES_ELDER}
     />
   )

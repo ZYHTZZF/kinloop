@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import type { FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import { createMemoryEntry, getConversationDetail, sendMessage } from '../../services/api'
 import type { ConversationDetail, Message } from '../../services/api'
 import { formatClock } from '../../utils/dateTime'
+import { webrtcManager } from '../../services/webrtc/WebRTCManager'
+import * as chatApi from '../../services/api/chatApi'
+import VoiceCall from '../../components/chat/VoiceCall'
+import VideoCall from '../../components/chat/VideoCall'
 
 export function FamilyConversationPage() {
-  const { conversationId = 'daughter' } = useParams()
+  const { conversationId = 'daughter', userId } = useParams()
+  const targetId = userId || conversationId
   const [conversation, setConversation] = useState<ConversationDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -16,12 +21,146 @@ export function FamilyConversationPage() {
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
 
+  const [callState, setCallState] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle')
+  const [isCallActive, setIsCallActive] = useState(false)
+  const [callType, setCallType] = useState<'voice' | 'video'>('voice')
+  const [isIncomingCall, setIsIncomingCall] = useState(false)
+  const [callDuration, setCallDuration] = useState(0)
+  const [isMuted, setIsMuted] = useState(false)
+  const [isCameraOn, setIsCameraOn] = useState(true)
+
+  const isCallerRef = useRef(false)
+  const incomingOfferRef = useRef<any>(null)
+
+  const currentUserId = 'family-1'
+  const otherUserId = targetId
+
+  const logCallSystemMessage = async (content: string) => {
+    if (!conversation) return;
+    try {
+      const nextConversation = await sendMessage(conversation.id, {
+        senderType: 'System', // backend might coerce this or store strings
+        senderMemberId: conversation.memberId,
+        messageType: 'Text',
+        textContent: content,
+        aiDrafted: false,
+        isLowInformation: false,
+      })
+      setConversation(nextConversation)
+    } catch(err) {
+      console.error('Failed to log system message', err)
+    }
+  }
+
+  useEffect(() => {
+    // 建立 Socket
+    const initWS = async () => {
+      if (!chatApi.isWebSocketConnected()) {
+        try {
+          await chatApi.initWebSocket('ws://localhost:3001', currentUserId)
+        } catch(e) {}
+      }
+    }
+    initWS()
+
+    // 绑定 WebRTC 信号层
+    webrtcManager.setSignalingClient(async (signal) => {
+      chatApi.sendWebrtcSignal({ ...signal, to: otherUserId, from: currentUserId })
+    })
+    
+    // 监听 WebSocket 收到的 WebRTC 信号
+    chatApi.setWebrtcSignalHandler(async (signal) => {
+      if (signal.type === 'offer') {
+        isCallerRef.current = false
+        incomingOfferRef.current = signal.data.sdp
+        setIsCallActive(true)
+        setCallType(signal.callType || 'voice')
+        setCallState('ringing')
+        setIsIncomingCall(true)
+      } else if (signal.type === 'answer') {
+        await webrtcManager.handleAnswer(signal.data.sdp)
+      } else if (signal.type === 'ice-candidate') {
+        await webrtcManager.handleIceCandidate(signal.data)
+      } else if (signal.type === 'reject') {
+        if (isCallerRef.current) logCallSystemMessage('📞 对方已拒绝通话')
+        setIsCallActive(false)
+        setCallState('idle')
+      } else if (signal.type === 'hangup') {
+        if (isCallerRef.current && callState === 'ringing') {
+           // Caller cancelled, nothing or could log cancelled
+        }
+        webrtcManager.hangup()
+        setIsCallActive(false)
+        setCallState('ended')
+        setTimeout(() => setCallState('idle'), 500)
+      }
+    })
+
+    const unsubscribeConnected = webrtcManager.on('connection-state-changed', (data) => {
+      if (data.state === 'connected') setCallState('connected')
+    })
+    const unsubscribeEnded = webrtcManager.on('call-ended', (data) => {
+      setCallState('ended')
+      setIsCallActive(false)
+      setCallDuration(0)
+      setTimeout(() => setCallState('idle'), 500)
+
+      if (isCallerRef.current && data && data.duration !== undefined && callState === 'connected') {
+        const durationSecs = Math.round(data.duration / 1000)
+        logCallSystemMessage(`📞 通话结束，时长: ${durationSecs}秒`)
+      } else if (isCallerRef.current) {
+        logCallSystemMessage('📞 通话已取消')
+      }
+    })
+
+    return () => {
+      unsubscribeConnected()
+      unsubscribeEnded()
+    }
+  }, [currentUserId, otherUserId, conversation, callState])
+
+  const handleAcceptCall = async () => {
+    try {
+      setCallState('connecting')
+      if (incomingOfferRef.current) {
+        await webrtcManager.acceptCall(currentUserId, { type: 'offer', sdp: incomingOfferRef.current } as any, otherUserId, callType, `${otherUserId}-${currentUserId}`)
+      }
+    } catch (e) {
+      setIsCallActive(false)
+      setCallState('idle')
+    }
+  }
+
+  const handleRejectCall = async () => {
+    await webrtcManager.rejectCall(currentUserId, otherUserId, 'call-id')
+    setIsCallActive(false)
+    setCallState('idle')
+  }
+
+  const handleHangupCall = () => {
+    webrtcManager.hangup()
+    setIsCallActive(false)
+    setCallState('ended')
+  }
+
+  const handleInitiateVoiceCall = async () => {
+    isCallerRef.current = true
+    setIsCallActive(true); setCallType('voice'); setCallState('ringing'); setIsIncomingCall(false);
+    await webrtcManager.initiateCall(currentUserId, otherUserId, 'voice')
+  }
+
+  const handleInitiateVideoCall = async () => {
+    isCallerRef.current = true
+    setIsCallActive(true); setCallType('video'); setCallState('ringing'); setIsIncomingCall(false);
+    await webrtcManager.initiateCall(currentUserId, otherUserId, 'video')
+  }
+
   useEffect(() => {
     let cancelled = false
 
     async function load() {
       try {
-        const nextConversation = await getConversationDetail(conversationId)
+        const nextConversation = await getConversationDetail(targetId)
         if (!cancelled) {
           setConversation(nextConversation)
           setError('')
@@ -42,7 +181,7 @@ export function FamilyConversationPage() {
     return () => {
       cancelled = true
     }
-  }, [conversationId])
+  }, [targetId])
 
   const messages = conversation?.messages ?? []
 
@@ -52,10 +191,45 @@ export function FamilyConversationPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">聊天</p>
-            <h2>和妈妈的对话</h2>
+            <h2>和{conversation?.elderDisplayName ?? '妈妈'}的对话</h2>
           </div>
-          <span className="status-pill">会话：{conversation?.elderDisplayName ?? '妈妈'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <span className="status-pill">会话：{conversation?.elderDisplayName ?? '妈妈'}</span>
+            <button onClick={handleInitiateVoiceCall} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="语音通话">📞</button>
+            <button onClick={handleInitiateVideoCall} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="视频通话">📹</button>
+          </div>
         </div>
+
+        {isCallActive && callType === 'voice' && (
+          <VoiceCall
+            remoteUser={{ id: otherUserId, name: conversation?.elderDisplayName || '妈妈', avatar: undefined }}
+            callState={callState}
+            duration={callDuration}
+            isIncoming={isIncomingCall}
+            isMuted={isMuted}
+            onAccept={handleAcceptCall}
+            onReject={handleRejectCall}
+            onHangup={handleHangupCall}
+            onToggleMute={(m) => setIsMuted(m)}
+          />
+        )}
+        {isCallActive && callType === 'video' && (
+          <VideoCall
+            remoteUser={{ id: otherUserId, name: conversation?.elderDisplayName || '妈妈', avatar: undefined }}
+            remoteStream={webrtcManager.getRemoteStream()}
+            localStream={webrtcManager.getLocalStream()}
+            callState={callState}
+            duration={callDuration}
+            isIncoming={isIncomingCall}
+            isMuted={isMuted}
+            isCameraOn={isCameraOn}
+            onAccept={handleAcceptCall}
+            onReject={handleRejectCall}
+            onHangup={handleHangupCall}
+            onToggleMute={(m) => setIsMuted(m)}
+            onToggleCamera={(c) => setIsCameraOn(c)}
+          />
+        )}
 
         {loading ? (
           <PageState

@@ -51,7 +51,7 @@ export function FamilyChatDetailPage() {
       otherUserId={userId!}
       otherUserName={conversation.elderDisplayName}
       otherUserAvatar={conversation.avatar}
-      isFamilyStyle={false}
+      isFamilyStyle={true}
     />
   )
 }
