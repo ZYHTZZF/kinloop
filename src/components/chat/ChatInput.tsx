@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef } from 'react'
 import styles from './ChatInput.module.css'
 
 interface ChatInputProps {
@@ -8,7 +8,6 @@ interface ChatInputProps {
   isFamilyStyle?: boolean
   presetMessages?: string[]
   disabled?: boolean
-  isRecording?: boolean
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({
@@ -17,8 +16,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   onSendImage,
   isFamilyStyle = false,
   presetMessages = [],
-  disabled = false,
-  isRecording = false
+  disabled = false
 }) => {
   const [message, setMessage] = useState('')
   const [isVoiceRecording, setIsVoiceRecording] = useState(false)

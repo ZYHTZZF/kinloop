@@ -110,7 +110,7 @@ export async function requestMicrophonePermission(): Promise<boolean> {
 export function isWebRTCSupported(): boolean {
   return !!(
     navigator.mediaDevices &&
-    navigator.mediaDevices.getUserMedia &&
+    'getUserMedia' in navigator.mediaDevices &&
     window.RTCPeerConnection
   )
 }
@@ -118,24 +118,17 @@ export function isWebRTCSupported(): boolean {
 /**
  * 检查浏览器是否支持特定的编解码器
  */
-export function isCodecSupported(codec: string): boolean {
+export async function isCodecSupported(codec: string): Promise<boolean> {
   const pc = new RTCPeerConnection()
-  const offer = pc.createOffer()
-
-  if (offer.then) {
-    return offer
-      .then((offer) => {
-        const sdp = offer.sdp || ''
-        pc.close()
-        return sdp.includes(codec)
-      })
-      .catch(() => {
-        pc.close()
-        return false
-      })
+  try {
+    const offer = await pc.createOffer()
+    const sdp = offer.sdp || ''
+    return sdp.includes(codec)
+  } catch {
+    return false
+  } finally {
+    pc.close()
   }
-
-  return false
 }
 
 /**
@@ -188,7 +181,7 @@ export async function getLocalIp(): Promise<string | null> {
   try {
     const pc = new RTCPeerConnection({ iceServers: [] })
     const offer = await pc.createOffer()
-    const sdp = offer.sdp
+    const sdp = offer.sdp ?? ''
 
     const ipRegex = /a=candidate:.*?([\d.]+)/
     const match = sdp.match(ipRegex)

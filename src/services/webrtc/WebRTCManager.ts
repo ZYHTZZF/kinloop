@@ -1,4 +1,4 @@
-import { ICallSignal, IIceCandidate } from '../api/types'
+import { ICallSignal } from '../api/types'
 
 export type CallType = 'voice' | 'video'
 export type CallState = 'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'
@@ -21,7 +21,7 @@ interface CallSession {
   endTime?: number
 }
 
-type EventCallback<T = any> = (data: T) => void
+type EventCallback<T = unknown> = (data: T) => void
 
 class WebRTCManager {
   private callSession: CallSession | null = null
@@ -439,7 +439,7 @@ class WebRTCManager {
   /**
    * 触发事件
    */
-  private emit(event: string, data: any): void {
+  private emit(event: string, data: unknown): void {
     const callbacks = this.eventListeners.get(event)
     if (callbacks) {
       callbacks.forEach((callback) => callback(data))

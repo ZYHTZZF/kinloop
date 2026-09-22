@@ -1,15 +1,12 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+﻿import React, { useEffect, useState, useRef } from 'react'
 import { IMessage, IConversation, MessageType, MessageStatus } from '../../services/api/types'
 import * as chatApi from '../../services/api/chatApi'
-import { messageStore } from '../../utils/storage'
 import { webrtcManager, CallType } from '../../services/webrtc/WebRTCManager'
 import { networkAdapter, QualityLevel } from '../../services/webrtc/NetworkAdapt'
 import ChatMessage from '../chat/ChatMessage'
 import ChatInput from '../chat/ChatInput'
-import ChatList from '../chat/ChatList'
 import VoiceCall from '../chat/VoiceCall'
 import VideoCall from '../chat/VideoCall'
-import { notifyIncomingCall } from '../../utils/notification'
 import styles from './ChatDetailView.module.css'
 
 interface ChatDetailViewProps {
@@ -41,12 +38,11 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
   const [networkQuality, setNetworkQuality] = useState<QualityLevel>('high')
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const callTimerRef = useRef<number>(0)
   const statsCheckIntervalRef = useRef<number>(0)
   const unsubscribeMessageRef = useRef<(() => void) | null>(null)
   const conversationIdRef = useRef(`${currentUserId}-${otherUserId}`)
 
-  // 初始化：加载历史消息和对话
+  // 鍒濆鍖栵細鍔犺浇鍘嗗彶娑堟伅鍜屽璇?
   useEffect(() => {
     const initializeChat = async () => {
       try {
@@ -57,12 +53,12 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
              console.error('Failed to init WS', e)
           }
         }
-        // 获取对话
+        // 鑾峰彇瀵硅瘽
         const conv = await chatApi.getConversation(currentUserId, otherUserId)
         if (conv) {
           setConversation(conv)
         } else {
-          // 创建新对话
+          // 鍒涘缓鏂板璇?
           const newConv: IConversation = {
             id: conversationIdRef.current,
             userId: currentUserId,
@@ -76,16 +72,16 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
           setConversation(newConv)
         }
 
-        // 加载消息
+        // 鍔犺浇娑堟伅
         const msgs = await chatApi.getMessages(conversationIdRef.current, 50)
         setMessages(msgs)
 
-        // 订阅新消息
+        // 璁㈤槄鏂版秷鎭?
         const unsubscribe = chatApi.onConversationMessage(
           conversationIdRef.current,
           (msg) => {
             setMessages((prev) => [...prev, msg])
-            // 更新对话最后消息
+            // 鏇存柊瀵硅瘽鏈€鍚庢秷鎭?
             if (conversation) {
               conversation.lastMessage = msg.content
               conversation.lastActivityAt = msg.timestamp
@@ -96,7 +92,7 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
 
         unsubscribeMessageRef.current = unsubscribe
 
-        // 标记为已读
+        // 鏍囪涓哄凡璇?
         const unreadMessages = msgs.filter((m) => m.senderId !== currentUserId && m.status !== MessageStatus.READ)
         if (unreadMessages.length > 0) {
           await chatApi.markMessagesAsRead(unreadMessages.map((m) => m.id))
@@ -115,12 +111,12 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
     }
   }, [currentUserId, otherUserId])
 
-  // 滚动到底部
+  // 婊氬姩鍒板簳閮?
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // 开始监测网络质量
+  // 寮€濮嬬洃娴嬬綉缁滆川閲?
   const startNetworkQualityMonitoring = () => {
     statsCheckIntervalRef.current = window.setInterval(async () => {
       const stats = await webrtcManager.getStats()
@@ -128,38 +124,37 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
         const networkStats = networkAdapter.analyzeStats(stats)
         const level = networkAdapter.getQualityLevel(networkStats)
         setNetworkQuality(level)
-
-        // 自动调整通话质量
-        const pc = (webrtcManager as any).callSession?.peerConnection
-        if (pc && level !== networkQuality) {
-          await networkAdapter.applyQuality(pc, level)
-        }
+        // Quality level is tracked for UI; transport adaptation can be wired later.
       }
     }, 5000)
   }
 
-  // 停止监测网络质量
+  // 鍋滄鐩戞祴缃戠粶璐ㄩ噺
   const stopNetworkQualityMonitoring = () => {
     if (statsCheckIntervalRef.current) {
       clearInterval(statsCheckIntervalRef.current)
     }
   }
 
-  // WebRTC 事件监听
+  // WebRTC 浜嬩欢鐩戝惉
   useEffect(() => {
-    // 绑定 WebRTC 信号层
+    // 缁戝畾 WebRTC 淇″彿灞?
     webrtcManager.setSignalingClient(async (signal) => {
       chatApi.sendWebrtcSignal({ ...signal, to: otherUserId, from: currentUserId })
     })
     
-    // 监听 WebSocket 收到的 WebRTC 信号
+    // 鐩戝惉 WebSocket 鏀跺埌鐨?WebRTC 淇″彿
     chatApi.setWebrtcSignalHandler(async (signal) => {
-      // 如果收到来自对方的 offer，说明有呼入来电
+      // 濡傛灉鏀跺埌鏉ヨ嚜瀵规柟鐨?offer锛岃鏄庢湁鍛煎叆鏉ョ數
       if (signal.type === 'offer') {
         setIsCallActive(true)
         setCallType(signal.callType || 'voice')
         setCallState('ringing')
         setIsIncomingCall(true)
+      } else if (signal.type === 'answer' && signal.data?.sdp) {
+        await webrtcManager.handleAnswer({ type: 'answer', sdp: signal.data.sdp } as RTCSessionDescription)
+      } else if (signal.type === 'ice-candidate' && signal.data) {
+        await webrtcManager.handleIceCandidate(new RTCIceCandidate(signal.data))
       } else if (signal.type === 'reject') {
         setIsCallActive(false)
         setCallState('idle')
@@ -168,14 +163,11 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
         setCallState('ended')
         setTimeout(() => setCallState('idle'), 500)
       }
-      
-      // 传递给底层的 WebRTC Manager 进行 ICE/SDP 处理
-      await webrtcManager.handleSignalingMessage(signal)
     })
 
     const unsubscribeConnected = webrtcManager.on('call-connected', () => {
       setCallState('connected')
-      // 开始监测网络质量
+      // 寮€濮嬬洃娴嬬綉缁滆川閲?
       startNetworkQualityMonitoring()
     })
 
@@ -193,7 +185,7 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
     }
   }, [])
 
-  // 发送消息
+  // 鍙戦€佹秷鎭?
   const handleSendMessage = async (text: string) => {
     try {
       await chatApi.sendMessage({
@@ -208,7 +200,7 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
     }
   }
 
-  // 发起语音通话
+  // 鍙戣捣璇煶閫氳瘽
   const handleInitiateVoiceCall = async () => {
     try {
       setIsCallActive(true)
@@ -224,7 +216,7 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
     }
   }
 
-  // 发起视频通话
+  // 鍙戣捣瑙嗛閫氳瘽
   const handleInitiateVideoCall = async () => {
     try {
       setIsCallActive(true)
@@ -240,17 +232,17 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
     }
   }
 
-  // 接听通话
+  // 鎺ュ惉閫氳瘽
   const handleAcceptCall = async () => {
     try {
       setCallState('connecting')
-      // 实现具体的接听逻辑
+      // 瀹炵幇鍏蜂綋鐨勬帴鍚€昏緫
     } catch (error) {
       console.error('[Chat] Failed to accept call:', error)
     }
   }
 
-  // 拒接通话
+  // 鎷掓帴閫氳瘽
   const handleRejectCall = async () => {
     try {
       await webrtcManager.rejectCall(currentUserId, otherUserId, 'call-id')
@@ -261,20 +253,20 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
     }
   }
 
-  // 挂断通话
+  // 鎸傛柇閫氳瘽
   const handleHangupCall = () => {
     webrtcManager.hangup()
     setIsCallActive(false)
     setCallState('ended')
   }
 
-  // 切换音频
+  // 鍒囨崲闊抽
   const handleToggleMute = (isMuted: boolean) => {
     setIsMuted(isMuted)
     webrtcManager.toggleAudio(!isMuted)
   }
 
-  // 切换摄像头
+  // 鍒囨崲鎽勫儚澶?
   const handleToggleCamera = (isCameraOn: boolean) => {
     setIsCameraOn(isCameraOn)
     webrtcManager.toggleVideo(isCameraOn)
@@ -282,7 +274,7 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
 
   return (
     <div className={`${styles.container} ${isFamilyStyle ? styles.familyStyle : styles.normalStyle}`}>
-      {/* 头部 */}
+      {/* 澶撮儴 */}
       <div className={styles.header}>
         <div className={styles.headerContent}>
           {otherUserAvatar && (
@@ -291,7 +283,7 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
           <div className={styles.headerInfo}>
             <h2 className={styles.userName}>{otherUserName}</h2>
             {networkQuality !== 'high' && (
-              <p className={styles.networkQuality}>网络: {networkQuality}</p>
+              <p className={styles.networkQuality}>缃戠粶: {networkQuality}</p>
             )}
           </div>
         </div>
@@ -300,21 +292,21 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
           <button
             onClick={handleInitiateVoiceCall}
             className={styles.callButton}
-            title="语音通话"
+            title="璇煶閫氳瘽"
           >
-            📞
+            馃摓
           </button>
           <button
             onClick={handleInitiateVideoCall}
             className={styles.callButton}
-            title="视频通话"
+            title="瑙嗛閫氳瘽"
           >
-            📹
+            馃摴
           </button>
         </div>
       </div>
 
-      {/* 消息列表 */}
+      {/* 娑堟伅鍒楄〃 */}
       <div className={styles.messagesContainer}>
         {messages.map((msg) => (
           <ChatMessage
@@ -329,14 +321,14 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 输入框 */}
+      {/* 杈撳叆妗?*/}
       <ChatInput
         onSendMessage={handleSendMessage}
         isFamilyStyle={isFamilyStyle}
         presetMessages={presetMessages}
       />
 
-      {/* 通话UI */}
+      {/* 閫氳瘽UI */}
       {isCallActive && callType === 'voice' && (
         <VoiceCall
           remoteUser={{ id: otherUserId, name: otherUserName, avatar: otherUserAvatar }}
@@ -375,3 +367,5 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
 }
 
 export default ChatDetailView
+
+

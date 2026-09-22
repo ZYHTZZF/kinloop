@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * 火山引擎 API 集成服务
  * 用于语音、视频处理等服务

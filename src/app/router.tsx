@@ -11,7 +11,6 @@ import { FamilyChatsPage } from '../pages/family/FamilyChatsPage'
 import { FamilyConversationPage } from '../pages/family/FamilyConversationPage'
 import { FamilyMemoriesPage } from '../pages/family/FamilyMemoriesPage'
 import { FamilyCollaborationPage } from '../pages/family/FamilyCollaborationPage'
-import FamilyChatDetailPage from '../pages/family/FamilyChatDetailPage'
 import ElderChatDetailPage from '../pages/elder/ElderChatDetailPage'
 
 export const router = createBrowserRouter([

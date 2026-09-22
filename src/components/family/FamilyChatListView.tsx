@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IConversation } from '../../services/api/types'
 import * as chatApi from '../../services/api/chatApi'
@@ -15,7 +15,7 @@ const FamilyChatListView: React.FC<FamilyChatListViewProps> = ({ currentUserId }
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // 加载对话列表
+  // 鍔犺浇瀵硅瘽鍒楄〃
   useEffect(() => {
     const loadConversations = async () => {
       try {
@@ -31,12 +31,12 @@ const FamilyChatListView: React.FC<FamilyChatListViewProps> = ({ currentUserId }
 
     loadConversations()
 
-    // 定期刷新
+    // 瀹氭湡鍒锋柊
     const interval = setInterval(loadConversations, 10000)
     return () => clearInterval(interval)
   }, [currentUserId])
 
-  // 选择会话
+  // 閫夋嫨浼氳瘽
   const handleSelectConversation = (conversationId: string) => {
     const conv = conversations.find((c) => c.id === conversationId)
     if (conv) {
@@ -45,7 +45,7 @@ const FamilyChatListView: React.FC<FamilyChatListViewProps> = ({ currentUserId }
     }
   }
 
-  // 删除会话
+  // 鍒犻櫎浼氳瘽
   const handleDeleteConversation = async (conversationId: string) => {
     try {
       const conv = conversations.find((c) => c.id === conversationId)
@@ -60,16 +60,11 @@ const FamilyChatListView: React.FC<FamilyChatListViewProps> = ({ currentUserId }
     }
   }
 
-  // 搜索对话
-  const handleSearch = (query: string) => {
-    // 搜索逻辑由 ChatList 组件处理
-  }
-
   return (
     <div className={styles.container}>
       {isLoading ? (
         <div className={styles.loadingState}>
-          <p>加载中...</p>
+          <p>鍔犺浇涓?..</p>
         </div>
       ) : (
         <ChatList
@@ -79,7 +74,6 @@ const FamilyChatListView: React.FC<FamilyChatListViewProps> = ({ currentUserId }
           onDelete={handleDeleteConversation}
           isFamilyStyle={false}
           showSearch={true}
-          onSearch={handleSearch}
         />
       )}
     </div>
@@ -87,3 +81,4 @@ const FamilyChatListView: React.FC<FamilyChatListViewProps> = ({ currentUserId }
 }
 
 export default FamilyChatListView
+

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export type FamilySpace = {
   id: string
   name: string
@@ -226,7 +227,7 @@ export interface IIncomingCall {
 }
 
 export interface INotificationOptions {
-  title: string
+  title?: string
   tag?: string
   icon?: string
   badge?: string

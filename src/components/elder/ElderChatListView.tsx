@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { IConversation } from '../../services/api/types'
 import * as chatApi from '../../services/api/chatApi'
 import ChatList from '../chat/ChatList'
-import { PRESET_MESSAGES_ELDER } from '../../domain/content/chatPrompts'
 import styles from './ElderChatListView.module.css'
 
 interface ElderChatListViewProps {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { IMessage, IConversation, MessageStatus, MessageType } from './types'
 import { messageStore } from '../../utils/storage'
 
@@ -18,8 +19,8 @@ interface WebSocketMessage {
 }
 
 let wsClient: WebSocket | null = null
-let messageHandlers: Map<string, (msg: IMessage) => void> = new Map()
-let statusHandlers: Map<string, (status: string) => void> = new Map()
+const messageHandlers: Map<string, (msg: IMessage) => void> = new Map()
+const statusHandlers: Map<string, (status: string) => void> = new Map()
 
 // WebRTC Signaling Handler
 let webrtcSignalHandler: ((signal: any) => void) | null = null
@@ -96,7 +97,7 @@ async function handleWebSocketMessage(data: any): Promise<void> {
       handler(msg)
     }
   } else if (type === 'message-status') {
-    const { messageId, status, conversationId } = msgData
+    const { messageId, status } = msgData
     const handler = statusHandlers.get(messageId)
     if (handler) {
       handler(status)

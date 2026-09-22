@@ -4,7 +4,7 @@ import styles from './VoiceCall.module.css'
 
 interface VoiceCallProps {
   remoteUser: { id: string; name: string; avatar?: string }
-  callState: 'ringing' | 'connecting' | 'connected' | 'ended'
+  callState: 'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'
   duration: number
   isIncoming: boolean
   isMuted: boolean

@@ -40,7 +40,7 @@ const QUALITY_PRESETS: Record<QualityLevel, VideoQualityPreset> = {
 }
 
 class NetworkAdapter {
-  private previousStats: Map<string, RTCSentRtpStreamStats | RTCRecvRtpStreamStats> = new Map()
+  private previousStats: Map<string, RTCSentRtpStreamStats | RTCReceivedRtpStreamStats> = new Map()
   private qualityLevel: QualityLevel = 'high'
 
   /**
@@ -51,21 +51,21 @@ class NetworkAdapter {
     let rtt = 0
     let bandwidth = 1000000000 // 初始值：假设无限带宽
     let jitter = 0
-    let statCount = 0
 
     stats.forEach((report) => {
       // 处理发送流统计
       if (
         report.type === 'inbound-rtp' &&
-        (report as RTCRecvRtpStreamStats).kind === 'video'
+        (report as RTCReceivedRtpStreamStats).kind === 'video'
       ) {
-        const inboundStats = report as RTCRecvRtpStreamStats
+        const inboundStats = report as RTCReceivedRtpStreamStats
         const previousStats = this.previousStats.get(report.id)
 
         if (previousStats && 'bytesReceived' in previousStats) {
-          const prev = previousStats as RTCRecvRtpStreamStats
+          const prev = previousStats as RTCInboundRtpStreamStats
+          const current = inboundStats as RTCInboundRtpStreamStats
           const bytesDelta =
-            (inboundStats.bytesReceived || 0) - (prev.bytesReceived || 0)
+            (current.bytesReceived || 0) - (prev.bytesReceived || 0)
           const timeDelta =
             ((inboundStats.timestamp as number) - (prev.timestamp as number)) /
             1000 // Convert to seconds
@@ -88,13 +88,12 @@ class NetworkAdapter {
         jitter = inboundStats.jitter || 0
 
         this.previousStats.set(report.id, inboundStats)
-        statCount++
       }
 
       // 处理接收流统计
       if (
         report.type === 'outbound-rtp' &&
-        (report as RTCRecvRtpStreamStats).kind === 'video'
+        (report as RTCSentRtpStreamStats).kind === 'video'
       ) {
         const outboundStats = report as RTCSentRtpStreamStats
         const previousStats = this.previousStats.get(report.id)
@@ -115,12 +114,11 @@ class NetworkAdapter {
         }
 
         this.previousStats.set(report.id, outboundStats)
-        statCount++
       }
 
       // 获取 RTT
       if (report.type === 'candidate-pair' && (report as RTCIceCandidatePairStats).state === 'succeeded') {
-        rtt = (report as RTCIceCandidatePairStats).currentRoundTripTime * 1000 || 0
+        rtt = ((report as RTCIceCandidatePairStats).currentRoundTripTime ?? 0) * 1000
       }
     })
 
@@ -186,8 +184,9 @@ class NetworkAdapter {
 
           // 更新编码参数
           if (params.encodings) {
+            const baseEncoding = params.encodings[0] ?? {}
             params.encodings[0] = {
-              ...params.encodings[0],
+              ...baseEncoding,
               maxBitrate: preset.bitrate,
               maxFramerate: preset.frameRate,
               scaleResolutionDownBy: this.calculateScaleResolution(preset)

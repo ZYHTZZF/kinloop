@@ -6,7 +6,7 @@ interface VideoCallProps {
   remoteUser: { id: string; name: string; avatar?: string }
   remoteStream: MediaStream | null
   localStream: MediaStream | null
-  callState: 'ringing' | 'connecting' | 'connected' | 'ended'
+  callState: 'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'
   duration: number
   isIncoming: boolean
   isMuted: boolean
