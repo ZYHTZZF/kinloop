@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react'
+﻿import React, { useEffect, useRef, useState } from 'react'
 import { formatCallDuration } from '../../utils/webrtc'
+import FloatingCallWindow from './FloatingCallWindow'
 import styles from './VideoCall.module.css'
 
 interface VideoCallProps {
@@ -35,20 +36,20 @@ const VideoCall: React.FC<VideoCallProps> = ({
   onToggleMute,
   onToggleCamera,
   onSwitchDevice,
-  isFamilyStyle = false
 }) => {
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const [displayDuration, setDisplayDuration] = useState(0)
 
-  // 处理远程视频流
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream
-    }
-  }, [remoteStream])
+  // Demo phase: if no remote stream, mirror local camera for "other side".
+  const demoRemoteStream = remoteStream ?? localStream
 
-  // 处理本地视频流
+  useEffect(() => {
+    if (remoteVideoRef.current && demoRemoteStream) {
+      remoteVideoRef.current.srcObject = demoRemoteStream
+    }
+  }, [demoRemoteStream])
+
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream
@@ -56,149 +57,80 @@ const VideoCall: React.FC<VideoCallProps> = ({
     }
   }, [localStream])
 
-  // 更新通话时长
   useEffect(() => {
-    if (callState === 'connected') {
-      const interval = setInterval(() => {
-        setDisplayDuration((prev) => prev + 1000)
-      }, 1000)
-      return () => clearInterval(interval)
-    }
+    if (callState !== 'connected') return
+    const interval = setInterval(() => {
+      setDisplayDuration((prev) => prev + 1000)
+    }, 1000)
+    return () => clearInterval(interval)
   }, [callState])
 
   useEffect(() => {
     setDisplayDuration(duration)
   }, [duration])
 
-  const containerClasses = [
-    styles.container,
-    isFamilyStyle ? styles.familyStyle : styles.normalStyle,
-    callState === 'ended' ? styles.hidden : ''
-  ]
-    .filter(Boolean)
-    .join(' ')
+  if (callState === 'idle' || callState === 'ended') return null
 
-  // Incoming call 界面
-  if (isIncoming && (callState === 'ringing' || callState === 'connecting')) {
-    return (
-      <div className={containerClasses}>
-        <div className={styles.content}>
-          <div className={styles.incomingHeader}>
-            {callState === 'ringing' && <div className={styles.ringingAnimation} />}
-            <h2 className={styles.callerName}>{remoteUser.name}</h2>
-            <p className={styles.status}>
-              {callState === 'ringing' ? '来视频通话...' : '连接中...'}
-            </p>
-          </div>
+  const statusText =
+    callState === 'ringing'
+      ? isIncoming
+        ? '视频来电'
+        : '发起视频中'
+      : callState === 'connecting'
+        ? '视频连接中'
+        : `视频通话中 · ${formatCallDuration(displayDuration)}`
 
-          {remoteUser.avatar && (
-            <img
-              src={remoteUser.avatar}
-              alt={remoteUser.name}
-              className={styles.avatar}
-            />
-          )}
+  return (
+    <FloatingCallWindow title={`${remoteUser.name} · 视频通话`} status={statusText} width={380}>
+      <div className={styles.wrap}>
+        <div className={styles.stage}>
+          <video ref={remoteVideoRef} className={styles.remoteVideo} autoPlay playsInline />
+          <span className={styles.label}>对方（演示）</span>
 
-          <div className={styles.incomingActions}>
-            <button
-              className={styles.rejectButton}
-              onClick={onReject}
-              title="拒接"
-            >
-              ❌
-            </button>
-            <button
-              className={styles.acceptButton}
-              onClick={onAccept}
-              title="接听"
-            >
-              📹
-            </button>
+          <div className={styles.localWrap}>
+            <video ref={localVideoRef} className={styles.localVideo} autoPlay playsInline muted />
+            <span className={`${styles.label} ${styles.localLabel}`}>我</span>
           </div>
         </div>
-      </div>
-    )
-  }
 
-  // Connected 视频通话界面
-  if (callState === 'connected' || callState === 'connecting') {
-    return (
-      <div className={containerClasses}>
-        <div className={styles.videoContainer}>
-          {/* 远程视频（主显示） */}
-          <video
-            ref={remoteVideoRef}
-            className={styles.remoteVideo}
-            autoPlay
-            playsInline
-          />
-
-          {/* 本地视频（小窗） */}
-          <div className={styles.localVideoWrapper}>
-            <video
-              ref={localVideoRef}
-              className={styles.localVideo}
-              autoPlay
-              playsInline
-              muted
-            />
+        {isIncoming && (callState === 'ringing' || callState === 'connecting') ? (
+          <div className={styles.controls}>
+            <button className={`${styles.btn} ${styles.danger}`} onClick={onReject} title="拒接">
+              拒接
+            </button>
+            <button className={`${styles.btn} ${styles.accept}`} onClick={onAccept} title="接听">
+              接听
+            </button>
           </div>
-
-          {/* 控制栏 */}
-          <div className={styles.controlBar}>
-            <div className={styles.callInfo}>
-              <h3 className={styles.callerName}>{remoteUser.name}</h3>
-              <p className={styles.duration}>
-                {formatCallDuration(displayDuration)}
-              </p>
-            </div>
-
-            <div className={styles.controls}>
-              <button
-                className={`${styles.controlButton} ${
-                  isMuted ? styles.active : ''
-                }`}
-                onClick={() => onToggleMute(!isMuted)}
-                title={isMuted ? '打开麦克风' : '切静音'}
-              >
-                {isMuted ? '🔇' : '🔊'}
+        ) : (
+          <div className={styles.controls}>
+            <button
+              className={`${styles.btn} ${styles.normal} ${isMuted ? styles.active : ''}`}
+              onClick={() => onToggleMute(!isMuted)}
+              title={isMuted ? '开麦' : '静音'}
+            >
+              {isMuted ? '开麦' : '静音'}
+            </button>
+            <button
+              className={`${styles.btn} ${styles.normal} ${!isCameraOn ? styles.active : ''}`}
+              onClick={() => onToggleCamera(!isCameraOn)}
+              title={isCameraOn ? '关摄像头' : '开摄像头'}
+            >
+              {isCameraOn ? '关摄像头' : '开摄像头'}
+            </button>
+            {onSwitchDevice ? (
+              <button className={`${styles.btn} ${styles.normal}`} onClick={onSwitchDevice} title="切换设备">
+                切换
               </button>
-
-              <button
-                className={`${styles.controlButton} ${
-                  !isCameraOn ? styles.active : ''
-                }`}
-                onClick={() => onToggleCamera(!isCameraOn)}
-                title={isCameraOn ? '关闭摄像头' : '打开摄像头'}
-              >
-                {isCameraOn ? '📹' : '📵'}
-              </button>
-
-              {onSwitchDevice && (
-                <button
-                  className={styles.controlButton}
-                  onClick={onSwitchDevice}
-                  title="切换摄像头"
-                >
-                  🔄
-                </button>
-              )}
-
-              <button
-                className={styles.hangupButton}
-                onClick={onHangup}
-                title="挂断"
-              >
-                ❌
-              </button>
-            </div>
+            ) : null}
+            <button className={`${styles.btn} ${styles.danger}`} onClick={onHangup} title="挂断">
+              挂断
+            </button>
           </div>
-        </div>
+        )}
       </div>
-    )
-  }
-
-  return null
+    </FloatingCallWindow>
+  )
 }
 
 export default VideoCall

@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { formatCallDuration } from '../../utils/webrtc'
+import FloatingCallWindow from './FloatingCallWindow'
 import styles from './VoiceCall.module.css'
 
 interface VoiceCallProps {
@@ -27,139 +28,83 @@ const VoiceCall: React.FC<VoiceCallProps> = ({
   onHangup,
   onToggleMute,
   onToggleSpeaker,
-  isFamilyStyle = false
 }) => {
   const [isSpeaker, setIsSpeaker] = useState(false)
   const [displayDuration, setDisplayDuration] = useState(0)
 
   useEffect(() => {
-    if (callState === 'connected') {
-      const interval = setInterval(() => {
-        setDisplayDuration((prev) => prev + 1000)
-      }, 1000)
-      return () => clearInterval(interval)
-    }
+    if (callState !== 'connected') return
+    const interval = setInterval(() => {
+      setDisplayDuration((prev) => prev + 1000)
+    }, 1000)
+    return () => clearInterval(interval)
   }, [callState])
 
   useEffect(() => {
     setDisplayDuration(duration)
   }, [duration])
 
+  if (callState === 'idle' || callState === 'ended') return null
+
+  const statusText =
+    callState === 'ringing'
+      ? isIncoming
+        ? '来电中'
+        : '呼叫中'
+      : callState === 'connecting'
+        ? '连接中'
+        : '通话中'
+
   const handleToggleSpeaker = () => {
-    const newState = !isSpeaker
-    setIsSpeaker(newState)
-    if (onToggleSpeaker) {
-      onToggleSpeaker(newState)
-    }
+    const next = !isSpeaker
+    setIsSpeaker(next)
+    onToggleSpeaker?.(next)
   }
 
-  const containerClasses = [
-    styles.container,
-    isFamilyStyle ? styles.familyStyle : styles.normalStyle,
-    callState === 'ended' ? styles.hidden : ''
-  ]
-    .filter(Boolean)
-    .join(' ')
-
-  // Incoming call 界面
-  if (isIncoming && (callState === 'ringing' || callState === 'connecting')) {
-    return (
-      <div className={containerClasses}>
-        <div className={styles.content}>
-          <div className={styles.incomingHeader}>
-            {callState === 'ringing' && <div className={styles.ringingAnimation} />}
-            <h2 className={styles.callerName}>{remoteUser.name}</h2>
-            <p className={styles.status}>
-              {callState === 'ringing' ? '来电中...' : '连接中...'}
-            </p>
-          </div>
-
-          {remoteUser.avatar && (
-            <img
-              src={remoteUser.avatar}
-              alt={remoteUser.name}
-              className={styles.avatar}
-            />
-          )}
-
-          <div className={styles.incomingActions}>
-            <button
-              className={styles.rejectButton}
-              onClick={onReject}
-              title="拒接"
-            >
-              ❌
-            </button>
-            <button
-              className={styles.acceptButton}
-              onClick={onAccept}
-              title="接听"
-            >
-              📞
-            </button>
+  return (
+    <FloatingCallWindow title={`${remoteUser.name} · 语音通话`} status={statusText} width={320}>
+      <div className={styles.wrap}>
+        <div className={styles.identity}>
+          {remoteUser.avatar ? <img src={remoteUser.avatar} alt={remoteUser.name} className={styles.avatar} /> : null}
+          <div>
+            <p className={styles.name}>{remoteUser.name}</p>
+            <p className={styles.duration}>{formatCallDuration(displayDuration)}</p>
           </div>
         </div>
-      </div>
-    )
-  }
 
-  // Connected 通话界面
-  if (callState === 'connected' || callState === 'connecting') {
-    return (
-      <div className={containerClasses}>
-        <div className={styles.content}>
-          <div className={styles.callHeader}>
-            <h2 className={styles.callerName}>{remoteUser.name}</h2>
-            <p className={styles.duration}>
-              {formatCallDuration(displayDuration)}
-            </p>
+        {isIncoming && (callState === 'ringing' || callState === 'connecting') ? (
+          <div className={styles.actions}>
+            <button className={`${styles.btn} ${styles.reject}`} onClick={onReject} title="拒接">
+              拒接
+            </button>
+            <button className={`${styles.btn} ${styles.accept}`} onClick={onAccept} title="接听">
+              接听
+            </button>
           </div>
-
-          {remoteUser.avatar && (
-            <img
-              src={remoteUser.avatar}
-              alt={remoteUser.name}
-              className={styles.largeAvatar}
-            />
-          )}
-
-          <div className={styles.controls}>
+        ) : (
+          <div className={styles.actions}>
             <button
-              className={`${styles.controlButton} ${
-                isMuted ? styles.active : ''
-              }`}
+              className={`${styles.btn} ${styles.mute} ${isMuted ? styles.active : ''}`}
               onClick={() => onToggleMute(!isMuted)}
-              title={isMuted ? '打开麦克风' : '切静音'}
+              title={isMuted ? '开麦' : '静音'}
             >
-              {isMuted ? '🔇' : '🔊'}
+              {isMuted ? '开麦' : '静音'}
             </button>
 
-            {onToggleSpeaker && (
-              <button
-                className={`${styles.controlButton} ${
-                  isSpeaker ? styles.active : ''
-                }`}
-                onClick={handleToggleSpeaker}
-                title={isSpeaker ? '关闭扬声器' : '扬声器'}
-              >
-                {isSpeaker ? '📢' : '📞'}
+            {onToggleSpeaker ? (
+              <button className={`${styles.btn} ${styles.mute}`} onClick={handleToggleSpeaker} title="扬声器">
+                {isSpeaker ? '听筒' : '扬声器'}
               </button>
-            )}
+            ) : null}
 
-            <button
-              className={styles.hangupButton}
-              onClick={onHangup}
-              title="挂断"
-            >
-              ❌
+            <button className={`${styles.btn} ${styles.reject}`} onClick={onHangup} title="挂断">
+              挂断
             </button>
           </div>
-        </div>
+        )}
       </div>
-    )
-  }
-
-  return null
+    </FloatingCallWindow>
+  )
 }
 
 export default VoiceCall
