@@ -11,6 +11,8 @@ import * as chatApi from '../../services/api/chatApi'
 import VoiceCall from '../../components/chat/VoiceCall'
 import VideoCall from '../../components/chat/VideoCall'
 
+const STATIC_EMOJIS = ['😀', '😁', '😂', '🤣', '😊', '😍', '😘', '😎', '🥳', '😭', '😡', '👍', '👏', '🙏', '❤️', '🎉']
+
 export function FamilyConversationPage() {
   const { conversationId = 'daughter', userId } = useParams()
   const targetId = userId || conversationId
@@ -18,6 +20,7 @@ export function FamilyConversationPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [composerText, setComposerText] = useState('')
+  const [showEmojiPanel, setShowEmojiPanel] = useState(false)
   const [sending, setSending] = useState(false)
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
@@ -287,6 +290,25 @@ export function FamilyConversationPage() {
           ))}
         </div>
 
+        {showEmojiPanel ? (
+          <div className="composer-card" style={{ marginBottom: '10px' }}>
+            <p className="surface-card__eyebrow">静态表情</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px' }}>
+              {STATIC_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className="ghost-action"
+                  style={{ fontSize: '20px', padding: '6px 0' }}
+                  onClick={() => handlePickEmoji(emoji)}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <form className="composer-card" onSubmit={handleSubmit}>
           <input
             aria-label="Input message"
@@ -295,6 +317,9 @@ export function FamilyConversationPage() {
             onChange={(event) => setComposerText(event.target.value)}
           />
           <div className="inline-actions">
+            <button className="ghost-action" type="button" onClick={() => setShowEmojiPanel((prev) => !prev)}>
+              😀
+            </button>
             <button className="primary-action" type="submit" disabled={sending || !composerText.trim()}>
               {sending ? 'Sending...' : 'Send'}
             </button>
@@ -355,6 +380,10 @@ export function FamilyConversationPage() {
     } finally {
       setSavingMemoryId(null)
     }
+  }
+
+  function handlePickEmoji(emoji: string) {
+    setComposerText((prev) => `${prev}${emoji}`)
   }
 }
 

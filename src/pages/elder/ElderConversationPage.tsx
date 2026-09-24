@@ -12,6 +12,8 @@ import * as chatApi from '../../services/api/chatApi'
 import VoiceCall from '../../components/chat/VoiceCall'
 import VideoCall from '../../components/chat/VideoCall'
 
+const STATIC_EMOJIS = ['😀', '😁', '😂', '🤣', '😊', '😍', '😘', '😎', '🥳', '😭', '😡', '👍', '👏', '🙏', '❤️', '🎉']
+
 export function ElderConversationPage() {
   const location = useLocation()
   const { conversationId = 'daughter' } = useParams()
@@ -22,6 +24,7 @@ export function ElderConversationPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [draftText, setDraftText] = useState(prefillDraft || 'How are you today?')
+  const [showEmojiPanel, setShowEmojiPanel] = useState(false)
   const [sending, setSending] = useState(false)
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
@@ -320,7 +323,25 @@ export function ElderConversationPage() {
               value={draftText}
               onChange={(event) => setDraftText(event.target.value)}
             />
+            {showEmojiPanel ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px' }}>
+                {STATIC_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className="ghost-action"
+                    style={{ fontSize: '20px', padding: '6px 0' }}
+                    onClick={() => handlePickEmoji(emoji)}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="inline-actions">
+              <button className="ghost-action" type="button" onClick={() => setShowEmojiPanel((prev) => !prev)}>
+                😀
+              </button>
               <button
                 className="ghost-action"
                 type="button"
@@ -415,6 +436,10 @@ export function ElderConversationPage() {
     } finally {
       setSavingAiMemory(false)
     }
+  }
+
+  function handlePickEmoji(emoji: string) {
+    setDraftText((prev) => `${prev}${emoji}`)
   }
 }
 
