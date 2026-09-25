@@ -10,6 +10,8 @@ import { listMembers } from './repositories/memberRepository.mjs'
 import { createMemoryEntry, listMemories } from './repositories/memoryRepository.mjs'
 import { listPermissionPolicies } from './repositories/permissionPolicyRepository.mjs'
 import { listPulseHistory, listTodayPulses } from './repositories/pulseRepository.mjs'
+import { registerAiIntentRoutes } from './routes/aiIntentRoutes.mjs'
+import { registerAsrRoutes } from './routes/asrRoutes.mjs'
 import { registerVolcanoRoutes } from './routes/volcanoRoutes.mjs'
 
 getDatabase()
@@ -131,6 +133,9 @@ app.post('/api/invites', (request, response) => {
 app.patch('/api/invites/:inviteId/approve', (request, response) => {
   response.json(approveInviteCode(request.params.inviteId, request.body.approvedMemberId))
 })
+
+registerAiIntentRoutes(app)
+registerAsrRoutes(app)
 
 // 注册火山引擎 API 路由
 registerVolcanoRoutes(app)

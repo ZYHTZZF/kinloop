@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { classifyElderSpeech, type ElderVoiceIntentResult } from '../../domain/elderVoice'
 import { createAlert, createMemoryEntry, listConversationCards, listMembers } from '../../services/api'
@@ -24,32 +24,35 @@ export function ElderVoiceAssistant() {
   const [result, setResult] = useState<ElderVoiceIntentResult | null>(null)
   const [feedback, setFeedback] = useState('')
   const [error, setError] = useState('')
-  const [isHolding, setIsHolding] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const shouldTranscribeOnStopRef = useRef(false)
+  const micReadyRef = useRef(false)
 
   useEffect(() => {
     void loadDirectory()
   }, [])
 
   useEffect(() => {
+    stopRecording(false)
     setFeedback('')
     setError('')
     setResult(null)
     setOpen(false)
     setStage('idle')
     setSpokenText('')
+    setIsRecording(false)
   }, [location.pathname])
 
   return (
     <>
       <button
-        className={`global-voice-button${isHolding ? ' is-holding' : ''}`}
+        className={`global-voice-button${isRecording ? ' is-holding' : ''}`}
         type="button"
         aria-label={resolveButtonLabel(stage)}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerCancel}
-        onPointerCancel={handlePointerCancel}
-        onClick={handleClick}
+        onClick={() => void handleVoiceToggle()}
       >
         <span className="global-voice-button__mic">🎤</span>
         <span>{resolveButtonLabel(stage)}</span>
@@ -66,6 +69,7 @@ export function ElderVoiceAssistant() {
               关闭
             </button>
           </div>
+          {error ? <p className="state-note state-note--error">{error}</p> : null}
 
           {stage === 'transcribing' ? (
             <>
@@ -91,7 +95,7 @@ export function ElderVoiceAssistant() {
               </div>
               <div className="inline-actions">
                 <button className="ghost-action" type="button" onClick={resetAssistant}>
-                  重新按住
+                  重新录音
                 </button>
                 <button
                   className="primary-action"
@@ -124,8 +128,6 @@ export function ElderVoiceAssistant() {
                 {result.urgencyLevel !== 'none' ? <span className="status-pill">等级 {toUrgencyLabel(result.urgencyLevel)}</span> : null}
               </div>
 
-              {error ? <p className="state-note state-note--error">{error}</p> : null}
-
               <div className="inline-actions">
                 {showConfirmAction(result, stage) ? (
                   <button className="primary-action" type="button" onClick={() => void executeIntent(result)}>
@@ -154,38 +156,37 @@ export function ElderVoiceAssistant() {
     }
   }
 
-  function handlePointerDown() {
-    setIsHolding(true)
-    setStage('recording')
-    setOpen(true)
-    setFeedback('')
-    setError('')
-  }
+  async function handleVoiceToggle() {
+    if (stage === 'classifying' || stage === 'acting') return
 
-  function handlePointerUp() {
-    if (!isHolding) return
-    setIsHolding(false)
-    setStage('transcribing')
-    if (!spokenText.trim()) {
-      setSpokenText(examplePrompts[Math.floor(Math.random() * examplePrompts.length)] ?? '')
+    if (isRecording) {
+      stopRecording(true)
+      setIsRecording(false)
+      setStage('transcribing')
+      return
     }
-  }
 
-  function handlePointerCancel() {
-    if (!isHolding) return
-    setIsHolding(false)
-    setOpen(true)
-    setStage('transcribing')
-    if (!spokenText.trim()) {
-      setSpokenText(examplePrompts[Math.floor(Math.random() * examplePrompts.length)] ?? '')
-    }
-  }
-
-  function handleClick() {
-    if (stage === 'idle') {
+    const micReady = await ensureMicrophoneReady()
+    if (!micReady) {
       setOpen(true)
       setStage('transcribing')
+      return
     }
+
+    const started = await startRecording()
+    if (!started) {
+      setOpen(true)
+      setStage('transcribing')
+      return
+    }
+
+    setIsRecording(true)
+    setOpen(true)
+    setStage('recording')
+    setFeedback('')
+    setError('')
+    setResult(null)
+    setSpokenText('')
   }
 
   async function handleInterpret() {
@@ -296,29 +297,172 @@ export function ElderVoiceAssistant() {
   }
 
   function resetAssistant() {
+    stopRecording(false)
     setOpen(false)
     setStage('idle')
     setSpokenText('')
     setResult(null)
     setFeedback('')
     setError('')
-    setIsHolding(false)
+    setIsRecording(false)
+  }
+
+  async function startRecording() {
+    if (typeof MediaRecorder === 'undefined') {
+      setError('当前浏览器不支持录音，请使用 Chrome 或 Edge')
+      return false
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStreamRef.current = stream
+      audioChunksRef.current = []
+      shouldTranscribeOnStopRef.current = true
+
+      const preferredMimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+        ? 'audio/ogg;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm'
+
+      let recorder: MediaRecorder
+      try {
+        recorder = new MediaRecorder(stream, { mimeType: preferredMimeType })
+      } catch {
+        recorder = new MediaRecorder(stream)
+      }
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+      recorder.onerror = () => {
+        setError('录音失败，请检查麦克风权限和输入设备')
+      }
+      recorder.onstop = () => {
+        const shouldTranscribe = shouldTranscribeOnStopRef.current
+        stopStreamTracks()
+        setIsRecording(false)
+        setStage((prev) => (prev === 'recording' ? 'transcribing' : prev))
+        if (shouldTranscribe) {
+          void transcribeRecordedAudio(recorder.mimeType)
+        } else {
+          audioChunksRef.current = []
+        }
+      }
+      recorder.start(250)
+      mediaRecorderRef.current = recorder
+      setError('')
+      return true
+    } catch (recordError) {
+      setError(recordError instanceof Error ? recordError.message : '录音启动失败')
+      return false
+    }
+  }
+
+  function stopRecording(shouldTranscribe: boolean) {
+    shouldTranscribeOnStopRef.current = shouldTranscribe
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.requestData()
+        mediaRecorderRef.current.stop()
+      } else {
+        stopStreamTracks()
+      }
+    } catch {
+      // noop
+    }
+    mediaRecorderRef.current = null
+  }
+
+  function stopStreamTracks() {
+    if (!mediaStreamRef.current) return
+    mediaStreamRef.current.getTracks().forEach((track) => track.stop())
+    mediaStreamRef.current = null
+  }
+
+  async function transcribeRecordedAudio(mimeType: string) {
+    try {
+      const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' })
+      audioChunksRef.current = []
+      if (audioBlob.size <= 0) {
+        setError('未采集到有效声音，请靠近麦克风后再试')
+        return
+      }
+
+      const audioBase64 = await blobToBase64(audioBlob)
+      const response = await fetch('/api/asr/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audioBase64,
+          mimeType: audioBlob.type || 'audio/webm',
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: '转写服务不可用' }))
+        throw new Error(String(payload?.error ?? '转写失败'))
+      }
+
+      const payload = await response.json() as { text?: string }
+      const text = String(payload.text ?? '').trim()
+      if (!text) {
+        setError('未识别到有效语音，请再说一次')
+        return
+      }
+      setSpokenText(text)
+      setError('')
+    } catch (transcribeError) {
+      setError(transcribeError instanceof Error ? transcribeError.message : '语音转写失败')
+    }
+  }
+
+  async function ensureMicrophoneReady() {
+    if (micReadyRef.current) return true
+
+    const host = window.location.hostname
+    if (!window.isSecureContext && host !== 'localhost' && host !== '127.0.0.1') {
+      setError('需要 HTTPS 或 localhost 才能使用麦克风')
+      return false
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('当前浏览器不支持麦克风能力')
+      return false
+    }
+
+    try {
+      const permissionApi = navigator.permissions as Permissions | undefined
+      if (permissionApi?.query) {
+        const status = await permissionApi.query({ name: 'microphone' as PermissionName })
+        if (status.state === 'denied') {
+          setError('麦克风权限已被阻止，请在地址栏的小锁图标里改为允许')
+          return false
+        }
+      }
+    } catch {
+      // ignore compatibility issue
+    }
+
+    micReadyRef.current = true
+    return true
   }
 }
 
 function resolveButtonLabel(stage: AssistantStage) {
-  if (stage === 'recording') return '正在听'
+  if (stage === 'recording') return '点击结束说话'
   if (stage === 'classifying') return '正在理解'
   if (stage === 'acting') return '正在分配'
-  return '按住说话'
+  return '点击开始说话'
 }
 
 function resolveSheetTitle(stage: AssistantStage, result: ElderVoiceIntentResult | null) {
-  if (stage === 'recording') return '松开后，我先替你记下这句话'
+  if (stage === 'recording') return '说完后再点一次，我先替你记下这句话'
   if (stage === 'transcribing') return '看看这句话对不对'
   if (stage === 'classifying') return '我在帮你判断该走哪条路'
   if (stage === 'acting') return '我在帮你把事情接下去'
-  return result?.promptTitle ?? '按住下面的话筒，说出你想说的话'
+  return result?.promptTitle ?? '点下面的话筒，说出你想说的话'
 }
 
 function showConfirmAction(result: ElderVoiceIntentResult, stage: AssistantStage) {
@@ -338,3 +482,21 @@ function toUrgencyLabel(level: ElderVoiceIntentResult['urgencyLevel']) {
 function delay(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
+
+async function blobToBase64(blob: Blob) {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('无法读取录音内容'))
+        return
+      }
+      const commaIndex = reader.result.indexOf(',')
+      resolve(commaIndex >= 0 ? reader.result.slice(commaIndex + 1) : reader.result)
+    }
+    reader.onerror = () => reject(new Error('录音编码失败'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+

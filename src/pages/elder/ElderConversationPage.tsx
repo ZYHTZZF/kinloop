@@ -19,6 +19,7 @@ export function ElderConversationPage() {
   const { conversationId = 'daughter' } = useParams()
   const voiceResult = location.state?.elderVoiceResult as ElderVoiceIntentResult | undefined
   const prefillDraft = (location.state?.prefillDraft as string | undefined) ?? ''
+  const autoSendMessage = Boolean(location.state?.autoSendMessage)
 
   const [conversation, setConversation] = useState<ConversationDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,6 +41,7 @@ export function ElderConversationPage() {
 
   const isCallerRef = useRef(false)
   const incomingOfferRef = useRef<string | null>(null)
+  const autoSendOnceRef = useRef(false)
 
   const currentUserId = 'elder-1'
   const otherUserId = conversationId
@@ -138,6 +140,33 @@ export function ElderConversationPage() {
       setDraftText(prefillDraft)
     }
   }, [prefillDraft])
+
+  useEffect(() => {
+    if (!autoSendMessage || autoSendOnceRef.current) return
+    if (!conversation || !draftText.trim()) return
+
+    autoSendOnceRef.current = true
+    void (async () => {
+      try {
+        setSending(true)
+        const nextConversation = await sendMessage(conversation.id, {
+          senderType: 'Elder',
+          senderMemberId: 'member_elder',
+          messageType: 'Text',
+          textContent: draftText.trim(),
+          aiDrafted: true,
+          isLowInformation: isLowInformation(draftText),
+        })
+        setConversation(nextConversation)
+        setError('')
+      } catch (submitError) {
+        autoSendOnceRef.current = false
+        setError(submitError instanceof Error ? submitError.message : '自动发送失败')
+      } finally {
+        setSending(false)
+      }
+    })()
+  }, [autoSendMessage, conversation, draftText])
 
   useEffect(() => {
     let cancelled = false
