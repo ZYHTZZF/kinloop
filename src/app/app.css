@@ -1473,6 +1473,41 @@
 
 .screen--elder-conversation .message-list {
   padding: 10px 0;
+  max-height: min(48vh, 460px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+}
+
+.screen--elder-conversation .message-list::-webkit-scrollbar,
+.screen--family-conversation .message-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.screen--elder-conversation .message-list::-webkit-scrollbar-track,
+.screen--family-conversation .message-list::-webkit-scrollbar-track {
+  background: rgba(86, 72, 56, 0.08);
+  border-radius: 999px;
+}
+
+.screen--elder-conversation .message-list::-webkit-scrollbar-thumb,
+.screen--family-conversation .message-list::-webkit-scrollbar-thumb {
+  background: rgba(86, 72, 56, 0.24);
+  border-radius: 999px;
+}
+
+.screen--elder-conversation .message-list::-webkit-scrollbar-thumb:hover,
+.screen--family-conversation .message-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(86, 72, 56, 0.34);
+}
+
+.screen--family-conversation .message-list {
+  max-height: min(48vh, 460px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  padding-bottom: 96px;
+  scroll-padding-bottom: 96px;
 }
 
 .screen--elder-conversation .message-bubble--family {
@@ -1519,8 +1554,30 @@
 
 .screen--family-conversation .composer-card {
   position: sticky;
-  bottom: 104px;
+  bottom: 72px;
   z-index: 4;
+}
+
+.screen--family-conversation form.composer-card {
+  padding: 12px 14px;
+  gap: 10px;
+  border-radius: 18px;
+}
+
+.screen--family-conversation form.composer-card input {
+  padding: 10px 14px;
+  border-radius: 14px;
+}
+
+.screen--family-conversation form.composer-card .inline-actions {
+  gap: 8px;
+}
+
+.screen--family-conversation form.composer-card .primary-action,
+.screen--family-conversation form.composer-card .ghost-action {
+  min-height: 40px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .members-card .list-row,
@@ -1697,6 +1754,16 @@
     width: 132px;
     height: 132px;
     min-height: 132px;
+  }
+
+  .screen--elder-conversation .message-list,
+  .screen--family-conversation .message-list {
+    max-height: min(42vh, 360px);
+  }
+
+  .screen--family-conversation .message-list {
+    padding-bottom: 84px;
+    scroll-padding-bottom: 84px;
   }
 
   .voice-sheet {

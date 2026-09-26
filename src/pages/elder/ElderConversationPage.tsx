@@ -38,6 +38,8 @@ export function ElderConversationPage() {
   const [callDuration, setCallDuration] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
   const [isCameraOn, setIsCameraOn] = useState(true)
+  const [localCallStream, setLocalCallStream] = useState<MediaStream | null>(null)
+  const [remoteCallStream, setRemoteCallStream] = useState<MediaStream | null>(null)
 
   const isCallerRef = useRef(false)
   const incomingOfferRef = useRef<string | null>(null)
@@ -45,6 +47,33 @@ export function ElderConversationPage() {
 
   const currentUserId = 'elder-1'
   const otherUserId = conversationId
+
+  const syncConversation = async () => {
+    try {
+      const nextConversation = await getConversationDetail(conversationId)
+      setConversation(nextConversation)
+    } catch (err) {
+      console.error('Failed to sync conversation', err)
+    }
+  }
+
+  const sendOutgoingCallMessage = async (type: 'voice' | 'video') => {
+    if (!conversation) return
+
+    try {
+      const nextConversation = await sendMessage(conversation.id, {
+        senderType: 'Elder',
+        senderMemberId: 'member_elder',
+        messageType: 'Text',
+        textContent: type === 'video' ? '发起了视频通话' : '发起了语音通话',
+        aiDrafted: false,
+        isLowInformation: false,
+      })
+      setConversation(nextConversation)
+    } catch (err) {
+      console.error('Failed to send call message', err)
+    }
+  }
 
   const logCallSystemMessage = async (content: string) => {
     if (!conversation) return
@@ -89,6 +118,9 @@ export function ElderConversationPage() {
         setCallType(signal.callType || 'voice')
         setCallState('ringing')
         setIsIncomingCall(true)
+        setTimeout(() => {
+          void syncConversation()
+        }, 120)
       } else if (signal.type === 'answer') {
         const sdp = getSignalSdp(signal)
         if (!sdp) return
@@ -103,10 +135,14 @@ export function ElderConversationPage() {
         }
         setIsCallActive(false)
         setCallState('idle')
+        setLocalCallStream(null)
+        setRemoteCallStream(null)
       } else if (signal.type === 'hangup') {
         webrtcManager.hangup()
         setIsCallActive(false)
         setCallState('ended')
+        setLocalCallStream(null)
+        setRemoteCallStream(null)
         setTimeout(() => setCallState('idle'), 500)
       }
     })
@@ -114,6 +150,8 @@ export function ElderConversationPage() {
     const unsubscribeConnected = webrtcManager.on('connection-state-changed', (data) => {
       if (isConnectionPayload(data) && data.state === 'connected') {
         setCallState('connected')
+        setLocalCallStream(webrtcManager.getLocalStream())
+        setRemoteCallStream(webrtcManager.getRemoteStream())
       }
     })
 
@@ -121,6 +159,8 @@ export function ElderConversationPage() {
       setCallState('ended')
       setIsCallActive(false)
       setCallDuration(0)
+      setLocalCallStream(null)
+      setRemoteCallStream(null)
       setTimeout(() => setCallState('idle'), 500)
 
       if (isCallerRef.current && isCallEndedPayload(data) && typeof data.duration === 'number' && callState === 'connected') {
@@ -207,6 +247,12 @@ export function ElderConversationPage() {
           callType,
           `${otherUserId}-${currentUserId}`,
         )
+        if (callType === 'video') {
+          setIsCameraOn(true)
+          webrtcManager.toggleVideo(true)
+        }
+        setLocalCallStream(webrtcManager.getLocalStream())
+        setRemoteCallStream(webrtcManager.getRemoteStream())
       }
     } catch (e) {
       console.error(e)
@@ -219,12 +265,16 @@ export function ElderConversationPage() {
     await webrtcManager.rejectCall(currentUserId, otherUserId, 'call-id')
     setIsCallActive(false)
     setCallState('idle')
+    setLocalCallStream(null)
+    setRemoteCallStream(null)
   }
 
   const handleHangupCall = () => {
     webrtcManager.hangup()
     setIsCallActive(false)
     setCallState('ended')
+    setLocalCallStream(null)
+    setRemoteCallStream(null)
   }
 
   const handleInitiateVoiceCall = async () => {
@@ -234,6 +284,9 @@ export function ElderConversationPage() {
     setCallState('ringing')
     setIsIncomingCall(false)
     await webrtcManager.initiateCall(currentUserId, otherUserId, 'voice')
+    await sendOutgoingCallMessage('voice')
+    setLocalCallStream(webrtcManager.getLocalStream())
+    setRemoteCallStream(webrtcManager.getRemoteStream())
   }
 
   const handleInitiateVideoCall = async () => {
@@ -243,6 +296,16 @@ export function ElderConversationPage() {
     setCallState('ringing')
     setIsIncomingCall(false)
     await webrtcManager.initiateCall(currentUserId, otherUserId, 'video')
+    await sendOutgoingCallMessage('video')
+    setIsCameraOn(true)
+    webrtcManager.toggleVideo(true)
+    setLocalCallStream(webrtcManager.getLocalStream())
+    setRemoteCallStream(webrtcManager.getRemoteStream())
+  }
+
+  const handleToggleCamera = (enabled: boolean) => {
+    setIsCameraOn(enabled)
+    webrtcManager.toggleVideo(enabled)
   }
 
   const messages = conversation?.messages ?? []
@@ -288,8 +351,8 @@ export function ElderConversationPage() {
         {isCallActive && callType === 'video' && (
           <VideoCall
             remoteUser={{ id: otherUserId, name: conversation?.name || 'Family', avatar: conversation?.avatar }}
-            remoteStream={webrtcManager.getRemoteStream()}
-            localStream={webrtcManager.getLocalStream()}
+            remoteStream={remoteCallStream}
+            localStream={localCallStream}
             callState={callState}
             duration={callDuration}
             isIncoming={isIncomingCall}
@@ -299,7 +362,7 @@ export function ElderConversationPage() {
             onReject={handleRejectCall}
             onHangup={handleHangupCall}
             onToggleMute={(m) => setIsMuted(m)}
-            onToggleCamera={(c) => setIsCameraOn(c)}
+            onToggleCamera={handleToggleCamera}
           />
         )}
 

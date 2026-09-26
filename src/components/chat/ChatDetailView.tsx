@@ -36,6 +36,8 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
   const [isCameraOn, setIsCameraOn] = useState(true)
   const [isIncomingCall, setIsIncomingCall] = useState(false)
   const [networkQuality, setNetworkQuality] = useState<QualityLevel>('high')
+  const [localCallStream, setLocalCallStream] = useState<MediaStream | null>(null)
+  const [remoteCallStream, setRemoteCallStream] = useState<MediaStream | null>(null)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const statsCheckIntervalRef = useRef<number>(0)
@@ -136,6 +138,20 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
     }
   }
 
+  const sendOutgoingCallMessage = async (type: 'voice' | 'video') => {
+    try {
+      await chatApi.sendMessage({
+        conversationId: conversationIdRef.current,
+        senderId: currentUserId,
+        recipientId: otherUserId,
+        content: type === 'video' ? '发起了视频通话' : '发起了语音通话',
+        type: MessageType.TEXT
+      })
+    } catch (error) {
+      console.error('[Chat] Failed to send call message:', error)
+    }
+  }
+
   // WebRTC 浜嬩欢鐩戝惉
   useEffect(() => {
     // 缁戝畾 WebRTC 淇″彿灞?
@@ -158,15 +174,21 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
       } else if (signal.type === 'reject') {
         setIsCallActive(false)
         setCallState('idle')
+        setLocalCallStream(null)
+        setRemoteCallStream(null)
       } else if (signal.type === 'hangup') {
         setIsCallActive(false)
         setCallState('ended')
+        setLocalCallStream(null)
+        setRemoteCallStream(null)
         setTimeout(() => setCallState('idle'), 500)
       }
     })
 
     const unsubscribeConnected = webrtcManager.on('call-connected', () => {
       setCallState('connected')
+      setLocalCallStream(webrtcManager.getLocalStream())
+      setRemoteCallStream(webrtcManager.getRemoteStream())
       // 寮€濮嬬洃娴嬬綉缁滆川閲?
       startNetworkQualityMonitoring()
     })
@@ -175,6 +197,8 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
       setCallState('ended')
       setIsCallActive(false)
       setCallDuration(0)
+      setLocalCallStream(null)
+      setRemoteCallStream(null)
       stopNetworkQualityMonitoring()
       setTimeout(() => setCallState('idle'), 500)
     })
@@ -209,6 +233,9 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
       setIsIncomingCall(false)
 
       await webrtcManager.initiateCall(currentUserId, otherUserId, 'voice')
+      await sendOutgoingCallMessage('voice')
+      setLocalCallStream(webrtcManager.getLocalStream())
+      setRemoteCallStream(webrtcManager.getRemoteStream())
     } catch (error) {
       console.error('[Chat] Failed to initiate voice call:', error)
       setIsCallActive(false)
@@ -225,6 +252,11 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
       setIsIncomingCall(false)
 
       await webrtcManager.initiateCall(currentUserId, otherUserId, 'video')
+      await sendOutgoingCallMessage('video')
+      setIsCameraOn(true)
+      webrtcManager.toggleVideo(true)
+      setLocalCallStream(webrtcManager.getLocalStream())
+      setRemoteCallStream(webrtcManager.getRemoteStream())
     } catch (error) {
       console.error('[Chat] Failed to initiate video call:', error)
       setIsCallActive(false)
@@ -258,6 +290,8 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
     webrtcManager.hangup()
     setIsCallActive(false)
     setCallState('ended')
+    setLocalCallStream(null)
+    setRemoteCallStream(null)
   }
 
   // 鍒囨崲闊抽
@@ -347,8 +381,8 @@ const ChatDetailView: React.FC<ChatDetailViewProps> = ({
       {isCallActive && callType === 'video' && (
         <VideoCall
           remoteUser={{ id: otherUserId, name: otherUserName, avatar: otherUserAvatar }}
-          remoteStream={webrtcManager.getRemoteStream()}
-          localStream={webrtcManager.getLocalStream()}
+          remoteStream={remoteCallStream}
+          localStream={localCallStream}
           callState={callState}
           duration={callDuration}
           isIncoming={isIncomingCall}
