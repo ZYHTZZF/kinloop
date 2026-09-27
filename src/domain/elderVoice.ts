@@ -28,6 +28,7 @@ export type ElderVoiceIntentResult = {
   promptBody: string
   confirmLabel: string
   draftText: string
+  autoSendMessage?: boolean
 }
 
 type MemberAlias = {
@@ -142,6 +143,7 @@ export function classifyElderSpeech(
       promptBody: `我可以帮你打开和${matchedMember.memberLabel}的对话，再把想说的话整理好。`,
       confirmLabel: `打开${matchedMember.memberLabel}`,
       draftText: extractChatDraft(spokenText, matchedMember.aliases),
+      autoSendMessage: shouldAutoSendChat(normalizedText),
     }
   }
 
@@ -284,4 +286,8 @@ function containsAny(text: string, keywords: string[]) {
 
 function escapeRegExp(input: string) {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function shouldAutoSendChat(normalizedText: string) {
+  return containsAny(normalizedText, ['发给', '发送', '告诉', '说句', '回复'])
 }

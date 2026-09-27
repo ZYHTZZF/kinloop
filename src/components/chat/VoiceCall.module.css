@@ -1,0 +1,65 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.duration {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  height: 38px;
+  min-width: 70px;
+  padding: 0 12px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.accept {
+  background: #10b981;
+}
+
+.reject {
+  background: #ef4444;
+}
+
+.mute {
+  background: #475569;
+}
+
+.mute.active {
+  background: #f59e0b;
+}

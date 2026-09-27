@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export type FamilySpace = {
   id: string
   name: string
@@ -134,4 +135,110 @@ export type PermissionPolicy = {
   canReceiveUnwell: number
   canManageMembers: number
   canManageAlertOrder: number
+}
+
+// ============ Chat Feature Types ============
+
+export const MessageStatus = {
+  SENDING: 'sending',
+  SENT: 'sent',
+  DELIVERED: 'delivered',
+  READ: 'read',
+} as const;
+
+export type MessageStatus = typeof MessageStatus[keyof typeof MessageStatus];
+
+export const MessageType = {
+  TEXT: 'text',
+  IMAGE: 'image',
+  VOICE: 'voice',
+} as const;
+
+export type MessageType = typeof MessageType[keyof typeof MessageType];
+
+export interface IMessage {
+  id: string
+  conversationId: string
+  senderId: string
+  recipientId: string
+  senderDisplayName?: string
+  content: string
+  type: MessageType | 'text' | 'image' | 'voice'
+  status: MessageStatus | 'sending' | 'sent' | 'delivered' | 'read'
+  timestamp: number
+  mediaUrl?: string
+  voiceDurationMs?: number
+  isDeleted?: boolean
+}
+
+export interface IConversation {
+  id: string
+  userId: string
+  otherUserId: string
+  otherUserName: string
+  otherUserAvatar?: string
+  lastMessage?: string
+  lastMessageTime?: number
+  unreadCount: number
+  lastActivityAt: number
+  isDeleted?: boolean
+}
+
+export interface ICallSignal {
+  type: 'offer' | 'answer' | 'ice-candidate' | 'reject' | 'hangup'
+  from: string
+  to: string
+  callId: string
+  callType?: 'voice' | 'video'
+  data?: Record<string, any>
+  timestamp: number
+}
+
+export interface ICallOffer extends ICallSignal {
+  type: 'offer'
+  data: {
+    sdp: string // RTCSessionDescription
+  }
+}
+
+export interface ICallAnswer extends ICallSignal {
+  type: 'answer'
+  data: {
+    sdp: string
+  }
+}
+
+export interface IIceCandidate extends ICallSignal {
+  type: 'ice-candidate'
+  data: {
+    candidate: string
+    sdpMLineIndex: number
+    sdpMid: string
+  }
+}
+
+export interface IIncomingCall {
+  callId: string
+  from: string
+  fromName: string
+  fromAvatar?: string
+  callType: 'voice' | 'video'
+  timestamp: number
+}
+
+export interface INotificationOptions {
+  title?: string
+  tag?: string
+  icon?: string
+  badge?: string
+  body?: string
+  data?: Record<string, any>
+  requireInteraction?: boolean
+  silent?: boolean
+}
+
+export interface IOnlineStatus {
+  userId: string
+  isOnline: boolean
+  lastSeenAt?: number
 }

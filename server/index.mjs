@@ -10,6 +10,9 @@ import { listMembers } from './repositories/memberRepository.mjs'
 import { createMemoryEntry, listMemories } from './repositories/memoryRepository.mjs'
 import { listPermissionPolicies } from './repositories/permissionPolicyRepository.mjs'
 import { listPulseHistory, listTodayPulses } from './repositories/pulseRepository.mjs'
+import { registerAiIntentRoutes } from './routes/aiIntentRoutes.mjs'
+import { registerAsrRoutes } from './routes/asrRoutes.mjs'
+import { registerVolcanoRoutes } from './routes/volcanoRoutes.mjs'
 
 getDatabase()
 
@@ -131,6 +134,61 @@ app.patch('/api/invites/:inviteId/approve', (request, response) => {
   response.json(approveInviteCode(request.params.inviteId, request.body.approvedMemberId))
 })
 
-app.listen(API_PORT, API_HOST, () => {
-  console.log(`Kinloop local api listening at http://${API_HOST}:${API_PORT}`)
+registerAiIntentRoutes(app)
+registerAsrRoutes(app)
+
+// 注册火山引擎 API 路由
+registerVolcanoRoutes(app)
+
+import { createServer } from 'http'
+import { WebSocketServer } from 'ws'
+
+const server = createServer(app)
+const wss = new WebSocketServer({ server })
+
+// 保存用户的 WebSocket 连接
+const clients = new Map()
+
+wss.on('connection', (ws) => {
+  ws.on('message', (data) => {
+    try {
+      const msg = JSON.parse(data.toString())
+      
+      // 注册用户连接
+      if (msg.type === 'register' && msg.userId) {
+        clients.set(msg.userId, ws)
+        console.log(`User ${msg.userId} registered for WS`)
+      } 
+      // 转发点对点消息 (主要是 Webrtc Signaling)
+      else if (msg.to) {
+        const targetWs = clients.get(msg.to)
+        if (targetWs && targetWs.readyState === 1) { // 1 = OPEN
+          targetWs.send(JSON.stringify(msg))
+        }
+      } 
+      // 广播其他消息 (Fallback)
+      else {
+        wss.clients.forEach((client) => {
+          if (client !== ws && client.readyState === 1) {
+            client.send(JSON.stringify(msg))
+          }
+        })
+      }
+    } catch (e) {
+      console.error('WS Error parsing message:', e)
+    }
+  })
+
+  ws.on('close', () => {
+    clients.forEach((clientWs, userId) => {
+      if (clientWs === ws) {
+        clients.delete(userId)
+        console.log(`User ${userId} WS disconnected`)
+      }
+    })
+  })
+})
+
+server.listen(API_PORT, API_HOST, () => {
+  console.log(`Kinloop local api with WebSocket listening at http://${API_HOST}:${API_PORT}`)
 })

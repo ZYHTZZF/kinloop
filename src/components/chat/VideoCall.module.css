@@ -1,0 +1,89 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stage {
+  position: relative;
+  height: 230px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+.remoteVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #111;
+}
+
+.localWrap {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 104px;
+  height: 138px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+}
+
+.localVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.label {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.localLabel {
+  left: auto;
+  right: 8px;
+  bottom: auto;
+  top: 8px;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  height: 36px;
+  min-width: 68px;
+  padding: 0 10px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.normal {
+  background: #475569;
+}
+
+.normal.active {
+  background: #f59e0b;
+}
+
+.accept {
+  background: #10b981;
+}
+
+.danger {
+  background: #ef4444;
+}

@@ -1,34 +1,258 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import { createMemoryEntry, getConversationDetail, sendMessage } from '../../services/api'
 import type { ConversationDetail, Message } from '../../services/api'
+import type { ICallSignal } from '../../services/api/types'
 import { formatClock } from '../../utils/dateTime'
+import { webrtcManager } from '../../services/webrtc/WebRTCManager'
+import * as chatApi from '../../services/api/chatApi'
+import VoiceCall from '../../components/chat/VoiceCall'
+import VideoCall from '../../components/chat/VideoCall'
+
+const STATIC_EMOJIS = ['😀', '😁', '😂', '🤣', '😊', '😍', '😘', '😎', '🥳', '😭', '😡', '👍', '👏', '🙏', '❤️', '🎉']
 
 export function FamilyConversationPage() {
-  const { conversationId = 'daughter' } = useParams()
+  const { conversationId = 'daughter', userId } = useParams()
+  const targetId = userId || conversationId
   const [conversation, setConversation] = useState<ConversationDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [composerText, setComposerText] = useState('')
+  const [showEmojiPanel, setShowEmojiPanel] = useState(false)
   const [sending, setSending] = useState(false)
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
+
+  const [callState, setCallState] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle')
+  const [isCallActive, setIsCallActive] = useState(false)
+  const [callType, setCallType] = useState<'voice' | 'video'>('voice')
+  const [isIncomingCall, setIsIncomingCall] = useState(false)
+  const [callDuration, setCallDuration] = useState(0)
+  const [isMuted, setIsMuted] = useState(false)
+  const [isCameraOn, setIsCameraOn] = useState(true)
+  const [localCallStream, setLocalCallStream] = useState<MediaStream | null>(null)
+  const [remoteCallStream, setRemoteCallStream] = useState<MediaStream | null>(null)
+
+  const isCallerRef = useRef(false)
+  const incomingOfferRef = useRef<string | null>(null)
+
+  const currentUserId = 'family-1'
+  const otherUserId = targetId
+
+  const syncConversation = async () => {
+    try {
+      const nextConversation = await getConversationDetail(targetId)
+      setConversation(nextConversation)
+    } catch (err) {
+      console.error('Failed to sync conversation', err)
+    }
+  }
+
+  const sendOutgoingCallMessage = async (type: 'voice' | 'video') => {
+    if (!conversation) return
+
+    try {
+      const nextConversation = await sendMessage(conversation.id, {
+        senderType: 'Family',
+        senderMemberId: conversation.memberId,
+        messageType: 'Text',
+        textContent: type === 'video' ? '发起了视频通话' : '发起了语音通话',
+        aiDrafted: false,
+        isLowInformation: false,
+      })
+      setConversation(nextConversation)
+    } catch (err) {
+      console.error('Failed to send call message', err)
+    }
+  }
+
+  const logCallSystemMessage = async (content: string) => {
+    if (!conversation) return
+    try {
+      const nextConversation = await sendMessage(conversation.id, {
+        senderType: 'System',
+        senderMemberId: conversation.memberId,
+        messageType: 'Text',
+        textContent: content,
+        aiDrafted: false,
+        isLowInformation: false,
+      })
+      setConversation(nextConversation)
+    } catch (err) {
+      console.error('Failed to log system message', err)
+    }
+  }
+
+  useEffect(() => {
+    const initWS = async () => {
+      if (!chatApi.isWebSocketConnected()) {
+        try {
+          await chatApi.initWebSocket('ws://localhost:3001', currentUserId)
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    }
+    void initWS()
+
+    webrtcManager.setSignalingClient(async (signal) => {
+      chatApi.sendWebrtcSignal({ ...signal, to: otherUserId, from: currentUserId })
+    })
+
+    chatApi.setWebrtcSignalHandler(async (signal: ICallSignal) => {
+      if (signal.type === 'offer') {
+        const sdp = getSignalSdp(signal)
+        if (!sdp) return
+        isCallerRef.current = false
+        incomingOfferRef.current = sdp
+        setIsCallActive(true)
+        setCallType(signal.callType || 'voice')
+        setCallState('ringing')
+        setIsIncomingCall(true)
+        setTimeout(() => {
+          void syncConversation()
+        }, 120)
+      } else if (signal.type === 'answer') {
+        const sdp = getSignalSdp(signal)
+        if (!sdp) return
+        await webrtcManager.handleAnswer({ type: 'answer', sdp } as RTCSessionDescription)
+      } else if (signal.type === 'ice-candidate') {
+        const candidate = getSignalIceCandidate(signal)
+        if (!candidate) return
+        await webrtcManager.handleIceCandidate(candidate)
+      } else if (signal.type === 'reject') {
+        if (isCallerRef.current) {
+          void logCallSystemMessage('Voice call rejected by remote user')
+        }
+        setIsCallActive(false)
+        setCallState('idle')
+        setLocalCallStream(null)
+        setRemoteCallStream(null)
+      } else if (signal.type === 'hangup') {
+        webrtcManager.hangup()
+        setIsCallActive(false)
+        setCallState('ended')
+        setLocalCallStream(null)
+        setRemoteCallStream(null)
+        setTimeout(() => setCallState('idle'), 500)
+      }
+    })
+
+    const unsubscribeConnected = webrtcManager.on('connection-state-changed', (data) => {
+      if (isConnectionPayload(data) && data.state === 'connected') {
+        setCallState('connected')
+        setLocalCallStream(webrtcManager.getLocalStream())
+        setRemoteCallStream(webrtcManager.getRemoteStream())
+      }
+    })
+
+    const unsubscribeEnded = webrtcManager.on('call-ended', (data) => {
+      setCallState('ended')
+      setIsCallActive(false)
+      setCallDuration(0)
+      setLocalCallStream(null)
+      setRemoteCallStream(null)
+      setTimeout(() => setCallState('idle'), 500)
+
+      if (isCallerRef.current && isCallEndedPayload(data) && typeof data.duration === 'number' && callState === 'connected') {
+        const durationSecs = Math.round(data.duration / 1000)
+        void logCallSystemMessage(`Voice call ended, duration: ${durationSecs}s`)
+      }
+    })
+
+    return () => {
+      unsubscribeConnected()
+      unsubscribeEnded()
+    }
+  }, [callState, conversation, currentUserId, otherUserId])
+
+  const handleAcceptCall = async () => {
+    try {
+      setCallState('connecting')
+      if (incomingOfferRef.current) {
+        await webrtcManager.acceptCall(
+          currentUserId,
+          { type: 'offer', sdp: incomingOfferRef.current } as RTCSessionDescription,
+          otherUserId,
+          callType,
+          `${otherUserId}-${currentUserId}`,
+        )
+        if (callType === 'video') {
+          setIsCameraOn(true)
+          webrtcManager.toggleVideo(true)
+        }
+        setLocalCallStream(webrtcManager.getLocalStream())
+        setRemoteCallStream(webrtcManager.getRemoteStream())
+      }
+    } catch (e) {
+      console.error(e)
+      setIsCallActive(false)
+      setCallState('idle')
+    }
+  }
+
+  const handleRejectCall = async () => {
+    await webrtcManager.rejectCall(currentUserId, otherUserId, 'call-id')
+    setIsCallActive(false)
+    setCallState('idle')
+    setLocalCallStream(null)
+    setRemoteCallStream(null)
+  }
+
+  const handleHangupCall = () => {
+    webrtcManager.hangup()
+    setIsCallActive(false)
+    setCallState('ended')
+    setLocalCallStream(null)
+    setRemoteCallStream(null)
+  }
+
+  const handleInitiateVoiceCall = async () => {
+    isCallerRef.current = true
+    setIsCallActive(true)
+    setCallType('voice')
+    setCallState('ringing')
+    setIsIncomingCall(false)
+    await webrtcManager.initiateCall(currentUserId, otherUserId, 'voice')
+    await sendOutgoingCallMessage('voice')
+    setLocalCallStream(webrtcManager.getLocalStream())
+    setRemoteCallStream(webrtcManager.getRemoteStream())
+  }
+
+  const handleInitiateVideoCall = async () => {
+    isCallerRef.current = true
+    setIsCallActive(true)
+    setCallType('video')
+    setCallState('ringing')
+    setIsIncomingCall(false)
+    await webrtcManager.initiateCall(currentUserId, otherUserId, 'video')
+    await sendOutgoingCallMessage('video')
+    setIsCameraOn(true)
+    webrtcManager.toggleVideo(true)
+    setLocalCallStream(webrtcManager.getLocalStream())
+    setRemoteCallStream(webrtcManager.getRemoteStream())
+  }
+
+  const handleToggleCamera = (enabled: boolean) => {
+    setIsCameraOn(enabled)
+    webrtcManager.toggleVideo(enabled)
+  }
 
   useEffect(() => {
     let cancelled = false
 
     async function load() {
       try {
-        const nextConversation = await getConversationDetail(conversationId)
+        const nextConversation = await getConversationDetail(targetId)
         if (!cancelled) {
           setConversation(nextConversation)
           setError('')
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载聊天详情失败')
+          setError(loadError instanceof Error ? loadError.message : 'Failed to load conversation')
         }
       } finally {
         if (!cancelled) {
@@ -42,7 +266,7 @@ export function FamilyConversationPage() {
     return () => {
       cancelled = true
     }
-  }, [conversationId])
+  }, [targetId])
 
   const messages = conversation?.messages ?? []
 
@@ -51,33 +275,54 @@ export function FamilyConversationPage() {
       <section className="surface-card">
         <div className="section-heading">
           <div>
-            <p className="surface-card__eyebrow">聊天</p>
-            <h2>和妈妈的对话</h2>
+            <p className="surface-card__eyebrow">Chat</p>
+            <h2>Conversation with {conversation?.elderDisplayName ?? 'Family member'}</h2>
           </div>
-          <span className="status-pill">会话：{conversation?.elderDisplayName ?? '妈妈'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Voice call">📓</button>
+            <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Video call">📴</button>
+          </div>
         </div>
 
-        {loading ? (
-          <PageState
-            title="正在打开这段对话"
-            description="稍等一下，我把长辈最近看到和回应过的内容排成完整会话。"
+        {isCallActive && callType === 'voice' && (
+          <VoiceCall
+            remoteUser={{ id: otherUserId, name: conversation?.elderDisplayName || 'Family member', avatar: undefined }}
+            callState={callState}
+            duration={callDuration}
+            isIncoming={isIncomingCall}
+            isMuted={isMuted}
+            onAccept={handleAcceptCall}
+            onReject={handleRejectCall}
+            onHangup={handleHangupCall}
+            onToggleMute={(m) => setIsMuted(m)}
           />
-        ) : null}
-        {error ? (
-          <PageState
-            variant="error"
-            title="聊天详情暂时没有连上本地服务"
-            description={error}
+        )}
+
+        {isCallActive && callType === 'video' && (
+          <VideoCall
+            remoteUser={{ id: otherUserId, name: conversation?.elderDisplayName || 'Family member', avatar: undefined }}
+            remoteStream={remoteCallStream}
+            localStream={localCallStream}
+            callState={callState}
+            duration={callDuration}
+            isIncoming={isIncomingCall}
+            isMuted={isMuted}
+            isCameraOn={isCameraOn}
+            onAccept={handleAcceptCall}
+            onReject={handleRejectCall}
+            onHangup={handleHangupCall}
+            onToggleMute={(m) => setIsMuted(m)}
+            onToggleCamera={handleToggleCamera}
           />
-        ) : null}
+        )}
+
+        {loading ? <PageState title="Loading conversation" description="Please wait..." /> : null}
+        {error ? <PageState variant="error" title="Conversation unavailable" description={error} /> : null}
         {memoryFeedback ? <p className="state-note">{memoryFeedback}</p> : null}
 
         <div className="message-list">
           {!loading && !error && messages.length === 0 ? (
-            <PageState
-              title="这一段会话还没有内容"
-              description="你现在发出去的第一条问候，会成为这里的第一段家书。"
-            />
+            <PageState title="No messages yet" description="Send your first message to start this conversation." />
           ) : null}
 
           {messages.map((message) => (
@@ -88,10 +333,10 @@ export function FamilyConversationPage() {
               <span className="message-bubble__sender">{getSenderLabel(message, conversation)}</span>
               {message.messageType === 'Image' ? (
                 <div className="message-media">
-                  <span>{message.mediaUrl ?? '图片内容'}</span>
+                  <span>{message.mediaUrl ?? 'Image content'}</span>
                 </div>
               ) : null}
-              <p>{message.textContent ?? message.transcript ?? '发来一段语音'}</p>
+              <p>{message.textContent ?? message.transcript ?? 'Voice message'}</p>
               <footer className="message-bubble__footer">
                 <span>{formatClock(message.createdAt)}</span>
                 <button
@@ -100,30 +345,46 @@ export function FamilyConversationPage() {
                   disabled={savingMemoryId === message.id}
                   onClick={() => void handleAddMemory(message)}
                 >
-                  {savingMemoryId === message.id ? '保存中…' : '✨ 加入回忆'}
+                  {savingMemoryId === message.id ? 'Saving...' : 'Add to memories'}
                 </button>
-                {message.aiDrafted ? <span className="status-pill">长辈口述，AI 代发</span> : null}
+                {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
               </footer>
             </article>
           ))}
         </div>
 
+        {showEmojiPanel ? (
+          <div className="composer-card" style={{ marginBottom: '10px' }}>
+            <p className="surface-card__eyebrow">静态表情</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px' }}>
+              {STATIC_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className="ghost-action"
+                  style={{ fontSize: '20px', padding: '6px 0' }}
+                  onClick={() => handlePickEmoji(emoji)}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <form className="composer-card" onSubmit={handleSubmit}>
           <input
-            aria-label="输入消息"
-            placeholder="输入文字..."
+            aria-label="Input message"
+            placeholder="Type a message..."
             value={composerText}
             onChange={(event) => setComposerText(event.target.value)}
           />
           <div className="inline-actions">
-            <button className="ghost-action" type="button">
-              🎤
-            </button>
-            <button className="ghost-action" type="button">
-              🖼️
+            <button className="ghost-action" type="button" onClick={() => setShowEmojiPanel((prev) => !prev)}>
+              😀
             </button>
             <button className="primary-action" type="submit" disabled={sending || !composerText.trim()}>
-              {sending ? '发送中…' : '发送'}
+              {sending ? 'Sending...' : 'Send'}
             </button>
           </div>
         </form>
@@ -152,7 +413,7 @@ export function FamilyConversationPage() {
       setComposerText('')
       setError('')
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '发送消息失败')
+      setError(submitError instanceof Error ? submitError.message : 'Failed to send message')
     } finally {
       setSending(false)
     }
@@ -175,27 +436,61 @@ export function FamilyConversationPage() {
         description: buildMemoryDescription(message),
         mediaUrl: message.mediaUrl,
       })
-      setMemoryFeedback('这条内容已经加入回忆时间线。')
+      setMemoryFeedback('Saved to memories')
       setError('')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : '加入回忆失败')
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save memory')
     } finally {
       setSavingMemoryId(null)
     }
   }
+
+  function handlePickEmoji(emoji: string) {
+    setComposerText((prev) => `${prev}${emoji}`)
+  }
+}
+
+function getSignalSdp(signal: ICallSignal): string | null {
+  const sdp = signal.data?.sdp
+  return typeof sdp === 'string' ? sdp : null
+}
+
+function getSignalIceCandidate(signal: ICallSignal): RTCIceCandidate | null {
+  const data = signal.data
+  if (!data) return null
+
+  const candidate = data.candidate
+  const sdpMid = data.sdpMid
+  const sdpMLineIndex = data.sdpMLineIndex
+
+  if (typeof candidate !== 'string') return null
+
+  return new RTCIceCandidate({
+    candidate,
+    sdpMid: typeof sdpMid === 'string' ? sdpMid : null,
+    sdpMLineIndex: typeof sdpMLineIndex === 'number' ? sdpMLineIndex : null,
+  })
+}
+
+function isConnectionPayload(data: unknown): data is { state?: string } {
+  return typeof data === 'object' && data !== null
+}
+
+function isCallEndedPayload(data: unknown): data is { duration?: number } {
+  return typeof data === 'object' && data !== null
 }
 
 function getSenderLabel(message: Message, conversation: ConversationDetail | null) {
   if (message.senderType === 'Family') {
-    return conversation?.familyDisplayName ?? '家人'
+    return conversation?.familyDisplayName ?? 'Family'
   }
 
-  return conversation?.elderDisplayName ?? '妈妈'
+  return conversation?.elderDisplayName ?? 'Elder'
 }
 
 function isLowInformation(input: string) {
-  const normalized = input.trim()
-  return ['嗯', '好', '好的', '收到', '知道了', '行'].includes(normalized)
+  const normalized = input.trim().toLowerCase()
+  return ['ok', 'yes', 'received', 'got it'].includes(normalized)
 }
 
 function toMemoryType(messageType: string) {
@@ -206,16 +501,16 @@ function toMemoryType(messageType: string) {
 
 function buildMemoryTitle(elderName: string, message: Message) {
   if (message.messageType === 'Image') {
-    return `${elderName}看到的一张照片`
+    return `${elderName} image message`
   }
 
   if (message.messageType === 'Voice') {
-    return `${elderName}收到的一段语音`
+    return `${elderName} voice message`
   }
 
-  return `${elderName}的一句家人来信`
+  return `${elderName} text message`
 }
 
 function buildMemoryDescription(message: Message) {
-  return message.textContent ?? message.transcript ?? '一段值得留住的内容'
+  return message.textContent ?? message.transcript ?? 'A meaningful message'
 }
