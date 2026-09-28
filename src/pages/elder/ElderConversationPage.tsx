@@ -1,21 +1,31 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import { createMemoryEntry, getConversationDetail, sendMessage } from '../../services/api'
 import type { ConversationDetail, Message } from '../../services/api'
 import { formatClock } from '../../utils/dateTime'
+import type { ElderVoiceIntentResult } from '../../domain/elderVoice'
 
 export function ElderConversationPage() {
+  const location = useLocation()
   const { conversationId = 'daughter' } = useParams()
+  const voiceResult = location.state?.elderVoiceResult as ElderVoiceIntentResult | undefined
+  const prefillDraft = (location.state?.prefillDraft as string | undefined) ?? ''
   const [conversation, setConversation] = useState<ConversationDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [draftText, setDraftText] = useState('这花挺好看的。')
+  const [draftText, setDraftText] = useState(prefillDraft || '这花挺好看的。')
   const [sending, setSending] = useState(false)
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
   const [savingAiMemory, setSavingAiMemory] = useState(false)
+
+  useEffect(() => {
+    if (prefillDraft) {
+      setDraftText(prefillDraft)
+    }
+  }, [prefillDraft])
 
   useEffect(() => {
     let cancelled = false
@@ -52,7 +62,7 @@ export function ElderConversationPage() {
     <section className="screen screen--elder-conversation">
       <section className="surface-card">
         <header className="detail-header">
-          <Link className="back-link" to="/elder/contacts">
+          <Link className="back-link" to="/elder/inbox">
             ← 返回
           </Link>
           {conversation ? (
@@ -79,6 +89,7 @@ export function ElderConversationPage() {
             description={error}
           />
         ) : null}
+        {voiceResult ? <p className="state-note">{voiceResult.promptTitle}</p> : null}
         {memoryFeedback ? <p className="state-note">{memoryFeedback}</p> : null}
 
         {conversation ? (
