@@ -10,6 +10,12 @@ import { listMembers } from './repositories/memberRepository.mjs'
 import { createMemoryEntry, listMemories } from './repositories/memoryRepository.mjs'
 import { listPermissionPolicies } from './repositories/permissionPolicyRepository.mjs'
 import { listPulseHistory, listTodayPulses } from './repositories/pulseRepository.mjs'
+import {
+  analyzeEmotionsAndCreatePulses,
+  isEmotionRequestValid,
+  normalizeEmotionRequest,
+  toErrorResponse,
+} from './services/emotion/emotionService.mjs'
 
 getDatabase()
 
@@ -89,6 +95,26 @@ app.get('/api/pulses/today', (_, response) => {
 
 app.get('/api/pulses/history', (_, response) => {
   response.json(listPulseHistory())
+})
+
+app.post('/api/emotions/analyze', async (request, response) => {
+  const familySpace = getCurrentFamilySpace()
+  const payload = normalizeEmotionRequest(request.body, familySpace?.id ?? null)
+
+  if (!isEmotionRequestValid(payload)) {
+    response.status(400).json({
+      code: 'EMOTION_INVALID_INPUT',
+      message: 'conversationId/familySpaceId and at least one modality input are required.',
+    })
+    return
+  }
+
+  try {
+    const result = await analyzeEmotionsAndCreatePulses(payload)
+    response.status(201).json(result)
+  } catch (error) {
+    response.status(502).json(toErrorResponse(error))
+  }
 })
 
 app.get('/api/followups', (_, response) => {

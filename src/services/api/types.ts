@@ -97,6 +97,54 @@ export type Pulse = {
   resolvedAt: number | null
 }
 
+export type EmotionSource = 'text' | 'face' | 'voice_tone' | 'text_fallback'
+
+export type EmotionLabel =
+  | 'positive'
+  | 'neutral'
+  | 'negative'
+  | 'anxious'
+  | 'sad'
+  | 'angry'
+  | 'calm'
+
+export type EmotionSeverity = 'LOW' | 'MEDIUM' | 'HIGH'
+
+export type EmotionResult = {
+  source: EmotionSource
+  label: EmotionLabel
+  score: number
+  severity: EmotionSeverity
+  summary: string
+  raw?: unknown
+}
+
+export type EmotionAnalyzeRequest = {
+  conversationId: string
+  familySpaceId?: string
+  text?: string | null
+  imageUrl?: string | null
+  audioUrl?: string | null
+  transcript?: string | null
+}
+
+export type EmotionAnalyzeResponse = {
+  input: {
+    conversationId: string
+    familySpaceId: string
+    text: string | null
+    imageUrl: string | null
+    audioUrl: string | null
+    transcript: string | null
+  }
+  results: EmotionResult[]
+  createdPulses: Pulse[]
+  errors: Array<{
+    code: string
+    message: string
+  }>
+}
+
 export type FollowupRecord = {
   id: string
   linkedPulseId: string | null

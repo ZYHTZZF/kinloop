@@ -1,5 +1,6 @@
 export * from './alertApi'
 export * from './conversationApi'
+export * from './emotionApi'
 export * from './familySpaceApi'
 export * from './followupApi'
 export * from './inviteApi'
