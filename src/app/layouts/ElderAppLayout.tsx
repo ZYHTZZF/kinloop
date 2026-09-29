@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet } from 'react-router-dom'
-import { BottomTabNav } from '../../components/common/BottomTabNav'
 import { ElderVoiceAssistant } from '../../components/elder/ElderVoiceAssistant'
 import { getElderGreetingSummary } from '../../utils/elderHeader'
-
-const elderNavItems = [
-  { to: '/elder/home', label: '首页' },
-  { to: '/elder/inbox', label: '来信' },
-]
 
 export function ElderAppLayout() {
   const [headerSummary, setHeaderSummary] = useState(() => getElderGreetingSummary())
@@ -52,7 +46,6 @@ export function ElderAppLayout() {
       <Link className="manual-help-link" to="/elder/help">
         紧急求助
       </Link>
-      <BottomTabNav items={elderNavItems} />
     </div>
   )
 }
