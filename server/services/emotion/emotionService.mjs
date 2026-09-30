@@ -5,16 +5,17 @@ import { detectVoiceToneEmotion } from './adapters/voiceToneAdapter.mjs'
 import { buildSummary, withRetry } from './common.mjs'
 import { EmotionProviderError } from './errors.mjs'
 
-const DEFAULT_TIMEOUT_MS = 3000
+const DEFAULT_TIMEOUT_MS = Number(process.env.KINLOOP_EMOTION_TIMEOUT_MS ?? 12000)
 
 function toProviderOptions(source) {
   const sourceKey = source.toUpperCase()
+  const sourceTimeout = Number(process.env[`KINLOOP_EMOTION_${sourceKey}_TIMEOUT_MS`] ?? DEFAULT_TIMEOUT_MS)
   return {
     provider: process.env[`KINLOOP_EMOTION_${sourceKey}_PROVIDER`] ?? null,
     endpoint: process.env[`KINLOOP_EMOTION_${sourceKey}_ENDPOINT`] ?? null,
     apiKey: process.env[`KINLOOP_EMOTION_${sourceKey}_API_KEY`] ?? null,
     secretKey: process.env[`KINLOOP_EMOTION_${sourceKey}_SECRET_KEY`] ?? null,
-    timeoutMs: DEFAULT_TIMEOUT_MS,
+    timeoutMs: Number.isFinite(sourceTimeout) ? sourceTimeout : DEFAULT_TIMEOUT_MS,
   }
 }
 

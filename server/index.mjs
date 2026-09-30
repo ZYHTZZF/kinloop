@@ -78,7 +78,40 @@ app.post('/api/conversations/:conversationId/messages', (request, response) => {
     return
   }
 
-  response.status(201).json(createMessage(request.params.conversationId, request.body))
+  const nextConversation = createMessage(request.params.conversationId, request.body)
+  response.status(201).json(nextConversation)
+
+  // Fire-and-forget emotion analysis. Messaging should never be blocked by provider latency.
+  void (async () => {
+    try {
+      const familySpace = getCurrentFamilySpace()
+      const messageType = `${request.body?.messageType ?? ''}`.toLowerCase()
+      const textContent = request.body?.textContent ?? null
+      const transcript = request.body?.transcript ?? null
+      const mediaUrl = request.body?.mediaUrl ?? null
+
+      const payload = normalizeEmotionRequest(
+        {
+          conversationId: request.params.conversationId,
+          familySpaceId: familySpace?.id ?? null,
+          text: textContent,
+          imageUrl: messageType === 'image' || messageType === 'mixed' ? mediaUrl : null,
+          audioUrl: messageType === 'voice' || messageType === 'mixed' ? mediaUrl : null,
+          transcript,
+        },
+        familySpace?.id ?? null,
+      )
+
+      if (!isEmotionRequestValid(payload)) {
+        return
+      }
+
+      await analyzeEmotionsAndCreatePulses(payload)
+    } catch (error) {
+      const details = toErrorResponse(error)
+      console.warn('[emotion:auto-analyze] skipped:', details.code, details.message)
+    }
+  })()
 })
 
 app.get('/api/memories', (_, response) => {

@@ -254,9 +254,9 @@ export async function analyzeHumeVoiceTone({
     throw new EmotionProviderError(EMOTION_ERROR_CODES.UNAVAILABLE, 'Hume job_id missing', jobData)
   }
 
-  const maxPollCount = 6
+  const maxPollCount = 12
   for (let index = 0; index < maxPollCount; index += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 600))
+    await new Promise((resolve) => setTimeout(resolve, 1000))
     const statusData = await fetchJson(`https://api.hume.ai/v0/batch/jobs/${jobId}`, {
       headers: {
         'X-Hume-Api-Key': apiKey,
