@@ -991,6 +991,19 @@
   gap: 16px;
 }
 
+.message-thread {
+  display: grid;
+  gap: 8px;
+}
+
+.message-thread--self {
+  justify-items: end;
+}
+
+.message-thread--peer {
+  justify-items: start;
+}
+
 .message-bubble {
   display: grid;
   gap: 10px;
@@ -1021,6 +1034,41 @@
 
 .message-bubble__footer {
   align-items: center;
+}
+
+.message-emotion-chip {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  max-width: min(100%, 640px);
+  border-radius: 14px;
+  border: 1px solid rgba(82, 69, 53, 0.08);
+  background: rgba(255, 252, 247, 0.88);
+}
+
+.message-emotion-chip span {
+  font-size: 12px;
+  color: var(--app-soft);
+}
+
+.message-emotion-chip strong {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.message-emotion-chip--high {
+  background: rgba(255, 238, 233, 0.96);
+  border-color: rgba(150, 72, 55, 0.16);
+}
+
+.message-emotion-chip--medium {
+  background: rgba(255, 245, 232, 0.96);
+  border-color: rgba(161, 120, 62, 0.16);
+}
+
+.message-emotion-chip--low {
+  background: rgba(241, 247, 242, 0.96);
+  border-color: rgba(81, 118, 92, 0.14);
 }
 
 .text-action {
@@ -1276,6 +1324,9 @@
 .screen--elder-conversation .surface-card,
 .screen--family-conversation .surface-card {
   max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 190px);
 }
 
 .screen--elder-conversation .surface-card {
@@ -1284,7 +1335,13 @@
 }
 
 .screen--elder-conversation .message-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 10px 0;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
 }
 
 .screen--elder-conversation .message-bubble--family {
@@ -1298,6 +1355,15 @@
 .screen--family-conversation .surface-card {
   background:
     linear-gradient(180deg, rgba(253, 252, 248, 0.98), rgba(240, 237, 229, 0.95));
+}
+
+.screen--family-conversation .message-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
 }
 
 .screen--family-today .surface-card,
@@ -1330,9 +1396,10 @@
 }
 
 .screen--family-conversation .composer-card {
-  position: sticky;
-  bottom: 104px;
-  z-index: 4;
+  position: relative;
+  bottom: auto;
+  z-index: auto;
+  margin-top: auto;
 }
 
 .members-card .list-row,
@@ -1342,6 +1409,85 @@
 
 .members-card__meta {
   font-size: 13px;
+}
+
+.status-pill--high {
+  background: rgba(255, 232, 227, 0.98);
+  color: #8c4336;
+}
+
+.status-pill--medium {
+  background: rgba(255, 242, 224, 0.98);
+  color: #9a6c2f;
+}
+
+.status-pill--low {
+  background: rgba(235, 245, 238, 0.98);
+  color: #476c54;
+}
+
+.family-emotion-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 16px;
+}
+
+.family-emotion-panel {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(82, 69, 53, 0.08);
+  background: rgba(255, 252, 247, 0.72);
+}
+
+.family-emotion-alert-grid,
+.family-emotion-summary-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.family-emotion-alert-card,
+.family-emotion-summary-card,
+.family-emotion-summary-note,
+.family-emotion-empty {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(82, 69, 53, 0.08);
+}
+
+.family-emotion-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.family-emotion-summary-card span {
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.family-emotion-summary-card strong {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.family-emotion-alert-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.family-emotion-quote {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid rgba(82, 116, 142, 0.24);
+  border-radius: 12px;
+  background: rgba(247, 243, 237, 0.9);
+  color: var(--app-muted);
 }
 
 @keyframes ai-breathe {
@@ -1432,6 +1578,11 @@
 @media (max-width: 640px) {
   .app-shell {
     padding: 20px 12px 112px;
+  }
+
+  .family-emotion-dashboard,
+  .family-emotion-summary-grid {
+    grid-template-columns: 1fr;
   }
 
   .surface-card,

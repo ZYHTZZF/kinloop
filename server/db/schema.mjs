@@ -74,6 +74,10 @@ export const schemaSql = `
     severity text not null,
     summary text not null,
     source_conversation_id text,
+    source_message_id text,
+    source_excerpt text,
+    emotion_source text,
+    emotion_label text,
     status text not null,
     created_at integer not null,
     resolved_at integer
@@ -134,4 +138,16 @@ export const schemaSql = `
 
 export function initializeSchema(db) {
   db.exec(schemaSql)
+  for (const statement of [
+    'alter table pulses add column source_message_id text',
+    'alter table pulses add column source_excerpt text',
+    'alter table pulses add column emotion_source text',
+    'alter table pulses add column emotion_label text',
+  ]) {
+    try {
+      db.exec(statement)
+    } catch {
+      // Ignore repeated migrations when the column already exists.
+    }
+  }
 }

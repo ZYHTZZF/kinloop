@@ -9,6 +9,10 @@ function mapPulse(row) {
     severity: row.severity,
     summary: row.summary,
     sourceConversationId: row.sourceConversationId,
+    sourceMessageId: row.sourceMessageId,
+    sourceExcerpt: row.sourceExcerpt,
+    emotionSource: row.emotionSource,
+    emotionLabel: row.emotionLabel,
     status: row.status,
     createdAt: row.createdAt,
     resolvedAt: row.resolvedAt,
@@ -26,6 +30,10 @@ export function listTodayPulses() {
       severity,
       summary,
       source_conversation_id as sourceConversationId,
+      source_message_id as sourceMessageId,
+      source_excerpt as sourceExcerpt,
+      emotion_source as emotionSource,
+      emotion_label as emotionLabel,
       status,
       created_at as createdAt,
       resolved_at as resolvedAt
@@ -46,10 +54,12 @@ export function createPulse(payload) {
   db.prepare(`
     insert into pulses (
       id, family_space_id, source_type, pulse_type, severity, summary,
-      source_conversation_id, status, created_at, resolved_at
+      source_conversation_id, source_message_id, source_excerpt, emotion_source, emotion_label,
+      status, created_at, resolved_at
     ) values (
       $id, $familySpaceId, $sourceType, $pulseType, $severity, $summary,
-      $sourceConversationId, $status, $createdAt, $resolvedAt
+      $sourceConversationId, $sourceMessageId, $sourceExcerpt, $emotionSource, $emotionLabel,
+      $status, $createdAt, $resolvedAt
     )
   `).run({
     id,
@@ -59,6 +69,10 @@ export function createPulse(payload) {
     severity: payload.severity ?? 'LOW',
     summary: payload.summary ?? '',
     sourceConversationId: payload.sourceConversationId ?? null,
+    sourceMessageId: payload.sourceMessageId ?? null,
+    sourceExcerpt: payload.sourceExcerpt ?? null,
+    emotionSource: payload.emotionSource ?? null,
+    emotionLabel: payload.emotionLabel ?? null,
     status: payload.status ?? 'OPEN',
     createdAt: payload.createdAt ?? now,
     resolvedAt: payload.resolvedAt ?? null,
@@ -73,6 +87,10 @@ export function createPulse(payload) {
       severity,
       summary,
       source_conversation_id as sourceConversationId,
+      source_message_id as sourceMessageId,
+      source_excerpt as sourceExcerpt,
+      emotion_source as emotionSource,
+      emotion_label as emotionLabel,
       status,
       created_at as createdAt,
       resolved_at as resolvedAt

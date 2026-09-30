@@ -28,6 +28,7 @@ export type ElderVoiceIntentResult = {
   promptBody: string
   confirmLabel: string
   draftText: string
+  autoSendMessage?: boolean
 }
 
 type MemberAlias = {

@@ -22,6 +22,8 @@ export type Member = {
 export type ConversationCard = {
   id: string
   memberId: string
+  familyMemberId: string
+  elderMemberId: string
   name: string
   familyDisplayName: string
   elderDisplayName: string
@@ -55,11 +57,21 @@ export type Message = {
   deliveredAt: number | null
   consumedAt: number | null
   recalledAt: number | null
+  emotion?: {
+    severity: string
+    label: string | null
+    source: string | null
+    summary: string
+    excerpt: string | null
+    createdAt: number
+  } | null
 }
 
 export type ConversationDetail = {
   id: string
   memberId: string
+  familyMemberId: string
+  elderMemberId: string
   name: string
   familyDisplayName: string
   elderDisplayName: string
@@ -92,6 +104,10 @@ export type Pulse = {
   severity: string
   summary: string
   sourceConversationId: string | null
+  sourceMessageId?: string | null
+  sourceExcerpt?: string | null
+  emotionSource?: string | null
+  emotionLabel?: string | null
   status: string
   createdAt: number
   resolvedAt: number | null
@@ -182,4 +198,59 @@ export type PermissionPolicy = {
   canReceiveUnwell: number
   canManageMembers: number
   canManageAlertOrder: number
+}
+
+export type ICallSignal = {
+  type: 'offer' | 'answer' | 'ice-candidate' | 'reject' | 'hangup'
+  from: string
+  to: string
+  callId: string
+  callType?: 'voice' | 'video'
+  data?: Record<string, unknown>
+  timestamp: number
+}
+
+export const MessageStatus = {
+  SENDING: 'sending',
+  SENT: 'sent',
+  DELIVERED: 'delivered',
+  READ: 'read',
+} as const
+
+export type MessageStatus = typeof MessageStatus[keyof typeof MessageStatus]
+
+export const MessageType = {
+  TEXT: 'text',
+  IMAGE: 'image',
+  VOICE: 'voice',
+} as const
+
+export type MessageType = typeof MessageType[keyof typeof MessageType]
+
+export interface IMessage {
+  id: string
+  conversationId: string
+  senderId: string
+  recipientId: string
+  senderDisplayName?: string
+  content: string
+  type: MessageType | 'text' | 'image' | 'voice'
+  status: MessageStatus | 'sending' | 'sent' | 'delivered' | 'read'
+  timestamp: number
+  mediaUrl?: string
+  voiceDurationMs?: number
+  isDeleted?: boolean
+}
+
+export interface IConversation {
+  id: string
+  userId: string
+  otherUserId: string
+  otherUserName: string
+  otherUserAvatar?: string
+  lastMessage?: string
+  lastMessageTime?: number
+  unreadCount: number
+  lastActivityAt: number
+  isDeleted?: boolean
 }

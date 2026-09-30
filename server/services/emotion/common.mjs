@@ -25,7 +25,19 @@ export function buildSummary(source, label) {
     text_fallback: '语气识别降级(文本)',
   }[source] ?? '情绪识别'
 
-  return `${prefix}：${label}`
+  return `${prefix}：${toLabelText(label)}`
+}
+
+function toLabelText(label) {
+  return {
+    positive: '积极',
+    neutral: '平稳',
+    negative: '消极',
+    anxious: '焦虑',
+    sad: '难过',
+    angry: '生气',
+    calm: '平静',
+  }[label] ?? `${label ?? '未知'}`
 }
 
 export async function withRetry(task, options = {}) {
@@ -127,4 +139,3 @@ export function buildEmotionResult({ source, label, score, raw }) {
     raw,
   }
 }
-

@@ -4,6 +4,7 @@ import { detectTextEmotion } from './adapters/textAdapter.mjs'
 import { detectVoiceToneEmotion } from './adapters/voiceToneAdapter.mjs'
 import { buildSummary, withRetry } from './common.mjs'
 import { EmotionProviderError } from './errors.mjs'
+import { mockFaceEmotion, mockTextEmotion, mockVoiceToneEmotion } from './mockProviders.mjs'
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.KINLOOP_EMOTION_TIMEOUT_MS ?? 12000)
 
@@ -27,25 +28,70 @@ function toPulsePayload(params) {
     severity: params.result.severity,
     summary: params.result.summary,
     sourceConversationId: params.conversationId,
+    sourceMessageId: params.sourceMessageId ?? null,
+    sourceExcerpt: buildPulseExcerpt(params.result.source, params.input),
+    emotionSource: params.result.source,
+    emotionLabel: params.result.label,
     status: 'OPEN',
   }
 }
 
-function toFailureResult(source, error) {
-  const label = 'neutral'
-  const summary = buildSummary(source, `fallback:${label}`)
+function buildPulseExcerpt(source, input) {
+  const rawValue =
+    source === 'voice_tone'
+      ? input.transcript ?? input.text
+      : source === 'text_fallback'
+        ? input.transcript ?? input.text
+        : source === 'text'
+          ? input.text
+          : null
+
+  if (!rawValue || typeof rawValue !== 'string') {
+    return null
+  }
+
+  const normalized = rawValue.replace(/\s+/g, ' ').trim()
+  if (!normalized) {
+    return null
+  }
+
+  return normalized.length > 60 ? `${normalized.slice(0, 60)}...` : normalized
+}
+
+function toFailureResult(source, error, fallbackResult = null) {
+  const label = fallbackResult?.label ?? 'neutral'
+  const score = Number.isFinite(fallbackResult?.score) ? fallbackResult.score : 0.2
+  const severity = score < 0.5 ? 'LOW' : score < 0.75 ? 'MEDIUM' : 'HIGH'
   return {
     source,
     label,
-    score: 0.2,
-    severity: 'LOW',
-    summary,
+    score,
+    severity,
+    summary: buildSummary(source, label),
     raw: {
       mode: 'fallback',
       code: error?.code ?? 'UNKNOWN',
       message: error?.message ?? 'unknown error',
+      providerRaw: fallbackResult?.raw ?? null,
     },
   }
+}
+
+function buildLocalFallback(source, input) {
+  if (source === 'text' || source === 'text_fallback') {
+    const text = input.text ?? input.transcript ?? ''
+    return mockTextEmotion({ text })
+  }
+
+  if (source === 'voice_tone') {
+    return mockVoiceToneEmotion(input)
+  }
+
+  if (source === 'face') {
+    return mockFaceEmotion(input)
+  }
+
+  return null
 }
 
 async function runAdapter(adapter, input, providerOptions) {
@@ -77,7 +123,7 @@ export async function analyzeEmotionsAndCreatePulses(payload) {
       results.push(result)
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error))
-      results.push(toFailureResult('text', error))
+      results.push(toFailureResult('text', error, buildLocalFallback('text', input)))
     }
   }
 
@@ -87,7 +133,7 @@ export async function analyzeEmotionsAndCreatePulses(payload) {
       results.push(result)
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error))
-      results.push(toFailureResult('face', error))
+      results.push(toFailureResult('face', error, buildLocalFallback('face', input)))
     }
   }
 
@@ -113,11 +159,17 @@ export async function analyzeEmotionsAndCreatePulses(payload) {
           errors.push(
             fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
           )
-          results.push(toFailureResult('text_fallback', fallbackError))
+          results.push(
+            toFailureResult(
+              'text_fallback',
+              fallbackError,
+              buildLocalFallback('text_fallback', { ...input, text: fallbackText }),
+            ),
+          )
         }
       } else {
         errors.push(error instanceof Error ? error.message : String(error))
-        results.push(toFailureResult('voice_tone', error))
+        results.push(toFailureResult('voice_tone', error, buildLocalFallback('voice_tone', input)))
       }
     }
   }
@@ -127,6 +179,8 @@ export async function analyzeEmotionsAndCreatePulses(payload) {
       toPulsePayload({
         familySpaceId: payload.familySpaceId,
         conversationId: payload.conversationId,
+        sourceMessageId: payload.sourceMessageId,
+        input,
         result,
       }),
     )
@@ -156,6 +210,7 @@ export function normalizeEmotionRequest(payload, fallbackFamilySpaceId) {
   return {
     conversationId: payload.conversationId,
     familySpaceId: payload.familySpaceId ?? fallbackFamilySpaceId,
+    sourceMessageId: payload.sourceMessageId ?? null,
     text: payload.text ?? null,
     imageUrl: payload.imageUrl ?? null,
     audioUrl: payload.audioUrl ?? null,
