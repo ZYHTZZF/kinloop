@@ -123,6 +123,7 @@ function fetchConversationMessages(db, conversationId) {
       summary,
       emotion_source as source,
       emotion_label as label,
+      emotion_mode as mode,
       source_excerpt as excerpt,
       created_at as createdAt
     from pulses
@@ -142,6 +143,7 @@ function fetchConversationMessages(db, conversationId) {
       summary: row.summary,
       source: row.source ?? null,
       label: row.label ?? null,
+      mode: row.mode ?? null,
       excerpt: row.excerpt ?? null,
       createdAt: row.createdAt,
     })
@@ -176,6 +178,7 @@ function fetchConversationMessages(db, conversationId) {
       summary: row.summary,
       source: row.source ?? null,
       label: row.label ?? null,
+      mode: row.mode ?? 'fallback',
       excerpt: row.excerpt ?? fallbackMessage.textContent ?? fallbackMessage.transcript ?? null,
       createdAt: row.createdAt,
     })

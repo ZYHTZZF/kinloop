@@ -78,6 +78,7 @@ export const schemaSql = `
     source_excerpt text,
     emotion_source text,
     emotion_label text,
+    emotion_mode text,
     status text not null,
     created_at integer not null,
     resolved_at integer
@@ -143,6 +144,7 @@ export function initializeSchema(db) {
     'alter table pulses add column source_excerpt text',
     'alter table pulses add column emotion_source text',
     'alter table pulses add column emotion_label text',
+    'alter table pulses add column emotion_mode text',
   ]) {
     try {
       db.exec(statement)

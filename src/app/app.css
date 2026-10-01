@@ -1051,9 +1051,37 @@
   color: var(--app-soft);
 }
 
+.message-emotion-chip__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .message-emotion-chip strong {
   font-size: 13px;
   line-height: 1.5;
+}
+
+.message-emotion-mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.message-emotion-mode--ai {
+  background: rgba(76, 118, 103, 0.14);
+  color: #476c54;
+}
+
+.message-emotion-mode--fallback {
+  background: rgba(161, 120, 62, 0.14);
+  color: #9a6c2f;
 }
 
 .message-emotion-chip--high {
@@ -1324,9 +1352,13 @@
 .screen--elder-conversation .surface-card,
 .screen--family-conversation .surface-card {
   max-width: 860px;
+  width: min(100%, 860px);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 190px);
+  height: clamp(560px, calc(100dvh - 190px), 760px);
+  min-height: clamp(560px, calc(100dvh - 190px), 760px);
+  max-height: clamp(560px, calc(100dvh - 190px), 760px);
 }
 
 .screen--elder-conversation .surface-card {
@@ -1583,6 +1615,13 @@
   .family-emotion-dashboard,
   .family-emotion-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .screen--elder-conversation .surface-card,
+  .screen--family-conversation .surface-card {
+    height: calc(100dvh - 170px);
+    min-height: calc(100dvh - 170px);
+    max-height: calc(100dvh - 170px);
   }
 
   .surface-card,

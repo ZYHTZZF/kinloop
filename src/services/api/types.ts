@@ -64,6 +64,7 @@ export type Message = {
     summary: string
     excerpt: string | null
     createdAt: number
+    mode?: string | null
   } | null
 }
 

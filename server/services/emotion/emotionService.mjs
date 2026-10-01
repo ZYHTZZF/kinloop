@@ -32,6 +32,7 @@ function toPulsePayload(params) {
     sourceExcerpt: buildPulseExcerpt(params.result.source, params.input),
     emotionSource: params.result.source,
     emotionLabel: params.result.label,
+    emotionMode: params.result.raw?.mode ?? null,
     status: 'OPEN',
   }
 }

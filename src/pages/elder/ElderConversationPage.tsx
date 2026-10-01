@@ -45,6 +45,7 @@ export function ElderConversationPage() {
   const isCallerRef = useRef(false)
   const incomingOfferRef = useRef<string | null>(null)
   const autoSendOnceRef = useRef(false)
+  const messageListRef = useRef<HTMLDivElement | null>(null)
 
   const currentUserId = conversation?.elderMemberId ?? null
   const otherUserId = conversation?.familyMemberId ?? null
@@ -342,6 +343,17 @@ export function ElderConversationPage() {
 
   const messages = conversation?.messages ?? []
 
+  useEffect(() => {
+    const list = messageListRef.current
+    if (!list) {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      list.scrollTop = list.scrollHeight
+    })
+  }, [messages.length, loading])
+
   return (
     <section className="screen screen--elder-conversation">
       <section className="surface-card">
@@ -409,7 +421,7 @@ export function ElderConversationPage() {
         {voiceResult ? <p className="state-note">{voiceResult.promptTitle}</p> : null}
         {memoryFeedback ? <p className="state-note">{memoryFeedback}</p> : null}
 
-        <div className="message-list">
+        <div ref={messageListRef} className="message-list">
           {!loading && !error && messages.length === 0 ? (
             <PageState title="No messages yet" description="Start with a short message." />
           ) : null}

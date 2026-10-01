@@ -13,6 +13,7 @@ function mapPulse(row) {
     sourceExcerpt: row.sourceExcerpt,
     emotionSource: row.emotionSource,
     emotionLabel: row.emotionLabel,
+    emotionMode: row.emotionMode,
     status: row.status,
     createdAt: row.createdAt,
     resolvedAt: row.resolvedAt,
@@ -34,6 +35,7 @@ export function listTodayPulses() {
       source_excerpt as sourceExcerpt,
       emotion_source as emotionSource,
       emotion_label as emotionLabel,
+      emotion_mode as emotionMode,
       status,
       created_at as createdAt,
       resolved_at as resolvedAt
@@ -55,10 +57,12 @@ export function createPulse(payload) {
     insert into pulses (
       id, family_space_id, source_type, pulse_type, severity, summary,
       source_conversation_id, source_message_id, source_excerpt, emotion_source, emotion_label,
+      emotion_mode,
       status, created_at, resolved_at
     ) values (
       $id, $familySpaceId, $sourceType, $pulseType, $severity, $summary,
       $sourceConversationId, $sourceMessageId, $sourceExcerpt, $emotionSource, $emotionLabel,
+      $emotionMode,
       $status, $createdAt, $resolvedAt
     )
   `).run({
@@ -73,6 +77,7 @@ export function createPulse(payload) {
     sourceExcerpt: payload.sourceExcerpt ?? null,
     emotionSource: payload.emotionSource ?? null,
     emotionLabel: payload.emotionLabel ?? null,
+    emotionMode: payload.emotionMode ?? null,
     status: payload.status ?? 'OPEN',
     createdAt: payload.createdAt ?? now,
     resolvedAt: payload.resolvedAt ?? null,
@@ -91,6 +96,7 @@ export function createPulse(payload) {
       source_excerpt as sourceExcerpt,
       emotion_source as emotionSource,
       emotion_label as emotionLabel,
+      emotion_mode as emotionMode,
       status,
       created_at as createdAt,
       resolved_at as resolvedAt

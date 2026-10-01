@@ -38,6 +38,7 @@ export function FamilyConversationPage() {
 
   const isCallerRef = useRef(false)
   const incomingOfferRef = useRef<string | null>(null)
+  const messageListRef = useRef<HTMLDivElement | null>(null)
 
   const currentUserId = conversation?.familyMemberId ?? null
   const otherUserId = conversation?.elderMemberId ?? null
@@ -302,6 +303,17 @@ export function FamilyConversationPage() {
 
   const messages = conversation?.messages ?? []
 
+  useEffect(() => {
+    const list = messageListRef.current
+    if (!list) {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      list.scrollTop = list.scrollHeight
+    })
+  }, [messages.length, loading])
+
   return (
     <section className="screen screen--family-conversation">
       <section className="surface-card">
@@ -361,7 +373,7 @@ export function FamilyConversationPage() {
         {error ? <PageState variant="error" title="Conversation unavailable" description={error} /> : null}
         {memoryFeedback ? <p className="state-note">{memoryFeedback}</p> : null}
 
-        <div className="message-list">
+        <div ref={messageListRef} className="message-list">
           {!loading && !error && messages.length === 0 ? (
             <PageState title="No messages yet" description="Send your first message to start this conversation." />
           ) : null}
@@ -397,7 +409,12 @@ export function FamilyConversationPage() {
 
               {message.senderType === 'Elder' && message.emotion ? (
                 <div className={`message-emotion-chip message-emotion-chip--${toSeverityTone(message.emotion.severity)}`}>
-                  <span>{getEmotionSourceLabel(message.emotion.source)}</span>
+                  <div className="message-emotion-chip__meta">
+                    <span>{getEmotionSourceLabel(message.emotion.source)}</span>
+                    <span className={`message-emotion-mode message-emotion-mode--${getEmotionModeTone(message.emotion.mode)}`}>
+                      {getEmotionModeLabel(message.emotion.mode)}
+                    </span>
+                  </div>
                   <strong>{formatEmotionSummary(message.emotion.summary)}</strong>
                 </div>
               ) : null}
@@ -596,4 +613,12 @@ function formatEmotionSummary(summary: string) {
     .replace('：negative', '：消极')
     .replace('：positive', '：积极')
     .replace('：calm', '：平静')
+}
+
+function getEmotionModeLabel(mode: string | null | undefined) {
+  return mode === 'fallback' ? '兜底' : 'AI'
+}
+
+function getEmotionModeTone(mode: string | null | undefined) {
+  return mode === 'fallback' ? 'fallback' : 'ai'
 }
