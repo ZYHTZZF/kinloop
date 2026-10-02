@@ -1,89 +1,315 @@
-.wrap {
+.container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #000;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+.container.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  gap: 20px;
+  color: white;
+  text-align: center;
 }
 
-.stage {
+.incomingHeader {
   position: relative;
-  height: 230px;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #000;
 }
 
-.remoteVideo {
+.ringingAnimation {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  animation: ringing 1.5s infinite;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+@keyframes ringing {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.callerName {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.normalStyle .callerName {
+  font-size: 24px;
+}
+
+.familyStyle .callerName {
+  font-size: 32px;
+}
+
+.status {
+  font-size: 16px;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.normalStyle .status {
+  font-size: 14px;
+}
+
+.familyStyle .status {
+  font-size: 18px;
+}
+
+.avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid white;
+}
+
+.familyStyle .avatar {
+  width: 160px;
+  height: 160px;
+}
+
+.incomingActions {
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.familyStyle .incomingActions {
+  gap: 60px;
+  margin-top: 50px;
+}
+
+.acceptButton,
+.rejectButton {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.familyStyle .acceptButton,
+.familyStyle .rejectButton {
+  width: 80px;
+  height: 80px;
+  font-size: 32px;
+}
+
+.acceptButton {
+  background-color: #4caf50;
+  color: white;
+}
+
+.acceptButton:hover {
+  background-color: #45a049;
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.rejectButton {
+  background-color: #ff4444;
+  color: white;
+}
+
+.rejectButton:hover {
+  background-color: #ee0000;
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.videoContainer {
+  position: relative;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.localWrap {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  width: 104px;
-  height: 138px;
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  border-radius: 8px;
-  overflow: hidden;
-  background: #000;
-}
-
+.remoteVideo,
 .localVideo {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.label {
+.remoteVideo {
   position: absolute;
-  left: 8px;
-  bottom: 8px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  border-radius: 999px;
-  padding: 4px 8px;
-  font-size: 12px;
+  top: 0;
+  left: 0;
 }
 
-.localLabel {
-  left: auto;
-  right: 8px;
-  bottom: auto;
-  top: 8px;
+.localVideoWrapper {
+  position: absolute;
+  bottom: 100px;
+  right: 20px;
+  width: 160px;
+  height: 240px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 3px solid white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background: #000;
+}
+
+.normalStyle .localVideoWrapper {
+  width: 120px;
+  height: 160px;
+  bottom: 80px;
+  right: 16px;
+}
+
+.familyStyle .localVideoWrapper {
+  width: 200px;
+  height: 300px;
+  bottom: 130px;
+  right: 30px;
+}
+
+.localVideo {
+  width: 100%;
+  height: 100%;
+}
+
+.controlBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  padding: 40px 20px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.callInfo {
+  color: white;
+}
+
+.duration {
+  font-size: 18px;
+  margin: 8px 0 0 0;
+  font-weight: bold;
+}
+
+.normalStyle .duration {
+  font-size: 16px;
+}
+
+.familyStyle .duration {
+  font-size: 20px;
 }
 
 .controls {
   display: flex;
-  gap: 8px;
+  gap: 16px;
   justify-content: center;
+  flex: 1;
 }
 
-.btn {
+.normalStyle .controls {
+  gap: 12px;
+}
+
+.familyStyle .controls {
+  gap: 20px;
+}
+
+.controlButton,
+.hangupButton {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
   border: none;
-  border-radius: 10px;
-  height: 36px;
-  min-width: 68px;
-  padding: 0 10px;
-  color: #fff;
+  font-size: 20px;
   cursor: pointer;
-  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.normal {
-  background: #475569;
+.familyStyle .controlButton,
+.familyStyle .hangupButton {
+  width: 64px;
+  height: 64px;
+  font-size: 28px;
 }
 
-.normal.active {
-  background: #f59e0b;
+.controlButton:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
 }
 
-.accept {
-  background: #10b981;
+.controlButton.active {
+  background-color: rgba(255, 100, 100, 0.6);
 }
 
-.danger {
-  background: #ef4444;
+.hangupButton {
+  background-color: rgba(255, 68, 68, 0.8);
+}
+
+.hangupButton:hover {
+  background-color: rgba(255, 68, 68, 1);
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(255, 68, 68, 0.4);
+}
+
+@media (max-width: 768px) {
+  .localVideoWrapper {
+    width: 100px;
+    height: 150px;
+    bottom: 80px;
+    right: 12px;
+    border-width: 2px;
+  }
+
+  .controls {
+    gap: 8px;
+  }
+
+  .controlButton,
+  .hangupButton {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export type FamilySpace = {
   id: string
   name: string
@@ -23,6 +22,8 @@ export type Member = {
 export type ConversationCard = {
   id: string
   memberId: string
+  familyMemberId: string
+  elderMemberId: string
   name: string
   familyDisplayName: string
   elderDisplayName: string
@@ -56,11 +57,22 @@ export type Message = {
   deliveredAt: number | null
   consumedAt: number | null
   recalledAt: number | null
+  emotion?: {
+    severity: string
+    label: string | null
+    source: string | null
+    summary: string
+    excerpt: string | null
+    createdAt: number
+    mode?: string | null
+  } | null
 }
 
 export type ConversationDetail = {
   id: string
   memberId: string
+  familyMemberId: string
+  elderMemberId: string
   name: string
   familyDisplayName: string
   elderDisplayName: string
@@ -93,9 +105,61 @@ export type Pulse = {
   severity: string
   summary: string
   sourceConversationId: string | null
+  sourceMessageId?: string | null
+  sourceExcerpt?: string | null
+  emotionSource?: string | null
+  emotionLabel?: string | null
   status: string
   createdAt: number
   resolvedAt: number | null
+}
+
+export type EmotionSource = 'text' | 'face' | 'voice_tone' | 'text_fallback'
+
+export type EmotionLabel =
+  | 'positive'
+  | 'neutral'
+  | 'negative'
+  | 'anxious'
+  | 'sad'
+  | 'angry'
+  | 'calm'
+
+export type EmotionSeverity = 'LOW' | 'MEDIUM' | 'HIGH'
+
+export type EmotionResult = {
+  source: EmotionSource
+  label: EmotionLabel
+  score: number
+  severity: EmotionSeverity
+  summary: string
+  raw?: unknown
+}
+
+export type EmotionAnalyzeRequest = {
+  conversationId: string
+  familySpaceId?: string
+  text?: string | null
+  imageUrl?: string | null
+  audioUrl?: string | null
+  transcript?: string | null
+}
+
+export type EmotionAnalyzeResponse = {
+  input: {
+    conversationId: string
+    familySpaceId: string
+    text: string | null
+    imageUrl: string | null
+    audioUrl: string | null
+    transcript: string | null
+  }
+  results: EmotionResult[]
+  createdPulses: Pulse[]
+  errors: Array<{
+    code: string
+    message: string
+  }>
 }
 
 export type FollowupRecord = {
@@ -137,24 +201,32 @@ export type PermissionPolicy = {
   canManageAlertOrder: number
 }
 
-// ============ Chat Feature Types ============
+export type ICallSignal = {
+  type: 'offer' | 'answer' | 'ice-candidate' | 'reject' | 'hangup'
+  from: string
+  to: string
+  callId: string
+  callType?: 'voice' | 'video'
+  data?: Record<string, unknown>
+  timestamp: number
+}
 
 export const MessageStatus = {
   SENDING: 'sending',
   SENT: 'sent',
   DELIVERED: 'delivered',
   READ: 'read',
-} as const;
+} as const
 
-export type MessageStatus = typeof MessageStatus[keyof typeof MessageStatus];
+export type MessageStatus = typeof MessageStatus[keyof typeof MessageStatus]
 
 export const MessageType = {
   TEXT: 'text',
   IMAGE: 'image',
   VOICE: 'voice',
-} as const;
+} as const
 
-export type MessageType = typeof MessageType[keyof typeof MessageType];
+export type MessageType = typeof MessageType[keyof typeof MessageType]
 
 export interface IMessage {
   id: string
@@ -184,61 +256,6 @@ export interface IConversation {
   isDeleted?: boolean
 }
 
-export interface ICallSignal {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'reject' | 'hangup'
-  from: string
-  to: string
-  callId: string
-  callType?: 'voice' | 'video'
-  data?: Record<string, any>
-  timestamp: number
-}
-
-export interface ICallOffer extends ICallSignal {
-  type: 'offer'
-  data: {
-    sdp: string // RTCSessionDescription
-  }
-}
-
-export interface ICallAnswer extends ICallSignal {
-  type: 'answer'
-  data: {
-    sdp: string
-  }
-}
-
-export interface IIceCandidate extends ICallSignal {
-  type: 'ice-candidate'
-  data: {
-    candidate: string
-    sdpMLineIndex: number
-    sdpMid: string
-  }
-}
-
-export interface IIncomingCall {
-  callId: string
-  from: string
-  fromName: string
-  fromAvatar?: string
-  callType: 'voice' | 'video'
-  timestamp: number
-}
-
-export interface INotificationOptions {
-  title?: string
-  tag?: string
-  icon?: string
-  badge?: string
-  body?: string
-  data?: Record<string, any>
+export interface INotificationOptions extends NotificationOptions {
   requireInteraction?: boolean
-  silent?: boolean
-}
-
-export interface IOnlineStatus {
-  userId: string
-  isOnline: boolean
-  lastSeenAt?: number
 }

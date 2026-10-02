@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Outlet } from 'react-router-dom'
 import { BottomTabNav } from '../../components/common/BottomTabNav'
 
 const familyNavItems = [
@@ -9,22 +9,17 @@ const familyNavItems = [
 ]
 
 export function FamilyAppLayout() {
-  const navigate = useNavigate()
-  const location = useLocation()
-
   return (
     <div className="app-shell app-shell--family">
       <header className="app-shell__header">
         <div className="app-shell__header-copy">
           <p className="app-shell__eyebrow">Kinloop · 家人端</p>
-          <h1>先判断今天发生了什么，再决定现在怎么联系。</h1>
+          <h1>先看长辈今天的状态，再决定现在要不要发消息或打电话。</h1>
         </div>
+
         <div className="app-shell__header-actions">
-          <button className="ghost-action" type="button" onClick={() => handleGoBack()}>
-            返回上一页
-          </button>
-          <Link className="ghost-action ghost-action--link" to="/family/today">
-            回到今天
+          <Link className="primary-action" to="/family/chats">
+            去聊天窗口
           </Link>
           <Link className="app-shell__switch-link" to="/elder/home">
             切换到长辈端
@@ -39,13 +34,4 @@ export function FamilyAppLayout() {
       <BottomTabNav items={familyNavItems} />
     </div>
   )
-
-  function handleGoBack() {
-    if (window.history.length > 1 && location.pathname !== '/family/today') {
-      navigate(-1)
-      return
-    }
-
-    navigate('/family/today')
-  }
 }

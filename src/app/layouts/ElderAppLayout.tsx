@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Outlet } from 'react-router-dom'
 import { ElderVoiceAssistant } from '../../components/elder/ElderVoiceAssistant'
 import { getElderGreetingSummary } from '../../utils/elderHeader'
 
 export function ElderAppLayout() {
   const [headerSummary, setHeaderSummary] = useState(() => getElderGreetingSummary())
-  const navigate = useNavigate()
-  const location = useLocation()
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -31,9 +29,6 @@ export function ElderAppLayout() {
           <p className="elder-header__advice">{headerSummary.advice}</p>
         </div>
         <div className="app-shell__header-actions">
-          <button className="ghost-action" type="button" onClick={() => handleGoBack()}>
-            返回上一页
-          </button>
           <Link className="ghost-action ghost-action--link" to="/elder/home">
             回到首页
           </Link>
@@ -53,13 +48,4 @@ export function ElderAppLayout() {
       </Link>
     </div>
   )
-
-  function handleGoBack() {
-    if (window.history.length > 1 && location.pathname !== '/elder/home') {
-      navigate(-1)
-      return
-    }
-
-    navigate('/elder/home')
-  }
 }

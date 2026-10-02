@@ -11,7 +11,6 @@ import { FamilyChatsPage } from '../pages/family/FamilyChatsPage'
 import { FamilyConversationPage } from '../pages/family/FamilyConversationPage'
 import { FamilyMemoriesPage } from '../pages/family/FamilyMemoriesPage'
 import { FamilyCollaborationPage } from '../pages/family/FamilyCollaborationPage'
-import ElderChatDetailPage from '../pages/elder/ElderChatDetailPage'
 
 export const router = createBrowserRouter([
   {
@@ -27,7 +26,6 @@ export const router = createBrowserRouter([
       { path: 'inbox', element: <ElderContactsPage /> },
       { path: 'contacts', element: <Navigate to="/elder/inbox" replace /> },
       { path: 'conversations/:conversationId', element: <ElderConversationPage /> },
-      { path: 'chats/:userId', element: <ElderChatDetailPage /> },
       { path: 'memories', element: <Navigate to="/elder/home" replace /> },
       { path: 'help', element: <ElderHelpPage /> },
     ],
@@ -41,7 +39,6 @@ export const router = createBrowserRouter([
       { path: 'status', element: <FamilyStatusPage /> },
       { path: 'chats', element: <FamilyChatsPage /> },
       { path: 'chats/:conversationId', element: <FamilyConversationPage /> },
-      { path: 'chats/:userId', element: <FamilyConversationPage /> },
       { path: 'memories', element: <FamilyMemoriesPage /> },
       { path: 'collaboration', element: <FamilyCollaborationPage /> },
     ],

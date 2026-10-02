@@ -1,8 +1,8 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
-import { createMemoryEntry, getConversationDetail, sendMessage } from '../../services/api'
+import { createMemoryEntry, getConversationDetail, getCurrentFamilySpace, getWebSocketUrl, sendMessage } from '../../services/api'
 import type { ConversationDetail, Message } from '../../services/api'
 import type { ICallSignal } from '../../services/api/types'
 import { formatClock } from '../../utils/dateTime'
@@ -16,15 +16,16 @@ const STATIC_EMOJIS = ['😀', '😁', '😂', '🤣', '😊', '😍', '😘', '
 
 export function ElderConversationPage() {
   const location = useLocation()
-  const { conversationId = 'daughter' } = useParams()
+  const { conversationId } = useParams()
   const voiceResult = location.state?.elderVoiceResult as ElderVoiceIntentResult | undefined
   const prefillDraft = (location.state?.prefillDraft as string | undefined) ?? ''
   const autoSendMessage = Boolean(location.state?.autoSendMessage)
 
   const [conversation, setConversation] = useState<ConversationDetail | null>(null)
+  const [familySpaceId, setFamilySpaceId] = useState('fs_demo')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [draftText, setDraftText] = useState(prefillDraft || 'How are you today?')
+  const [draftText, setDraftText] = useState(prefillDraft || '')
   const [showEmojiPanel, setShowEmojiPanel] = useState(false)
   const [sending, setSending] = useState(false)
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
@@ -44,11 +45,13 @@ export function ElderConversationPage() {
   const isCallerRef = useRef(false)
   const incomingOfferRef = useRef<string | null>(null)
   const autoSendOnceRef = useRef(false)
+  const messageListRef = useRef<HTMLDivElement | null>(null)
 
-  const currentUserId = 'elder-1'
-  const otherUserId = conversationId
+  const currentUserId = conversation?.elderMemberId ?? null
+  const otherUserId = conversation?.familyMemberId ?? null
 
   const syncConversation = async () => {
+    if (!conversationId) return
     try {
       const nextConversation = await getConversationDetail(conversationId)
       setConversation(nextConversation)
@@ -63,7 +66,7 @@ export function ElderConversationPage() {
     try {
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Elder',
-        senderMemberId: 'member_elder',
+        senderMemberId: conversation.elderMemberId,
         messageType: 'Text',
         textContent: type === 'video' ? '发起了视频通话' : '发起了语音通话',
         aiDrafted: false,
@@ -93,10 +96,14 @@ export function ElderConversationPage() {
   }
 
   useEffect(() => {
+    if (!conversation || !currentUserId || !otherUserId) {
+      return
+    }
+
     const initWS = async () => {
       if (!chatApi.isWebSocketConnected()) {
         try {
-          await chatApi.initWebSocket('ws://localhost:3001', currentUserId)
+          await chatApi.initWebSocket(getWebSocketUrl(), currentUserId)
         } catch (e) {
           console.error(e)
         }
@@ -147,6 +154,11 @@ export function ElderConversationPage() {
       }
     })
 
+    chatApi.setConversationUpdateHandler(async (payload) => {
+      if (payload.conversationId !== conversation.id) return
+      await syncConversation()
+    })
+
     const unsubscribeConnected = webrtcManager.on('connection-state-changed', (data) => {
       if (isConnectionPayload(data) && data.state === 'connected') {
         setCallState('connected')
@@ -172,6 +184,8 @@ export function ElderConversationPage() {
     return () => {
       unsubscribeConnected()
       unsubscribeEnded()
+      chatApi.setConversationUpdateHandler(null)
+      chatApi.setWebrtcSignalHandler(null)
     }
   }, [callState, conversation, currentUserId, otherUserId])
 
@@ -191,7 +205,7 @@ export function ElderConversationPage() {
         setSending(true)
         const nextConversation = await sendMessage(conversation.id, {
           senderType: 'Elder',
-          senderMemberId: 'member_elder',
+          senderMemberId: conversation.elderMemberId,
           messageType: 'Text',
           textContent: draftText.trim(),
           aiDrafted: true,
@@ -213,9 +227,16 @@ export function ElderConversationPage() {
 
     async function load() {
       try {
-        const nextConversation = await getConversationDetail(conversationId)
+        if (!conversationId) {
+          throw new Error('Conversation id is missing')
+        }
+        const [nextConversation, familySpace] = await Promise.all([
+          getConversationDetail(conversationId),
+          getCurrentFamilySpace(),
+        ])
         if (!cancelled) {
           setConversation(nextConversation)
+          setFamilySpaceId(familySpace.id)
           setError('')
         }
       } catch (loadError) {
@@ -237,6 +258,7 @@ export function ElderConversationPage() {
   }, [conversationId])
 
   const handleAcceptCall = async () => {
+    if (!currentUserId || !otherUserId) return
     try {
       setCallState('connecting')
       if (incomingOfferRef.current) {
@@ -262,6 +284,7 @@ export function ElderConversationPage() {
   }
 
   const handleRejectCall = async () => {
+    if (!currentUserId || !otherUserId) return
     await webrtcManager.rejectCall(currentUserId, otherUserId, 'call-id')
     setIsCallActive(false)
     setCallState('idle')
@@ -270,6 +293,14 @@ export function ElderConversationPage() {
   }
 
   const handleHangupCall = () => {
+    if (!currentUserId || !otherUserId) return
+    chatApi.sendWebrtcSignal({
+      type: 'hangup',
+      from: currentUserId,
+      to: otherUserId,
+      callId: `${currentUserId}-${otherUserId}`,
+      timestamp: Date.now(),
+    })
     webrtcManager.hangup()
     setIsCallActive(false)
     setCallState('ended')
@@ -278,6 +309,7 @@ export function ElderConversationPage() {
   }
 
   const handleInitiateVoiceCall = async () => {
+    if (!currentUserId || !otherUserId) return
     isCallerRef.current = true
     setIsCallActive(true)
     setCallType('voice')
@@ -290,6 +322,7 @@ export function ElderConversationPage() {
   }
 
   const handleInitiateVideoCall = async () => {
+    if (!currentUserId || !otherUserId) return
     isCallerRef.current = true
     setIsCallActive(true)
     setCallType('video')
@@ -309,6 +342,17 @@ export function ElderConversationPage() {
   }
 
   const messages = conversation?.messages ?? []
+
+  useEffect(() => {
+    const list = messageListRef.current
+    if (!list) {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      list.scrollTop = list.scrollHeight
+    })
+  }, [messages.length, loading])
 
   return (
     <section className="screen screen--elder-conversation">
@@ -336,7 +380,7 @@ export function ElderConversationPage() {
 
         {isCallActive && callType === 'voice' && (
           <VoiceCall
-            remoteUser={{ id: otherUserId, name: conversation?.name || 'Family', avatar: conversation?.avatar }}
+            remoteUser={{ id: otherUserId ?? '', name: conversation?.name || 'Family', avatar: conversation?.avatar }}
             callState={callState}
             duration={callDuration}
             isIncoming={isIncomingCall}
@@ -344,13 +388,16 @@ export function ElderConversationPage() {
             onAccept={handleAcceptCall}
             onReject={handleRejectCall}
             onHangup={handleHangupCall}
-            onToggleMute={(m) => setIsMuted(m)}
+            onToggleMute={(m) => {
+              setIsMuted(m)
+              webrtcManager.toggleAudio(!m)
+            }}
           />
         )}
 
         {isCallActive && callType === 'video' && (
           <VideoCall
-            remoteUser={{ id: otherUserId, name: conversation?.name || 'Family', avatar: conversation?.avatar }}
+            remoteUser={{ id: otherUserId ?? '', name: conversation?.name || 'Family', avatar: conversation?.avatar }}
             remoteStream={remoteCallStream}
             localStream={localCallStream}
             callState={callState}
@@ -361,7 +408,10 @@ export function ElderConversationPage() {
             onAccept={handleAcceptCall}
             onReject={handleRejectCall}
             onHangup={handleHangupCall}
-            onToggleMute={(m) => setIsMuted(m)}
+            onToggleMute={(m) => {
+              setIsMuted(m)
+              webrtcManager.toggleAudio(!m)
+            }}
             onToggleCamera={handleToggleCamera}
           />
         )}
@@ -371,7 +421,7 @@ export function ElderConversationPage() {
         {voiceResult ? <p className="state-note">{voiceResult.promptTitle}</p> : null}
         {memoryFeedback ? <p className="state-note">{memoryFeedback}</p> : null}
 
-        <div className="message-list">
+        <div ref={messageListRef} className="message-list">
           {!loading && !error && messages.length === 0 ? (
             <PageState title="No messages yet" description="Start with a short message." />
           ) : null}
@@ -463,7 +513,7 @@ export function ElderConversationPage() {
       setSending(true)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Elder',
-        senderMemberId: 'member_elder',
+        senderMemberId: conversation.elderMemberId,
         messageType: 'Text',
         textContent: draftText.trim(),
         aiDrafted: true,
@@ -486,10 +536,10 @@ export function ElderConversationPage() {
     try {
       setSavingMemoryId(message.id)
       await createMemoryEntry({
-        familySpaceId: 'fs_demo',
+        familySpaceId,
         sourceConvId: conversation.id,
         sourceMsgId: message.id,
-        addedByMemberId: 'member_elder',
+        addedByMemberId: currentUserId ?? conversation.elderMemberId,
         memoryType: toMemoryType(message.messageType),
         title: buildFamilyMemoryTitle(conversation.name, message),
         description: message.textContent ?? message.transcript ?? 'A meaningful message',
@@ -512,10 +562,10 @@ export function ElderConversationPage() {
     try {
       setSavingAiMemory(true)
       await createMemoryEntry({
-        familySpaceId: 'fs_demo',
+        familySpaceId,
         sourceConvId: conversation?.id ?? null,
         sourceMsgId: null,
-        addedByMemberId: 'member_elder',
+        addedByMemberId: currentUserId ?? conversation?.elderMemberId ?? 'member_elder',
         memoryType: 'Text',
         title: 'AI draft memory',
         description: draftText.trim(),

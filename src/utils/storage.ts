@@ -1,4 +1,5 @@
-import { IMessage, IConversation, MessageStatus } from '../services/api/types'
+import type { IMessage, IConversation } from '../services/api/types'
+import { MessageStatus } from '../services/api/types'
 
 const DB_NAME = 'KinloopChat'
 const DB_VERSION = 1

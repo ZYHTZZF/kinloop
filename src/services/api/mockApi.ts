@@ -239,6 +239,8 @@ function buildConversationCards(state: MockState): ConversationCard[] {
       return {
         id: conversation.id,
         memberId: conversation.memberId,
+        familyMemberId: conversation.familyMemberId,
+        elderMemberId: conversation.elderMemberId,
         name: conversation.name,
         familyDisplayName: conversation.familyDisplayName,
         elderDisplayName: conversation.elderDisplayName,
@@ -350,6 +352,8 @@ function buildInitialState(): MockState {
     {
       id: 'daughter',
       memberId: 'member_daughter',
+      familyMemberId: 'member_daughter',
+      elderMemberId: 'member_elder',
       name: 'daughter',
       familyDisplayName: '大女儿',
       elderDisplayName: '汤先生',
@@ -363,6 +367,8 @@ function buildInitialState(): MockState {
     {
       id: 'son',
       memberId: 'member_son',
+      familyMemberId: 'member_son',
+      elderMemberId: 'member_elder',
       name: 'son',
       familyDisplayName: '儿子',
       elderDisplayName: '汤先生',
@@ -375,6 +381,8 @@ function buildInitialState(): MockState {
     {
       id: 'granddaughter',
       memberId: 'member_granddaughter',
+      familyMemberId: 'member_granddaughter',
+      elderMemberId: 'member_elder',
       name: 'granddaughter',
       familyDisplayName: '孙女',
       elderDisplayName: '汤先生',

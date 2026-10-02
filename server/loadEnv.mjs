@@ -1,41 +1,51 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-function parseEnvLine(line) {
-  const trimmed = line.trim()
-  if (!trimmed || trimmed.startsWith('#')) return null
+const ENV_FILES = ['.env.local', '.env']
 
-  const eqIndex = trimmed.indexOf('=')
-  if (eqIndex <= 0) return null
-
-  const key = trimmed.slice(0, eqIndex).trim()
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return null
-
-  let value = trimmed.slice(eqIndex + 1).trim()
+function stripWrappingQuotes(value) {
   if (
     (value.startsWith('"') && value.endsWith('"')) ||
     (value.startsWith("'") && value.endsWith("'"))
   ) {
-    value = value.slice(1, -1)
+    return value.slice(1, -1)
   }
 
-  return { key, value }
+  return value
 }
 
-export function loadServerEnv() {
-  const cwd = process.cwd()
-  const candidates = [resolve(cwd, '.env.local'), resolve(cwd, '.env')]
+function parseEnvFile(content) {
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim()
 
-  for (const filePath of candidates) {
-    if (!existsSync(filePath)) continue
+    if (!line || line.startsWith('#')) {
+      continue
+    }
 
-    const lines = readFileSync(filePath, 'utf8').split(/\r?\n/)
-    for (const line of lines) {
-      const parsed = parseEnvLine(line)
-      if (!parsed) continue
-      if (process.env[parsed.key] != null && process.env[parsed.key] !== '') continue
-      process.env[parsed.key] = parsed.value
+    const separatorIndex = line.indexOf('=')
+    if (separatorIndex <= 0) {
+      continue
+    }
+
+    const key = line.slice(0, separatorIndex).trim()
+    const value = stripWrappingQuotes(line.slice(separatorIndex + 1).trim())
+
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value
     }
   }
 }
 
+export function loadServerEnv() {
+  const projectRoot = process.cwd()
+
+  for (const fileName of ENV_FILES) {
+    const filePath = resolve(projectRoot, fileName)
+    if (!existsSync(filePath)) {
+      continue
+    }
+
+    const content = readFileSync(filePath, 'utf8')
+    parseEnvFile(content)
+  }
+}

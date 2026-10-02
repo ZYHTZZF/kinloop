@@ -59,17 +59,16 @@ export async function uploadAudioForProcessing(
   url: string
   status: 'processing' | 'completed' | 'failed'
 }> {
-  const formData = new FormData()
-  formData.append('audio', audioBlob)
-  formData.append('format', format)
-  formData.append('account', VOLCANO_ACCOUNT || 'default')
-
   const response = await fetch('/api/volcano/upload/audio', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${VOLCANO_API_KEY}`,
+      'Content-Type': 'application/json',
     },
-    body: formData,
+    body: JSON.stringify({
+      base64Data: await blobToBase64(audioBlob),
+      format,
+      account: VOLCANO_ACCOUNT || 'default',
+    }),
   })
 
   if (!response.ok) {
@@ -93,17 +92,16 @@ export async function uploadVideoForProcessing(
   url: string
   status: 'processing' | 'completed' | 'failed'
 }> {
-  const formData = new FormData()
-  formData.append('video', videoBlob)
-  formData.append('format', format)
-  formData.append('account', VOLCANO_ACCOUNT || 'default')
-
   const response = await fetch('/api/volcano/upload/video', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${VOLCANO_API_KEY}`,
+      'Content-Type': 'application/json',
     },
-    body: formData,
+    body: JSON.stringify({
+      base64Data: await blobToBase64(videoBlob),
+      format,
+      account: VOLCANO_ACCOUNT || 'default',
+    }),
   })
 
   if (!response.ok) {
@@ -123,9 +121,6 @@ export async function getProcessingStatus(taskId: string): Promise<{
 }> {
   const response = await fetch(`/api/volcano/status/${taskId}`, {
     method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${VOLCANO_API_KEY}`,
-    },
   })
 
   if (!response.ok) {
@@ -158,4 +153,21 @@ export default {
   uploadVideoForProcessing,
   getProcessingStatus,
   callVolcanoGenericAPI,
+}
+
+async function blobToBase64(blob: Blob) {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('Failed to read media blob'))
+        return
+      }
+
+      const commaIndex = reader.result.indexOf(',')
+      resolve(commaIndex >= 0 ? reader.result.slice(commaIndex + 1) : reader.result)
+    }
+    reader.onerror = () => reject(new Error('Failed to encode media blob'))
+    reader.readAsDataURL(blob)
+  })
 }

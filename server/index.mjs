@@ -1,5 +1,7 @@
 import express from 'express'
-import { API_HOST, API_PORT, DB_PATH } from './config.mjs'
+import { createServer } from 'node:http'
+import { API_HOST, API_PORT, ASR_API_KEY, ASR_BASE_URL, ASR_MODEL, DB_PATH, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, UPLOADS_DIR } from './config.mjs'
+import { WebSocketServer } from 'ws'
 import { getDatabase } from './db/index.mjs'
 import { acknowledgeAlert, createAlert, listActiveAlerts, resolveAlert } from './repositories/alertRepository.mjs'
 import { createMessage, getConversationDetail, listConversationCards } from './repositories/conversationRepository.mjs'
@@ -10,18 +12,300 @@ import { listMembers } from './repositories/memberRepository.mjs'
 import { createMemoryEntry, listMemories } from './repositories/memoryRepository.mjs'
 import { listPermissionPolicies } from './repositories/permissionPolicyRepository.mjs'
 import { listPulseHistory, listTodayPulses } from './repositories/pulseRepository.mjs'
-import { registerAiIntentRoutes } from './routes/aiIntentRoutes.mjs'
-import { registerAsrRoutes } from './routes/asrRoutes.mjs'
-import { registerVolcanoRoutes } from './routes/volcanoRoutes.mjs'
+import {
+  analyzeEmotionsAndCreatePulses,
+  isEmotionRequestValid,
+  normalizeEmotionRequest,
+  toErrorResponse,
+} from './services/emotion/emotionService.mjs'
 
 getDatabase()
 
 const app = express()
-app.use(express.json())
+app.use(express.json({ limit: '30mb' }))
+app.use('/uploads', express.static(UPLOADS_DIR))
+const server = createServer(app)
+const wss = new WebSocketServer({ server })
+const realtimeClients = new Map()
+
+function sendJson(ws, payload) {
+  if (ws.readyState === 1) {
+    ws.send(JSON.stringify(payload))
+  }
+}
+
+function notifyConversationMembers(conversation, payload) {
+  if (!conversation) return
+
+  const targets = [conversation.familyMemberId, conversation.elderMemberId].filter(Boolean)
+  for (const memberId of targets) {
+    const client = realtimeClients.get(memberId)
+    if (client) {
+      sendJson(client, payload)
+    }
+  }
+}
+
+function normalizeText(value) {
+  return `${value ?? ''}`.replace(/\s+/g, '').trim().toLowerCase()
+}
+
+function containsAny(text, keywords) {
+  return keywords.some((keyword) => text.includes(normalizeText(keyword)))
+}
+
+function buildSimpleAliases(members, conversations) {
+  return (Array.isArray(members) ? members : [])
+    .filter((member) => member?.role !== 'Elder')
+    .map((member) => {
+      const conversation = (Array.isArray(conversations) ? conversations : []).find((item) => item.memberId === member.id)
+      const aliases = new Set([
+        member.displayName,
+        member.elderAlias ?? '',
+        `${member.displayName ?? ''}`.replace('大', ''),
+        `${member.displayName ?? ''}`.replace('小', ''),
+      ])
+
+      if (member.id === 'member_daughter') {
+        ;['女儿', '大女儿', '闺女', '姑娘'].forEach((alias) => aliases.add(alias))
+      }
+      if (member.id === 'member_son') {
+        ;['儿子', '小儿子', '孩子'].forEach((alias) => aliases.add(alias))
+      }
+
+      return {
+        memberId: member.id,
+        memberLabel: member.elderAlias ?? member.displayName ?? '家人',
+        conversationId: conversation?.id ?? null,
+        aliases: Array.from(aliases).filter(Boolean).map((alias) => normalizeText(alias)),
+      }
+    })
+}
+
+function findMatchedMember(normalizedText, aliases) {
+  return aliases.find((member) => member.aliases.some((alias) => normalizedText.includes(alias))) ?? null
+}
+
+function buildIntentResult(spokenText, members, conversations) {
+  const normalized = normalizeText(spokenText)
+  const aliases = buildSimpleAliases(members, conversations)
+  const matchedMember = findMatchedMember(normalized, aliases)
+  const emergencyKeywords = ['救命', '快来', '摔倒', '胸口疼', '喘不上气', '站不起来', '急救']
+  const supportKeywords = ['不舒服', '难受', '头晕', '心慌', '疼', '帮助我', '联系家人', '找人来', '身体']
+  const memoryKeywords = ['记下来', '记住', '留着', '回忆', '照片', '相片']
+  const openMemoryKeywords = ['想看看', '再看看', '翻出来']
+  const chatKeywords = ['告诉', '发给', '转给', '联系', '找', '说给', '问']
+
+  if (!normalized) {
+    return {
+      spokenText,
+      normalizedText: normalized,
+      intentType: 'clarify',
+      targetMemberId: null,
+      targetMemberLabel: null,
+      targetConversationId: null,
+      confidence: 0.35,
+      requiresConfirmation: false,
+      nextAction: 'clarify',
+      urgencyLevel: 'none',
+      memoryAction: null,
+      promptTitle: '我还没听清这句话',
+      promptBody: '请再说完整一点，我再帮你判断。',
+      confirmLabel: '再说一次',
+      draftText: '',
+      autoSendMessage: false,
+    }
+  }
+
+  if (containsAny(normalized, emergencyKeywords)) {
+    return {
+      spokenText,
+      normalizedText: normalized,
+      intentType: 'support',
+      targetMemberId: matchedMember?.memberId ?? null,
+      targetMemberLabel: matchedMember?.memberLabel ?? '家人',
+      targetConversationId: matchedMember?.conversationId ?? null,
+      confidence: 0.98,
+      requiresConfirmation: false,
+      nextAction: 'trigger_alert',
+      urgencyLevel: 'emergency',
+      memoryAction: null,
+      promptTitle: '我听出来这是紧急情况',
+      promptBody: '我会立刻通知家人处理。',
+      confirmLabel: '立即通知',
+      draftText: '',
+      autoSendMessage: false,
+    }
+  }
+
+  if (containsAny(normalized, openMemoryKeywords)) {
+    return {
+      spokenText,
+      normalizedText: normalized,
+      intentType: 'memory',
+      targetMemberId: matchedMember?.memberId ?? null,
+      targetMemberLabel: matchedMember?.memberLabel ?? null,
+      targetConversationId: matchedMember?.conversationId ?? null,
+      confidence: 0.82,
+      requiresConfirmation: false,
+      nextAction: 'open_memories',
+      urgencyLevel: 'none',
+      memoryAction: 'open_memory',
+      promptTitle: '我带你看看之前留住的内容',
+      promptBody: '我可以帮你打开和家人的会话或回忆内容。',
+      confirmLabel: '去看看',
+      draftText: '',
+      autoSendMessage: false,
+    }
+  }
+
+  if (containsAny(normalized, memoryKeywords)) {
+    return {
+      spokenText,
+      normalizedText: normalized,
+      intentType: 'memory',
+      targetMemberId: matchedMember?.memberId ?? null,
+      targetMemberLabel: matchedMember?.memberLabel ?? null,
+      targetConversationId: matchedMember?.conversationId ?? null,
+      confidence: 0.88,
+      requiresConfirmation: true,
+      nextAction: 'save_memory',
+      urgencyLevel: 'none',
+      memoryAction: 'save_note',
+      promptTitle: '这句话像是想记下来',
+      promptBody: '我可以把它保存成回忆。',
+      confirmLabel: '帮我记下',
+      draftText: spokenText.trim(),
+      autoSendMessage: false,
+    }
+  }
+
+  if (matchedMember && containsAny(normalized, chatKeywords.concat(matchedMember.aliases))) {
+    return {
+      spokenText,
+      normalizedText: normalized,
+      intentType: 'chat',
+      targetMemberId: matchedMember.memberId,
+      targetMemberLabel: matchedMember.memberLabel,
+      targetConversationId: matchedMember.conversationId,
+      confidence: 0.9,
+      requiresConfirmation: true,
+      nextAction: 'open_conversation',
+      urgencyLevel: 'none',
+      memoryAction: null,
+      promptTitle: `我带你去找${matchedMember.memberLabel}`,
+      promptBody: `我会打开和${matchedMember.memberLabel}的对话，再把你想说的话带过去。`,
+      confirmLabel: `打开${matchedMember.memberLabel}`,
+      draftText: spokenText.trim(),
+      autoSendMessage: false,
+    }
+  }
+
+  if (containsAny(normalized, supportKeywords)) {
+    return {
+      spokenText,
+      normalizedText: normalized,
+      intentType: 'support',
+      targetMemberId: matchedMember?.memberId ?? null,
+      targetMemberLabel: matchedMember?.memberLabel ?? '家人',
+      targetConversationId: matchedMember?.conversationId ?? null,
+      confidence: 0.84,
+      requiresConfirmation: true,
+      nextAction: 'trigger_alert',
+      urgencyLevel: 'attention',
+      memoryAction: null,
+      promptTitle: '我听出来你现在需要人帮忙',
+      promptBody: '如果你愿意，我现在就通知家人。',
+      confirmLabel: '通知家人',
+      draftText: '',
+      autoSendMessage: false,
+    }
+  }
+
+  return {
+    spokenText,
+    normalizedText: normalized,
+    intentType: 'companion',
+    targetMemberId: null,
+    targetMemberLabel: null,
+    targetConversationId: null,
+    confidence: 0.7,
+    requiresConfirmation: false,
+    nextAction: 'stay',
+    urgencyLevel: 'none',
+    memoryAction: null,
+    promptTitle: '我先陪你说说话',
+    promptBody: '如果你想转给家人，我也可以继续帮你。',
+    confirmLabel: '继续说',
+    draftText: '',
+    autoSendMessage: false,
+  }
+}
+
+async function tryTranscribeWithProvider(audioBase64, mimeType) {
+  if (!ASR_API_KEY || !ASR_MODEL) {
+    return null
+  }
+
+  const bytes = Uint8Array.from(Buffer.from(audioBase64, 'base64'))
+  const file = new Blob([bytes], { type: mimeType || 'audio/webm' })
+  const form = new FormData()
+  form.append('file', file, 'recording.webm')
+  form.append('model', ASR_MODEL)
+
+  const response = await fetch(`${ASR_BASE_URL.replace(/\/$/, '')}/audio/transcriptions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${ASR_API_KEY}`,
+    },
+    body: form,
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `ASR provider failed: ${response.status}`)
+  }
+
+  const payload = await response.json()
+  const text = `${payload?.text ?? payload?.result ?? ''}`.trim()
+  return text || null
+}
+
+wss.on('connection', (ws) => {
+  let registeredUserId = null
+
+  ws.on('message', (raw) => {
+    try {
+      const message = JSON.parse(raw.toString())
+
+      if (message.type === 'register' && typeof message.userId === 'string') {
+        registeredUserId = message.userId
+        realtimeClients.set(registeredUserId, ws)
+        sendJson(ws, { type: 'registered', userId: registeredUserId, timestamp: Date.now() })
+        return
+      }
+
+      if (message.type === 'webrtc-signal' && message.data?.to) {
+        const target = realtimeClients.get(message.data.to)
+        if (target) {
+          sendJson(target, { type: 'webrtc-signal', data: message.data, timestamp: Date.now() })
+        }
+      }
+    } catch (error) {
+      console.warn('[ws] failed to process message', error)
+    }
+  })
+
+  ws.on('close', () => {
+    if (registeredUserId && realtimeClients.get(registeredUserId) === ws) {
+      realtimeClients.delete(registeredUserId)
+    }
+  })
+})
 
 app.use((_, response, next) => {
   response.setHeader('Access-Control-Allow-Origin', '*')
-  response.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS')
   next()
 })
@@ -48,12 +332,106 @@ app.get('/api/family-space', (_, response) => {
   response.json(getCurrentFamilySpace())
 })
 
+app.post('/api/asr/transcribe', async (request, response) => {
+  const audioBase64 = `${request.body?.audioBase64 ?? ''}`.trim()
+  const mimeType = `${request.body?.mimeType ?? 'audio/webm'}`.trim()
+
+  if (!audioBase64) {
+    response.status(400).json({ error: 'audioBase64 is required' })
+    return
+  }
+
+  try {
+    const text = await tryTranscribeWithProvider(audioBase64, mimeType)
+
+    if (!text) {
+      response.status(503).json({
+        error: 'ASR provider is not configured. Please use Chrome/Edge browser speech recognition or configure KINLOOP_ASR_MODEL and KINLOOP_ASR_API_KEY.',
+      })
+      return
+    }
+
+    response.json({ ok: true, text, provider: 'remote_asr' })
+  } catch (error) {
+    response.status(502).json({
+      error: error instanceof Error ? error.message : 'ASR transcription failed',
+    })
+  }
+})
+
+app.post('/api/ai/elder-intent', async (request, response) => {
+  const spokenText = `${request.body?.spokenText ?? ''}`.trim()
+  const members = Array.isArray(request.body?.members) ? request.body.members : []
+  const conversations = Array.isArray(request.body?.conversations) ? request.body.conversations : []
+
+  if (!spokenText) {
+    response.status(400).json({ error: 'spokenText is required' })
+    return
+  }
+
+  if (LLM_API_KEY && LLM_MODEL) {
+    try {
+      const systemPrompt = [
+        'You are an intent parser for an elder voice assistant.',
+        'Return strict JSON only.',
+        'Keys: intentType,targetMemberId,targetMemberLabel,targetConversationId,confidence,requiresConfirmation,nextAction,urgencyLevel,memoryAction,promptTitle,promptBody,confirmLabel,draftText,autoSendMessage.',
+      ].join(' ')
+
+      const llmResponse = await fetch(`${LLM_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${LLM_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: LLM_MODEL,
+          temperature: 0.2,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            {
+              role: 'user',
+              content: JSON.stringify({ spokenText, members, conversations }),
+            },
+          ],
+        }),
+      })
+
+      if (llmResponse.ok) {
+        const payload = await llmResponse.json()
+        const content = payload?.choices?.[0]?.message?.content
+        if (typeof content === 'string' && content.trim()) {
+          const parsed = JSON.parse(content)
+          response.json({
+            ok: true,
+            result: {
+              spokenText,
+              normalizedText: normalizeText(spokenText),
+              autoSendMessage: false,
+              ...parsed,
+            },
+          })
+          return
+        }
+      }
+    } catch (error) {
+      console.warn('[ai-intent] llm fallback to local rules', error)
+    }
+  }
+
+  response.json({
+    ok: true,
+    result: buildIntentResult(spokenText, members, conversations),
+  })
+})
+
 app.get('/api/members', (_, response) => {
   response.json(listMembers())
 })
 
-app.get('/api/conversations/cards', (_, response) => {
-  response.json(listConversationCards())
+app.get('/api/conversations/cards', (request, response) => {
+  const viewer = request.query?.viewer === 'family' ? 'family' : 'elder'
+  response.json(listConversationCards(viewer))
 })
 
 app.get('/api/conversations/:conversationId', (request, response) => {
@@ -75,7 +453,50 @@ app.post('/api/conversations/:conversationId/messages', (request, response) => {
     return
   }
 
-  response.status(201).json(createMessage(request.params.conversationId, request.body))
+  const nextConversation = createMessage(request.params.conversationId, request.body)
+  const createdMessage = nextConversation.messages.at(-1) ?? null
+  response.status(201).json(nextConversation)
+  notifyConversationMembers(nextConversation, {
+    type: 'conversation-updated',
+    data: {
+      conversationId: nextConversation.id,
+      conversation: nextConversation,
+    },
+    timestamp: Date.now(),
+  })
+
+  // Fire-and-forget emotion analysis. Messaging should never be blocked by provider latency.
+  void (async () => {
+    try {
+      const familySpace = getCurrentFamilySpace()
+      const messageType = `${createdMessage?.messageType ?? request.body?.messageType ?? ''}`.toLowerCase()
+      const textContent = createdMessage?.textContent ?? request.body?.textContent ?? null
+      const transcript = createdMessage?.transcript ?? request.body?.transcript ?? null
+      const mediaUrl = createdMessage?.mediaUrl ?? request.body?.mediaUrl ?? null
+
+      const payload = normalizeEmotionRequest(
+        {
+          conversationId: request.params.conversationId,
+          familySpaceId: familySpace?.id ?? null,
+          sourceMessageId: createdMessage?.id ?? null,
+          text: textContent,
+          imageUrl: messageType === 'image' || messageType === 'mixed' ? mediaUrl : null,
+          audioUrl: messageType === 'voice' || messageType === 'mixed' ? mediaUrl : null,
+          transcript,
+        },
+        familySpace?.id ?? null,
+      )
+
+      if (!isEmotionRequestValid(payload)) {
+        return
+      }
+
+      await analyzeEmotionsAndCreatePulses(payload)
+    } catch (error) {
+      const details = toErrorResponse(error)
+      console.warn('[emotion:auto-analyze] skipped:', details.code, details.message)
+    }
+  })()
 })
 
 app.get('/api/memories', (_, response) => {
@@ -92,6 +513,26 @@ app.get('/api/pulses/today', (_, response) => {
 
 app.get('/api/pulses/history', (_, response) => {
   response.json(listPulseHistory())
+})
+
+app.post('/api/emotions/analyze', async (request, response) => {
+  const familySpace = getCurrentFamilySpace()
+  const payload = normalizeEmotionRequest(request.body, familySpace?.id ?? null)
+
+  if (!isEmotionRequestValid(payload)) {
+    response.status(400).json({
+      code: 'EMOTION_INVALID_INPUT',
+      message: 'conversationId/familySpaceId and at least one modality input are required.',
+    })
+    return
+  }
+
+  try {
+    const result = await analyzeEmotionsAndCreatePulses(payload)
+    response.status(201).json(result)
+  } catch (error) {
+    response.status(502).json(toErrorResponse(error))
+  }
 })
 
 app.get('/api/followups', (_, response) => {
@@ -134,61 +575,6 @@ app.patch('/api/invites/:inviteId/approve', (request, response) => {
   response.json(approveInviteCode(request.params.inviteId, request.body.approvedMemberId))
 })
 
-registerAiIntentRoutes(app)
-registerAsrRoutes(app)
-
-// 注册火山引擎 API 路由
-registerVolcanoRoutes(app)
-
-import { createServer } from 'http'
-import { WebSocketServer } from 'ws'
-
-const server = createServer(app)
-const wss = new WebSocketServer({ server })
-
-// 保存用户的 WebSocket 连接
-const clients = new Map()
-
-wss.on('connection', (ws) => {
-  ws.on('message', (data) => {
-    try {
-      const msg = JSON.parse(data.toString())
-      
-      // 注册用户连接
-      if (msg.type === 'register' && msg.userId) {
-        clients.set(msg.userId, ws)
-        console.log(`User ${msg.userId} registered for WS`)
-      } 
-      // 转发点对点消息 (主要是 Webrtc Signaling)
-      else if (msg.to) {
-        const targetWs = clients.get(msg.to)
-        if (targetWs && targetWs.readyState === 1) { // 1 = OPEN
-          targetWs.send(JSON.stringify(msg))
-        }
-      } 
-      // 广播其他消息 (Fallback)
-      else {
-        wss.clients.forEach((client) => {
-          if (client !== ws && client.readyState === 1) {
-            client.send(JSON.stringify(msg))
-          }
-        })
-      }
-    } catch (e) {
-      console.error('WS Error parsing message:', e)
-    }
-  })
-
-  ws.on('close', () => {
-    clients.forEach((clientWs, userId) => {
-      if (clientWs === ws) {
-        clients.delete(userId)
-        console.log(`User ${userId} WS disconnected`)
-      }
-    })
-  })
-})
-
 server.listen(API_PORT, API_HOST, () => {
-  console.log(`Kinloop local api with WebSocket listening at http://${API_HOST}:${API_PORT}`)
+  console.log(`Kinloop local api listening at http://${API_HOST}:${API_PORT}`)
 })

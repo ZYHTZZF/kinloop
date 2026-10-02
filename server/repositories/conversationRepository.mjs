@@ -19,6 +19,38 @@ function mapMessage(row) {
     deliveredAt: row.deliveredAt,
     consumedAt: row.consumedAt,
     recalledAt: row.recalledAt,
+    emotion: row.emotion ?? null,
+  }
+}
+
+function buildPrimaryMessage(message) {
+  if (!message) {
+    return null
+  }
+
+  if (message.messageType === 'Voice') {
+    return {
+      id: message.id,
+      type: 'voice',
+      preview: message.transcript ?? '发来一段语音',
+      mediaLabel: message.mediaUrl,
+    }
+  }
+
+  if (message.messageType === 'Image') {
+    return {
+      id: message.id,
+      type: 'image',
+      preview: message.textContent ?? '发来一张照片',
+      mediaLabel: message.mediaUrl,
+    }
+  }
+
+  return {
+    id: message.id,
+    type: 'text',
+    preview: message.textContent ?? '',
+    mediaLabel: message.mediaUrl,
   }
 }
 
@@ -37,55 +69,17 @@ function buildUnreadSummary(messages) {
   if (counts.voice > 0) parts.push(`还有 ${counts.voice} 条语音`)
   if (counts.text > 0) parts.push(`还有 ${counts.text} 条文字`)
 
-  return parts.join('、') || '暂无未读'
+  return parts.join('，') || '暂无未读'
 }
 
-function selectPrimaryMessage(unreadMessages) {
-  if (unreadMessages.length === 0) {
-    return null
-  }
-
-  const sorted = [...unreadMessages].sort((left, right) => right.createdAt - left.createdAt)
-  const candidate = sorted.find((message) => !message.isLowInformation) ?? sorted[0]
-
-  if (!candidate) {
-    return null
-  }
-
-  if (candidate.messageType === 'Voice') {
-    return {
-      id: candidate.id,
-      type: 'voice',
-      preview: candidate.transcript ?? '发来一段语音',
-      mediaLabel: candidate.mediaUrl,
-    }
-  }
-
-  if (candidate.messageType === 'Image') {
-    return {
-      id: candidate.id,
-      type: 'image',
-      preview: candidate.textContent ?? '发来一张照片',
-      mediaLabel: candidate.mediaUrl,
-    }
-  }
-
-  return {
-    id: candidate.id,
-    type: 'text',
-    preview: candidate.textContent ?? '',
-    mediaLabel: candidate.mediaUrl,
-  }
-}
-
-export function listConversationCards() {
-  const db = getDatabase()
-
-  const conversations = db.prepare(`
+function fetchConversationRows(db) {
+  return db.prepare(`
     select
       conversations.id as conversationId,
       conversations.last_meaningful_activity_at as lastMeaningfulActivityAt,
       members.id as memberId,
+      conversations.family_member_id as familyMemberId,
+      conversations.elder_member_id as elderMemberId,
       members.display_name as displayName,
       members.elder_alias as elderAlias,
       family_spaces.elder_display_name as elderDisplayName,
@@ -95,72 +89,9 @@ export function listConversationCards() {
     inner join family_spaces on family_spaces.id = conversations.family_space_id
     order by conversations.last_meaningful_activity_at desc
   `).all()
-
-  const statement = db.prepare(`
-    select
-      id,
-      conversation_id as conversationId,
-      sender_type as senderType,
-      sender_member_id as senderMemberId,
-      message_type as messageType,
-      text_content as textContent,
-      media_url as mediaUrl,
-      voice_duration_sec as voiceDurationSec,
-      transcript,
-      transcript_confidence as transcriptConfidence,
-      ai_drafted as aiDrafted,
-      status,
-      is_low_information as isLowInformation,
-      created_at as createdAt,
-      delivered_at as deliveredAt,
-      consumed_at as consumedAt,
-      recalled_at as recalledAt
-    from messages
-    where conversation_id = ? and sender_type = 'Family' and status in ('DELIVERED', 'SENT')
-  `)
-
-  return conversations.map((conversation) => {
-    const unreadMessages = statement.all(conversation.conversationId).map(mapMessage)
-    const primaryMessage = selectPrimaryMessage(unreadMessages)
-
-    return {
-      id: conversation.conversationId,
-      memberId: conversation.memberId,
-      name: conversation.elderAlias ?? conversation.displayName,
-      familyDisplayName: conversation.displayName,
-      elderDisplayName: conversation.elderDisplayName,
-      avatar: conversation.avatar,
-      lastActivityAt: conversation.lastMeaningfulActivityAt,
-      unreadCount: unreadMessages.length,
-      unreadSummary: buildUnreadSummary(
-        unreadMessages.filter((message) => (primaryMessage ? message.id !== primaryMessage.id : true)),
-      ),
-      primaryMessage,
-    }
-  })
 }
 
-export function getConversationDetail(conversationId) {
-  const db = getDatabase()
-
-  const conversation = db.prepare(`
-    select
-      conversations.id as conversationId,
-      members.id as memberId,
-      members.display_name as displayName,
-      members.elder_alias as elderAlias,
-      family_spaces.elder_display_name as elderDisplayName,
-      substr(members.display_name, 1, 1) as avatar
-    from conversations
-    inner join members on members.id = conversations.family_member_id
-    inner join family_spaces on family_spaces.id = conversations.family_space_id
-    where conversations.id = ?
-  `).get(conversationId)
-
-  if (!conversation) {
-    return null
-  }
-
+function fetchConversationMessages(db, conversationId) {
   const messages = db.prepare(`
     select
       id,
@@ -185,14 +116,144 @@ export function getConversationDetail(conversationId) {
     order by created_at asc
   `).all(conversationId).map(mapMessage)
 
+  const emotionRows = db.prepare(`
+    select
+      source_message_id as sourceMessageId,
+      severity,
+      summary,
+      emotion_source as source,
+      emotion_label as label,
+      emotion_mode as mode,
+      source_excerpt as excerpt,
+      created_at as createdAt
+    from pulses
+    where source_conversation_id = ?
+      and pulse_type = 'Emotion'
+      and source_message_id is not null
+    order by created_at desc
+  `).all(conversationId)
+
+  const emotionByMessageId = new Map()
+  for (const row of emotionRows) {
+    if (!row.sourceMessageId || emotionByMessageId.has(row.sourceMessageId)) {
+      continue
+    }
+    emotionByMessageId.set(row.sourceMessageId, {
+      severity: row.severity,
+      summary: row.summary,
+      source: row.source ?? null,
+      label: row.label ?? null,
+      mode: row.mode ?? null,
+      excerpt: row.excerpt ?? null,
+      createdAt: row.createdAt,
+    })
+  }
+
+  for (const row of emotionRows) {
+    if (row.sourceMessageId) {
+      continue
+    }
+
+    const fallbackMessage = [...messages]
+      .reverse()
+      .find((message) => {
+        if (message.senderType !== 'Elder') {
+          return false
+        }
+
+        if (emotionByMessageId.has(message.id)) {
+          return false
+        }
+
+        const ageDelta = Math.abs(Number(row.createdAt ?? 0) - Number(message.createdAt ?? 0))
+        return ageDelta <= 2 * 60 * 1000
+      })
+
+    if (!fallbackMessage) {
+      continue
+    }
+
+    emotionByMessageId.set(fallbackMessage.id, {
+      severity: row.severity,
+      summary: row.summary,
+      source: row.source ?? null,
+      label: row.label ?? null,
+      mode: row.mode ?? 'fallback',
+      excerpt: row.excerpt ?? fallbackMessage.textContent ?? fallbackMessage.transcript ?? null,
+      createdAt: row.createdAt,
+    })
+  }
+
+  return messages.map((message) => ({
+    ...message,
+    emotion: emotionByMessageId.get(message.id) ?? null,
+  }))
+}
+
+export function listConversationCards(viewer = 'elder') {
+  const db = getDatabase()
+  const conversations = fetchConversationRows(db)
+
+  return conversations.map((conversation) => {
+    const messages = fetchConversationMessages(db, conversation.conversationId)
+    const latestMessage = messages.length > 0 ? messages[messages.length - 1] : null
+    const unreadMessages = messages.filter((message) => {
+      if (viewer === 'family') {
+        return message.senderType === 'Elder' && !message.consumedAt
+      }
+
+      return message.senderType === 'Family' && !message.consumedAt
+    })
+
+    return {
+      id: conversation.conversationId,
+      memberId: conversation.memberId,
+      familyMemberId: conversation.familyMemberId,
+      elderMemberId: conversation.elderMemberId,
+      name: conversation.elderAlias ?? conversation.displayName,
+      familyDisplayName: conversation.displayName,
+      elderDisplayName: conversation.elderDisplayName,
+      avatar: conversation.avatar,
+      lastActivityAt: conversation.lastMeaningfulActivityAt,
+      unreadCount: unreadMessages.length,
+      unreadSummary: buildUnreadSummary(unreadMessages),
+      primaryMessage: buildPrimaryMessage(latestMessage),
+    }
+  })
+}
+
+export function getConversationDetail(conversationId) {
+  const db = getDatabase()
+  const conversation = db.prepare(`
+    select
+      conversations.id as conversationId,
+      members.id as memberId,
+      conversations.family_member_id as familyMemberId,
+      conversations.elder_member_id as elderMemberId,
+      members.display_name as displayName,
+      members.elder_alias as elderAlias,
+      family_spaces.elder_display_name as elderDisplayName,
+      substr(members.display_name, 1, 1) as avatar
+    from conversations
+    inner join members on members.id = conversations.family_member_id
+    inner join family_spaces on family_spaces.id = conversations.family_space_id
+    where conversations.id = ?
+  `).get(conversationId)
+
+  if (!conversation) {
+    return null
+  }
+
   return {
     id: conversation.conversationId,
     memberId: conversation.memberId,
+    familyMemberId: conversation.familyMemberId,
+    elderMemberId: conversation.elderMemberId,
     name: conversation.elderAlias ?? conversation.displayName,
     familyDisplayName: conversation.displayName,
     elderDisplayName: conversation.elderDisplayName,
     avatar: conversation.avatar,
-    messages,
+    messages: fetchConversationMessages(db, conversationId),
   }
 }
 

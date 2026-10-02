@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import { closureActions, followupTasks } from '../../domain/content/followupGuidance'
 import { createFollowup, listFollowups, listPulseHistory } from '../../services/api'
@@ -61,28 +62,27 @@ export function FamilyStatusPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">状态与回访</p>
-            <h2>把今天看到的问题，和已经做过的跟进，串成一条能回看的线。</h2>
+            <h2>如果你看完状态后想立刻联系长辈，右边这个按钮就是聊天入口。</h2>
           </div>
+          <Link className="primary-action" to="/family/chats">
+            去聊天窗口
+          </Link>
         </div>
 
         <div className="trend-card">
           <strong>本周互动健康度</strong>
-          <p>本周平均每天 2 次有效互动，昨天完成了 2 次回访闭环。</p>
+          <p>这里适合看整体情况；一旦决定要联系长辈，直接去聊天页，不用再绕回首页。</p>
         </div>
 
         <div className="timeline-stack">
           {loading ? (
             <PageState
               title="正在回看最近的状态与回访"
-              description="我会把今天和昨天的判断、跟进结果整理成一条能回看的线。"
+              description="我会把今天和昨天的判断、跟进结果整理成一条线。"
             />
           ) : null}
           {error ? (
-            <PageState
-              variant="error"
-              title="状态历史暂时没有连上本地服务"
-              description={error}
-            />
+            <PageState variant="error" title="状态历史暂时没连上本地服务" description={error} />
           ) : null}
           {!loading && !error && pulses.length === 0 ? (
             <PageState
@@ -95,37 +95,40 @@ export function FamilyStatusPage() {
             const followup = followupByPulseId.get(pulse.id)
 
             return (
-            <article className="timeline-card" key={pulse.id}>
-              <div className="timeline-card__pulse">
-                <span className={`severity-dot severity-dot--${toSeverityTone(pulse.severity)}`} />
-                <div>
-                  <strong>{pulse.summary}</strong>
-                  <p>{formatShortDateTime(pulse.createdAt)}</p>
-                </div>
-              </div>
-
-              {followup ? (
-                <div className="timeline-card__followup">
-                  {followup.resultTag ? <span className="status-pill">{followup.resultTag}</span> : null}
-                  <p>{followup.resultNote ?? '已完成跟进'}</p>
-                  <small>处理人：{followup.handlerMemberId}</small>
-                </div>
-              ) : pulse.status !== 'RESOLVED' ? (
-                <div className="timeline-card__followup">
-                  <p>这条状态还没有形成回访记录。</p>
-                  <div className="inline-actions">
-                    <button
-                      className="ghost-action"
-                      type="button"
-                      disabled={closingPulseId === pulse.id}
-                      onClick={() => void handleClosePulse(pulse)}
-                    >
-                      {closingPulseId === pulse.id ? '提交中…' : '快速闭环'}
-                    </button>
+              <article className="timeline-card" key={pulse.id}>
+                <div className="timeline-card__pulse">
+                  <span className={`severity-dot severity-dot--${toSeverityTone(pulse.severity)}`} />
+                  <div>
+                    <strong>{pulse.summary}</strong>
+                    <p>{formatShortDateTime(pulse.createdAt)}</p>
                   </div>
                 </div>
-              ) : null}
-            </article>
+
+                {followup ? (
+                  <div className="timeline-card__followup">
+                    {followup.resultTag ? <span className="status-pill">{followup.resultTag}</span> : null}
+                    <p>{followup.resultNote ?? '已完成跟进'}</p>
+                    <small>处理人：{followup.handlerMemberId}</small>
+                  </div>
+                ) : pulse.status !== 'RESOLVED' ? (
+                  <div className="timeline-card__followup">
+                    <p>这条状态还没有形成回访记录。</p>
+                    <div className="inline-actions">
+                      <button
+                        className="ghost-action"
+                        type="button"
+                        disabled={closingPulseId === pulse.id}
+                        onClick={() => void handleClosePulse(pulse)}
+                      >
+                        {closingPulseId === pulse.id ? '提交中…' : '快速闭环'}
+                      </button>
+                      <Link className="ghost-action ghost-action--link" to="/family/chats">
+                        去聊天
+                      </Link>
+                    </div>
+                  </div>
+                ) : null}
+              </article>
             )
           })}
         </div>

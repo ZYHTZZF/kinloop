@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { classifyElderSpeech, type ElderVoiceIntentResult } from '../../domain/elderVoice'
-import { createAlert, createMemoryEntry, listConversationCards, listMembers } from '../../services/api'
+import {
+  createAlert,
+  createMemoryEntry,
+  getCurrentFamilySpace,
+  inferElderIntent,
+  listConversationCards,
+  listMembers,
+} from '../../services/api'
 import type { ConversationCard, Member } from '../../services/api'
 
 const examplePrompts = [
@@ -13,37 +20,72 @@ const examplePrompts = [
 
 type AssistantStage = 'idle' | 'recording' | 'transcribing' | 'classifying' | 'result' | 'acting'
 
+type SpeechRecognitionResultLike = {
+  0: { transcript: string }
+  isFinal: boolean
+  length: number
+}
+
+type SpeechRecognitionEventLike = Event & {
+  resultIndex: number
+  results: ArrayLike<SpeechRecognitionResultLike>
+}
+
+type SpeechRecognitionLike = EventTarget & {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  onerror: ((event: Event & { error?: string }) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike
+
+function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
+  if (typeof window === 'undefined') return null
+
+  const win = window as Window & {
+    SpeechRecognition?: SpeechRecognitionCtor
+    webkitSpeechRecognition?: SpeechRecognitionCtor
+  }
+
+  return win.SpeechRecognition ?? win.webkitSpeechRecognition ?? null
+}
+
 export function ElderVoiceAssistant() {
   const navigate = useNavigate()
   const location = useLocation()
   const [members, setMembers] = useState<Member[]>([])
   const [conversations, setConversations] = useState<ConversationCard[]>([])
+  const [familySpaceId, setFamilySpaceId] = useState('fs_demo')
+  const [elderMemberId, setElderMemberId] = useState('member_elder')
   const [stage, setStage] = useState<AssistantStage>('idle')
   const [open, setOpen] = useState(false)
   const [spokenText, setSpokenText] = useState('')
   const [result, setResult] = useState<ElderVoiceIntentResult | null>(null)
   const [feedback, setFeedback] = useState('')
   const [error, setError] = useState('')
+  const [assistantNotice, setAssistantNotice] = useState('')
   const [isRecording, setIsRecording] = useState(false)
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const shouldTranscribeOnStopRef = useRef(false)
   const micReadyRef = useRef(false)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const finalTranscriptRef = useRef('')
+  const liveTranscriptRef = useRef('')
 
   useEffect(() => {
     void loadDirectory()
   }, [])
 
   useEffect(() => {
-    stopRecording(false)
-    setFeedback('')
-    setError('')
-    setResult(null)
-    setOpen(false)
-    setStage('idle')
-    setSpokenText('')
-    setIsRecording(false)
+    resetAssistant()
   }, [location.pathname])
 
   return (
@@ -54,7 +96,7 @@ export function ElderVoiceAssistant() {
         aria-label={resolveButtonLabel(stage)}
         onClick={() => void handleVoiceToggle()}
       >
-        <span className="global-voice-button__mic">🎤</span>
+        <span className="global-voice-button__mic">🎙</span>
         <span>{resolveButtonLabel(stage)}</span>
       </button>
 
@@ -62,14 +104,24 @@ export function ElderVoiceAssistant() {
         <section className="voice-sheet" aria-live="polite">
           <div className="voice-sheet__header">
             <div>
-              <p className="surface-card__eyebrow">语音主入口</p>
+              <p className="surface-card__eyebrow">语音入口</p>
               <h2>{resolveSheetTitle(stage, result)}</h2>
             </div>
             <button className="ghost-action" type="button" onClick={resetAssistant}>
               关闭
             </button>
           </div>
+
           {error ? <p className="state-note state-note--error">{error}</p> : null}
+          {assistantNotice ? <p className="state-note">{assistantNotice}</p> : null}
+
+          {stage === 'recording' ? (
+            <div className="voice-sheet__status-card">
+              <strong>麦克风正在工作</strong>
+              <p>再点一次麦克风按钮结束录音并开始转写。</p>
+              {spokenText ? <p>{spokenText}</p> : null}
+            </div>
+          ) : null}
 
           {stage === 'transcribing' ? (
             <>
@@ -112,7 +164,7 @@ export function ElderVoiceAssistant() {
           {stage === 'classifying' || stage === 'acting' ? (
             <div className="voice-sheet__status-card">
               <strong>{stage === 'classifying' ? '我正在理解这句话' : '我正在帮你安排后面的事'}</strong>
-              <p>{spokenText || '稍等一下，我马上帮你分清楚。'}</p>
+              <p>{spokenText || '请稍等，我马上帮你判断。'}</p>
             </div>
           ) : null}
 
@@ -147,9 +199,15 @@ export function ElderVoiceAssistant() {
 
   async function loadDirectory() {
     try {
-      const [nextMembers, nextConversations] = await Promise.all([listMembers(), listConversationCards()])
+      const [nextMembers, nextConversations, familySpace] = await Promise.all([
+        listMembers(),
+        listConversationCards(),
+        getCurrentFamilySpace(),
+      ])
       setMembers(nextMembers)
       setConversations(nextConversations)
+      setFamilySpaceId(familySpace.id)
+      setElderMemberId(nextMembers.find((member) => member.role === 'Elder')?.id ?? 'member_elder')
       setError('')
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '暂时没连上本地服务')
@@ -180,26 +238,26 @@ export function ElderVoiceAssistant() {
       return
     }
 
-    setIsRecording(true)
     setOpen(true)
     setStage('recording')
     setFeedback('')
     setError('')
     setResult(null)
     setSpokenText('')
+    setAssistantNotice('')
+    setIsRecording(true)
   }
 
   async function handleInterpret() {
-    if (!spokenText.trim()) {
-      return
-    }
+    if (!spokenText.trim()) return
 
     setStage('classifying')
     setError('')
     setFeedback('')
+    setAssistantNotice('')
 
     await delay(420)
-    const nextResult = classifyElderSpeech(spokenText, members, conversations)
+    const nextResult = await resolveIntent(spokenText)
     setResult(nextResult)
     setStage('result')
 
@@ -214,12 +272,13 @@ export function ElderVoiceAssistant() {
       setError('')
 
       if (nextResult.nextAction === 'open_conversation' && nextResult.targetConversationId) {
-        setFeedback(`我这就带你去找${nextResult.targetMemberLabel}。`)
+        setFeedback(`我这就带你去找${nextResult.targetMemberLabel ?? '家人'}。`)
         await delay(280)
         navigate(`/elder/conversations/${nextResult.targetConversationId}`, {
           state: {
             elderVoiceResult: nextResult,
             prefillDraft: nextResult.draftText,
+            autoSendMessage: nextResult.autoSendMessage,
           },
         })
         return
@@ -228,7 +287,7 @@ export function ElderVoiceAssistant() {
       if (nextResult.nextAction === 'trigger_alert') {
         const alertType = nextResult.urgencyLevel === 'emergency' ? 'SOS' : 'UNWELL'
         await createAlert({
-          familySpaceId: 'fs_demo',
+          familySpaceId,
           alertType,
           triggerSource: 'Voice',
           escalationLevel: nextResult.urgencyLevel === 'emergency' ? 2 : nextResult.urgencyLevel === 'attention' ? 2 : 1,
@@ -236,7 +295,7 @@ export function ElderVoiceAssistant() {
         setFeedback(
           nextResult.urgencyLevel === 'emergency'
             ? '已经替你通知家人，现在会优先处理。'
-            : '已经通知家人，请他们尽快接住你现在的情况。',
+            : '已经通知家人，请他们尽快联系你。'
         )
         await delay(280)
         navigate('/elder/help', { state: { elderVoiceResult: nextResult } })
@@ -245,16 +304,16 @@ export function ElderVoiceAssistant() {
 
       if (nextResult.nextAction === 'save_memory') {
         await createMemoryEntry({
-          familySpaceId: 'fs_demo',
+          familySpaceId,
           sourceConvId: nextResult.targetConversationId,
           sourceMsgId: null,
-          addedByMemberId: 'member_elder',
+          addedByMemberId: elderMemberId,
           memoryType: 'Text',
           title: '我想记住这句话',
           description: nextResult.draftText || nextResult.spokenText,
           mediaUrl: null,
         })
-        setFeedback('已经帮你记下了，家人之后也能在聊天里接着看。')
+        setFeedback('已经帮你记下来了，之后你和家人都能再翻出来看。')
         await delay(280)
         navigate('/elder/home', { state: { elderVoiceResult: nextResult } })
         return
@@ -262,7 +321,7 @@ export function ElderVoiceAssistant() {
 
       if (nextResult.nextAction === 'open_memories') {
         if (nextResult.targetConversationId) {
-          setFeedback(`我带你去找${nextResult.targetMemberLabel ?? '家人'}刚刚发来的内容。`)
+          setFeedback(`我带你去看看${nextResult.targetMemberLabel ?? '家人'}最近发来的内容。`)
           await delay(280)
           navigate(`/elder/conversations/${nextResult.targetConversationId}`, {
             state: { elderVoiceResult: nextResult },
@@ -270,14 +329,14 @@ export function ElderVoiceAssistant() {
           return
         }
 
-        setFeedback('我先带你回到来信里看看最近的内容。')
+        setFeedback('我先带你回到来信列表看看最近的内容。')
         await delay(280)
         navigate('/elder/inbox', { state: { elderVoiceResult: nextResult } })
         return
       }
 
       if (nextResult.nextAction === 'stay') {
-        setFeedback('我在。你想继续说，就再按一次下面的话筒。')
+        setFeedback('我在。你想继续说，就再点一次下面的麦克风。')
         setStage('result')
         return
       }
@@ -285,7 +344,7 @@ export function ElderVoiceAssistant() {
       setStage('result')
     } catch (actionError) {
       setStage('result')
-      setError(actionError instanceof Error ? actionError.message : '这一步暂时没完成，再试一次就好。')
+      setError(actionError instanceof Error ? actionError.message : '这一步暂时没完成，请再试一次')
     }
   }
 
@@ -294,6 +353,7 @@ export function ElderVoiceAssistant() {
     setResult(null)
     setFeedback('')
     setError('')
+    setAssistantNotice('')
   }
 
   function resetAssistant() {
@@ -304,57 +364,115 @@ export function ElderVoiceAssistant() {
     setResult(null)
     setFeedback('')
     setError('')
+    setAssistantNotice('')
     setIsRecording(false)
+    finalTranscriptRef.current = ''
+    liveTranscriptRef.current = ''
   }
 
   async function startRecording() {
-    if (typeof MediaRecorder === 'undefined') {
-      setError('当前浏览器不支持录音，请使用 Chrome 或 Edge')
+    const speechRecognitionCtor = getSpeechRecognitionCtor()
+    const supportsMediaRecorder = typeof MediaRecorder !== 'undefined'
+
+    if (!supportsMediaRecorder && !speechRecognitionCtor) {
+      setError('当前浏览器不支持录音或语音识别，请使用最新版 Chrome 或 Edge')
       return false
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      mediaStreamRef.current = stream
+      finalTranscriptRef.current = ''
+      liveTranscriptRef.current = ''
       audioChunksRef.current = []
       shouldTranscribeOnStopRef.current = true
 
-      const preferredMimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
-        ? 'audio/ogg;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm'
+      if (speechRecognitionCtor) {
+        const recognition = new speechRecognitionCtor()
+        recognition.lang = 'zh-CN'
+        recognition.continuous = true
+        recognition.interimResults = true
+        recognition.onresult = (event) => {
+          let finalText = finalTranscriptRef.current
+          let interimText = ''
 
-      let recorder: MediaRecorder
-      try {
-        recorder = new MediaRecorder(stream, { mimeType: preferredMimeType })
-      } catch {
-        recorder = new MediaRecorder(stream)
-      }
-      recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          audioChunksRef.current.push(event.data)
+          for (let index = event.resultIndex; index < event.results.length; index += 1) {
+            const result = event.results[index]
+            const transcript = result?.[0]?.transcript ?? ''
+            if (result?.isFinal) {
+              finalText += transcript
+            } else {
+              interimText += transcript
+            }
+          }
+
+          finalTranscriptRef.current = finalText
+          liveTranscriptRef.current = `${finalText}${interimText}`.trim()
+          if (liveTranscriptRef.current) {
+            setSpokenText(liveTranscriptRef.current)
+          }
         }
-      }
-      recorder.onerror = () => {
-        setError('录音失败，请检查麦克风权限和输入设备')
-      }
-      recorder.onstop = () => {
-        const shouldTranscribe = shouldTranscribeOnStopRef.current
-        stopStreamTracks()
-        setIsRecording(false)
-        setStage((prev) => (prev === 'recording' ? 'transcribing' : prev))
-        if (shouldTranscribe) {
-          void transcribeRecordedAudio(recorder.mimeType)
-        } else {
-          audioChunksRef.current = []
+        recognition.onerror = (event) => {
+          const errorCode = event.error ?? ''
+          if (errorCode && errorCode !== 'no-speech') {
+            setAssistantNotice(`浏览器语音识别暂时不可用：${errorCode}`)
+          }
         }
+        recognition.onend = () => {
+          recognitionRef.current = null
+        }
+        recognition.start()
+        recognitionRef.current = recognition
       }
-      recorder.start(250)
-      mediaRecorderRef.current = recorder
+
+      if (supportsMediaRecorder) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        mediaStreamRef.current = stream
+
+        const preferredMimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+          ? 'audio/ogg;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus'
+            : 'audio/webm'
+
+        let recorder: MediaRecorder
+        try {
+          recorder = new MediaRecorder(stream, { mimeType: preferredMimeType })
+        } catch {
+          recorder = new MediaRecorder(stream)
+        }
+
+        recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            audioChunksRef.current.push(event.data)
+          }
+        }
+        recorder.onerror = () => {
+          setError('录音失败，请检查麦克风权限和输入设备')
+        }
+        recorder.onstop = () => {
+          const shouldTranscribe = shouldTranscribeOnStopRef.current
+          stopStreamTracks()
+          setIsRecording(false)
+          setStage((prev) => (prev === 'recording' ? 'transcribing' : prev))
+          if (shouldTranscribe) {
+            void transcribeRecordedAudio(recorder.mimeType)
+          } else {
+            audioChunksRef.current = []
+          }
+        }
+        recorder.start(250)
+        mediaRecorderRef.current = recorder
+      }
+
+      setAssistantNotice(
+        speechRecognitionCtor
+          ? '已开启麦克风，正在边录音边识别语音。'
+          : '已开启麦克风录音，结束后会走服务端转写。'
+      )
       setError('')
       return true
     } catch (recordError) {
+      recognitionRef.current?.stop()
+      recognitionRef.current = null
       setError(recordError instanceof Error ? recordError.message : '录音启动失败')
       return false
     }
@@ -362,16 +480,23 @@ export function ElderVoiceAssistant() {
 
   function stopRecording(shouldTranscribe: boolean) {
     shouldTranscribeOnStopRef.current = shouldTranscribe
+    recognitionRef.current?.stop()
+
     try {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.requestData()
         mediaRecorderRef.current.stop()
       } else {
         stopStreamTracks()
+        setIsRecording(false)
+        if (shouldTranscribe) {
+          void transcribeRecordedAudio('')
+        }
       }
     } catch {
-      // noop
+      stopStreamTracks()
     }
+
     mediaRecorderRef.current = null
   }
 
@@ -383,10 +508,18 @@ export function ElderVoiceAssistant() {
 
   async function transcribeRecordedAudio(mimeType: string) {
     try {
+      const browserTranscript = finalTranscriptRef.current.trim() || liveTranscriptRef.current.trim()
+      if (browserTranscript) {
+        setSpokenText(browserTranscript)
+        setAssistantNotice('已使用浏览器语音识别完成转写。')
+        setError('')
+        return
+      }
+
       const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' })
       audioChunksRef.current = []
       if (audioBlob.size <= 0) {
-        setError('未采集到有效声音，请靠近麦克风后再试')
+        setError('没有采集到有效声音，请靠近麦克风后再试一次')
         return
       }
 
@@ -408,13 +541,27 @@ export function ElderVoiceAssistant() {
       const payload = await response.json() as { text?: string }
       const text = String(payload.text ?? '').trim()
       if (!text) {
-        setError('未识别到有效语音，请再说一次')
+        setError('没有识别到有效语音，请再说一次')
         return
       }
+
       setSpokenText(text)
+      setAssistantNotice('已使用服务端语音转写完成识别。')
       setError('')
     } catch (transcribeError) {
       setError(transcribeError instanceof Error ? transcribeError.message : '语音转写失败')
+    }
+  }
+
+  async function resolveIntent(input: string) {
+    try {
+      const inferred = await inferElderIntent(input, members, conversations)
+      setAssistantNotice('已使用服务端 AI 判断当前语音意图。')
+      return inferred
+    } catch (intentError) {
+      console.warn('[Voice Assistant] AI intent fallback to local rules:', intentError)
+      setAssistantNotice('服务端 AI 暂时不可用，已切换到本地规则继续处理。')
+      return classifyElderSpeech(input, members, conversations)
     }
   }
 
@@ -437,12 +584,12 @@ export function ElderVoiceAssistant() {
       if (permissionApi?.query) {
         const status = await permissionApi.query({ name: 'microphone' as PermissionName })
         if (status.state === 'denied') {
-          setError('麦克风权限已被阻止，请在地址栏的小锁图标里改为允许')
+          setError('麦克风权限已被阻止，请在地址栏设置里改成允许')
           return false
         }
       }
     } catch {
-      // ignore compatibility issue
+      // ignore
     }
 
     micReadyRef.current = true
@@ -453,7 +600,7 @@ export function ElderVoiceAssistant() {
 function resolveButtonLabel(stage: AssistantStage) {
   if (stage === 'recording') return '点击结束说话'
   if (stage === 'classifying') return '正在理解'
-  if (stage === 'acting') return '正在分配'
+  if (stage === 'acting') return '正在处理'
   return '点击开始说话'
 }
 
@@ -462,7 +609,7 @@ function resolveSheetTitle(stage: AssistantStage, result: ElderVoiceIntentResult
   if (stage === 'transcribing') return '看看这句话对不对'
   if (stage === 'classifying') return '我在帮你判断该走哪条路'
   if (stage === 'acting') return '我在帮你把事情接下去'
-  return result?.promptTitle ?? '点下面的话筒，说出你想说的话'
+  return result?.promptTitle ?? '点下面的麦克风，说出你想说的话'
 }
 
 function showConfirmAction(result: ElderVoiceIntentResult, stage: AssistantStage) {
@@ -498,5 +645,3 @@ async function blobToBase64(blob: Blob) {
     reader.readAsDataURL(blob)
   })
 }
-
-

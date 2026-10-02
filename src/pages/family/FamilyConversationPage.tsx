@@ -1,8 +1,8 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
-import { createMemoryEntry, getConversationDetail, sendMessage } from '../../services/api'
+import { createMemoryEntry, getConversationDetail, getCurrentFamilySpace, getWebSocketUrl, sendMessage } from '../../services/api'
 import type { ConversationDetail, Message } from '../../services/api'
 import type { ICallSignal } from '../../services/api/types'
 import { formatClock } from '../../utils/dateTime'
@@ -14,9 +14,10 @@ import VideoCall from '../../components/chat/VideoCall'
 const STATIC_EMOJIS = ['😀', '😁', '😂', '🤣', '😊', '😍', '😘', '😎', '🥳', '😭', '😡', '👍', '👏', '🙏', '❤️', '🎉']
 
 export function FamilyConversationPage() {
-  const { conversationId = 'daughter', userId } = useParams()
-  const targetId = userId || conversationId
+  const { conversationId, userId } = useParams()
+  const targetId = userId || conversationId || ''
   const [conversation, setConversation] = useState<ConversationDetail | null>(null)
+  const [familySpaceId, setFamilySpaceId] = useState('fs_demo')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [composerText, setComposerText] = useState('')
@@ -37,11 +38,13 @@ export function FamilyConversationPage() {
 
   const isCallerRef = useRef(false)
   const incomingOfferRef = useRef<string | null>(null)
+  const messageListRef = useRef<HTMLDivElement | null>(null)
 
-  const currentUserId = 'family-1'
-  const otherUserId = targetId
+  const currentUserId = conversation?.familyMemberId ?? null
+  const otherUserId = conversation?.elderMemberId ?? null
 
   const syncConversation = async () => {
+    if (!targetId) return
     try {
       const nextConversation = await getConversationDetail(targetId)
       setConversation(nextConversation)
@@ -56,7 +59,7 @@ export function FamilyConversationPage() {
     try {
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Family',
-        senderMemberId: conversation.memberId,
+        senderMemberId: conversation.familyMemberId,
         messageType: 'Text',
         textContent: type === 'video' ? '发起了视频通话' : '发起了语音通话',
         aiDrafted: false,
@@ -73,7 +76,7 @@ export function FamilyConversationPage() {
     try {
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'System',
-        senderMemberId: conversation.memberId,
+        senderMemberId: conversation.familyMemberId,
         messageType: 'Text',
         textContent: content,
         aiDrafted: false,
@@ -86,10 +89,14 @@ export function FamilyConversationPage() {
   }
 
   useEffect(() => {
+    if (!conversation || !currentUserId || !otherUserId) {
+      return
+    }
+
     const initWS = async () => {
       if (!chatApi.isWebSocketConnected()) {
         try {
-          await chatApi.initWebSocket('ws://localhost:3001', currentUserId)
+          await chatApi.initWebSocket(getWebSocketUrl(), currentUserId)
         } catch (e) {
           console.error(e)
         }
@@ -140,6 +147,11 @@ export function FamilyConversationPage() {
       }
     })
 
+    chatApi.setConversationUpdateHandler(async (payload) => {
+      if (payload.conversationId !== conversation.id) return
+      await syncConversation()
+    })
+
     const unsubscribeConnected = webrtcManager.on('connection-state-changed', (data) => {
       if (isConnectionPayload(data) && data.state === 'connected') {
         setCallState('connected')
@@ -165,10 +177,13 @@ export function FamilyConversationPage() {
     return () => {
       unsubscribeConnected()
       unsubscribeEnded()
+      chatApi.setConversationUpdateHandler(null)
+      chatApi.setWebrtcSignalHandler(null)
     }
   }, [callState, conversation, currentUserId, otherUserId])
 
   const handleAcceptCall = async () => {
+    if (!currentUserId || !otherUserId) return
     try {
       setCallState('connecting')
       if (incomingOfferRef.current) {
@@ -194,6 +209,7 @@ export function FamilyConversationPage() {
   }
 
   const handleRejectCall = async () => {
+    if (!currentUserId || !otherUserId) return
     await webrtcManager.rejectCall(currentUserId, otherUserId, 'call-id')
     setIsCallActive(false)
     setCallState('idle')
@@ -202,6 +218,14 @@ export function FamilyConversationPage() {
   }
 
   const handleHangupCall = () => {
+    if (!currentUserId || !otherUserId) return
+    chatApi.sendWebrtcSignal({
+      type: 'hangup',
+      from: currentUserId,
+      to: otherUserId,
+      callId: `${currentUserId}-${otherUserId}`,
+      timestamp: Date.now(),
+    })
     webrtcManager.hangup()
     setIsCallActive(false)
     setCallState('ended')
@@ -210,6 +234,7 @@ export function FamilyConversationPage() {
   }
 
   const handleInitiateVoiceCall = async () => {
+    if (!currentUserId || !otherUserId) return
     isCallerRef.current = true
     setIsCallActive(true)
     setCallType('voice')
@@ -222,6 +247,7 @@ export function FamilyConversationPage() {
   }
 
   const handleInitiateVideoCall = async () => {
+    if (!currentUserId || !otherUserId) return
     isCallerRef.current = true
     setIsCallActive(true)
     setCallType('video')
@@ -245,9 +271,16 @@ export function FamilyConversationPage() {
 
     async function load() {
       try {
-        const nextConversation = await getConversationDetail(targetId)
+        if (!targetId) {
+          throw new Error('Conversation id is missing')
+        }
+        const [nextConversation, familySpace] = await Promise.all([
+          getConversationDetail(targetId),
+          getCurrentFamilySpace(),
+        ])
         if (!cancelled) {
           setConversation(nextConversation)
+          setFamilySpaceId(familySpace.id)
           setError('')
         }
       } catch (loadError) {
@@ -270,11 +303,25 @@ export function FamilyConversationPage() {
 
   const messages = conversation?.messages ?? []
 
+  useEffect(() => {
+    const list = messageListRef.current
+    if (!list) {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      list.scrollTop = list.scrollHeight
+    })
+  }, [messages.length, loading])
+
   return (
     <section className="screen screen--family-conversation">
       <section className="surface-card">
         <div className="section-heading">
           <div>
+            <Link className="back-link" to="/family/chats">
+              返回聊天列表
+            </Link>
             <p className="surface-card__eyebrow">Chat</p>
             <h2>Conversation with {conversation?.elderDisplayName ?? 'Family member'}</h2>
           </div>
@@ -286,7 +333,7 @@ export function FamilyConversationPage() {
 
         {isCallActive && callType === 'voice' && (
           <VoiceCall
-            remoteUser={{ id: otherUserId, name: conversation?.elderDisplayName || 'Family member', avatar: undefined }}
+            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || 'Family member', avatar: undefined }}
             callState={callState}
             duration={callDuration}
             isIncoming={isIncomingCall}
@@ -294,13 +341,16 @@ export function FamilyConversationPage() {
             onAccept={handleAcceptCall}
             onReject={handleRejectCall}
             onHangup={handleHangupCall}
-            onToggleMute={(m) => setIsMuted(m)}
+            onToggleMute={(m) => {
+              setIsMuted(m)
+              webrtcManager.toggleAudio(!m)
+            }}
           />
         )}
 
         {isCallActive && callType === 'video' && (
           <VideoCall
-            remoteUser={{ id: otherUserId, name: conversation?.elderDisplayName || 'Family member', avatar: undefined }}
+            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || 'Family member', avatar: undefined }}
             remoteStream={remoteCallStream}
             localStream={localCallStream}
             callState={callState}
@@ -311,7 +361,10 @@ export function FamilyConversationPage() {
             onAccept={handleAcceptCall}
             onReject={handleRejectCall}
             onHangup={handleHangupCall}
-            onToggleMute={(m) => setIsMuted(m)}
+            onToggleMute={(m) => {
+              setIsMuted(m)
+              webrtcManager.toggleAudio(!m)
+            }}
             onToggleCamera={handleToggleCamera}
           />
         )}
@@ -320,36 +373,52 @@ export function FamilyConversationPage() {
         {error ? <PageState variant="error" title="Conversation unavailable" description={error} /> : null}
         {memoryFeedback ? <p className="state-note">{memoryFeedback}</p> : null}
 
-        <div className="message-list">
+        <div ref={messageListRef} className="message-list">
           {!loading && !error && messages.length === 0 ? (
             <PageState title="No messages yet" description="Send your first message to start this conversation." />
           ) : null}
 
           {messages.map((message) => (
-            <article
+            <div
               key={message.id}
-              className={`message-bubble message-bubble--${message.senderType === 'Family' ? 'self' : 'peer'}`}
+              className={`message-thread message-thread--${message.senderType === 'Family' ? 'self' : 'peer'}`}
             >
-              <span className="message-bubble__sender">{getSenderLabel(message, conversation)}</span>
-              {message.messageType === 'Image' ? (
-                <div className="message-media">
-                  <span>{message.mediaUrl ?? 'Image content'}</span>
+              <article
+                className={`message-bubble message-bubble--${message.senderType === 'Family' ? 'self' : 'peer'}`}
+              >
+                <span className="message-bubble__sender">{getSenderLabel(message, conversation)}</span>
+                {message.messageType === 'Image' ? (
+                  <div className="message-media">
+                    <span>{message.mediaUrl ?? 'Image content'}</span>
+                  </div>
+                ) : null}
+                <p>{message.textContent ?? message.transcript ?? 'Voice message'}</p>
+                <footer className="message-bubble__footer">
+                  <span>{formatClock(message.createdAt)}</span>
+                  <button
+                    className="text-action"
+                    type="button"
+                    disabled={savingMemoryId === message.id}
+                    onClick={() => void handleAddMemory(message)}
+                  >
+                    {savingMemoryId === message.id ? 'Saving...' : 'Add to memories'}
+                  </button>
+                  {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
+                </footer>
+              </article>
+
+              {message.senderType === 'Elder' && message.emotion ? (
+                <div className={`message-emotion-chip message-emotion-chip--${toSeverityTone(message.emotion.severity)}`}>
+                  <div className="message-emotion-chip__meta">
+                    <span>{getEmotionSourceLabel(message.emotion.source)}</span>
+                    <span className={`message-emotion-mode message-emotion-mode--${getEmotionModeTone(message.emotion.mode)}`}>
+                      {getEmotionModeLabel(message.emotion.mode)}
+                    </span>
+                  </div>
+                  <strong>{formatEmotionSummary(message.emotion.summary)}</strong>
                 </div>
               ) : null}
-              <p>{message.textContent ?? message.transcript ?? 'Voice message'}</p>
-              <footer className="message-bubble__footer">
-                <span>{formatClock(message.createdAt)}</span>
-                <button
-                  className="text-action"
-                  type="button"
-                  disabled={savingMemoryId === message.id}
-                  onClick={() => void handleAddMemory(message)}
-                >
-                  {savingMemoryId === message.id ? 'Saving...' : 'Add to memories'}
-                </button>
-                {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
-              </footer>
-            </article>
+            </div>
           ))}
         </div>
 
@@ -403,7 +472,7 @@ export function FamilyConversationPage() {
       setSending(true)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Family',
-        senderMemberId: conversation.memberId,
+        senderMemberId: conversation.familyMemberId,
         messageType: 'Text',
         textContent: composerText.trim(),
         aiDrafted: false,
@@ -427,10 +496,10 @@ export function FamilyConversationPage() {
     try {
       setSavingMemoryId(message.id)
       await createMemoryEntry({
-        familySpaceId: 'fs_demo',
+        familySpaceId,
         sourceConvId: conversation.id,
         sourceMsgId: message.id,
-        addedByMemberId: 'member_daughter',
+        addedByMemberId: currentUserId ?? conversation.familyMemberId,
         memoryType: toMemoryType(message.messageType),
         title: buildMemoryTitle(conversation.elderDisplayName, message),
         description: buildMemoryDescription(message),
@@ -513,4 +582,43 @@ function buildMemoryTitle(elderName: string, message: Message) {
 
 function buildMemoryDescription(message: Message) {
   return message.textContent ?? message.transcript ?? 'A meaningful message'
+}
+
+function toSeverityTone(severity: string) {
+  if (severity === 'HIGH') return 'high'
+  if (severity === 'MEDIUM') return 'medium'
+  return 'low'
+}
+
+function getEmotionSourceLabel(source: string | null | undefined) {
+  if (source === 'voice_tone') return '语气情绪'
+  if (source === 'text_fallback') return '转写文本情绪'
+  if (source === 'text') return '文本情绪'
+  if (source === 'face') return '表情情绪'
+  return '情绪识别'
+}
+
+function formatEmotionSummary(summary: string) {
+  return summary
+    .replace('fallback:neutral', '平稳')
+    .replace('fallback:angry', '生气')
+    .replace('fallback:sad', '难过')
+    .replace('fallback:anxious', '焦虑')
+    .replace('fallback:negative', '消极')
+    .replace('fallback:positive', '积极')
+    .replace('：neutral', '：平稳')
+    .replace('：angry', '：生气')
+    .replace('：sad', '：难过')
+    .replace('：anxious', '：焦虑')
+    .replace('：negative', '：消极')
+    .replace('：positive', '：积极')
+    .replace('：calm', '：平静')
+}
+
+function getEmotionModeLabel(mode: string | null | undefined) {
+  return mode === 'fallback' ? '兜底' : 'AI'
+}
+
+function getEmotionModeTone(mode: string | null | undefined) {
+  return mode === 'fallback' ? 'fallback' : 'ai'
 }

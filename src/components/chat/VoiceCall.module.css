@@ -1,65 +1,239 @@
-.wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.identity {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.avatar {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.name {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.duration {
-  margin: 2px 0 0;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.78);
-}
-
-.actions {
+.container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  opacity: 1;
+  transition: opacity 0.3s;
 }
 
-.btn {
+.container.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  color: white;
+  text-align: center;
+}
+
+.normalStyle .content {
+  gap: 20px;
+}
+
+.familyStyle .content {
+  gap: 30px;
+}
+
+.incomingHeader {
+  position: relative;
+}
+
+.ringingAnimation {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  animation: ringing 1.5s infinite;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+@keyframes ringing {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.callHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.callerName {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.normalStyle .callerName {
+  font-size: 24px;
+}
+
+.familyStyle .callerName {
+  font-size: 36px;
+}
+
+.status,
+.duration {
+  font-size: 16px;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.normalStyle .status,
+.normalStyle .duration {
+  font-size: 14px;
+}
+
+.familyStyle .status,
+.familyStyle .duration {
+  font-size: 18px;
+}
+
+.avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid white;
+}
+
+.familyStyle .avatar {
+  width: 160px;
+  height: 160px;
+}
+
+.largeAvatar {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid white;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.familyStyle .largeAvatar {
+  width: 280px;
+  height: 280px;
+  border-width: 6px;
+}
+
+.incomingActions {
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.familyStyle .incomingActions {
+  gap: 60px;
+  margin-top: 50px;
+}
+
+.acceptButton,
+.rejectButton {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
   border: none;
-  border-radius: 10px;
-  height: 38px;
-  min-width: 70px;
-  padding: 0 12px;
-  color: #fff;
+  font-size: 24px;
   cursor: pointer;
-  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.accept {
-  background: #10b981;
+.familyStyle .acceptButton,
+.familyStyle .rejectButton {
+  width: 80px;
+  height: 80px;
+  font-size: 32px;
 }
 
-.reject {
-  background: #ef4444;
+.acceptButton {
+  background-color: #4caf50;
+  color: white;
 }
 
-.mute {
-  background: #475569;
+.acceptButton:hover {
+  background-color: #45a049;
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
 }
 
-.mute.active {
-  background: #f59e0b;
+.rejectButton {
+  background-color: #ff4444;
+  color: white;
+}
+
+.rejectButton:hover {
+  background-color: #ee0000;
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.controls {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.familyStyle .controls {
+  gap: 40px;
+  margin-top: 50px;
+}
+
+.controlButton,
+.hangupButton {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.familyStyle .controlButton,
+.familyStyle .hangupButton {
+  width: 80px;
+  height: 80px;
+  font-size: 32px;
+}
+
+.controlButton:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.controlButton.active {
+  background-color: rgba(255, 100, 100, 0.6);
+}
+
+.hangupButton {
+  background-color: rgba(255, 68, 68, 0.8);
+}
+
+.hangupButton:hover {
+  background-color: rgba(255, 68, 68, 1);
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(255, 68, 68, 0.4);
 }
