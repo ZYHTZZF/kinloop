@@ -33,6 +33,7 @@ export function registerAsrRoutes(app) {
 
       // fallback to OpenAI-compatible transcription endpoint
       if (!LLM_API_KEY) {
+        res.status(503).json({ error: 'ASR provider is not configured: missing KINLOOP_LLM_API_KEY' })
         return
       }
 

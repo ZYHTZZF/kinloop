@@ -516,6 +516,12 @@ export function ElderVoiceAssistant() {
         return
       }
 
+      // Browser-only mode: skip server ASR to avoid provider credential/runtime errors.
+      setAssistantNotice('Browser transcription mode is active. Edit text manually if needed.')
+      setError('No browser transcript captured. Please try again and speak clearly.')
+      audioChunksRef.current = []
+      return
+
       const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' })
       audioChunksRef.current = []
       if (audioBlob.size <= 0) {

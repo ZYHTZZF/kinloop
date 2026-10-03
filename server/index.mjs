@@ -1,6 +1,6 @@
 import express from 'express'
 import { createServer } from 'node:http'
-import { API_HOST, API_PORT, ASR_API_KEY, ASR_BASE_URL, ASR_MODEL, DB_PATH, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, UPLOADS_DIR } from './config.mjs'
+import { API_HOST, API_PORT, DB_PATH, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, UPLOADS_DIR } from './config.mjs'
 import { WebSocketServer } from 'ws'
 import { getDatabase } from './db/index.mjs'
 import { acknowledgeAlert, createAlert, listActiveAlerts, resolveAlert } from './repositories/alertRepository.mjs'
@@ -18,6 +18,7 @@ import {
   normalizeEmotionRequest,
   toErrorResponse,
 } from './services/emotion/emotionService.mjs'
+import { registerAsrRoutes } from './routes/asrRoutes.mjs'
 
 getDatabase()
 
@@ -242,35 +243,6 @@ function buildIntentResult(spokenText, members, conversations) {
   }
 }
 
-async function tryTranscribeWithProvider(audioBase64, mimeType) {
-  if (!ASR_API_KEY || !ASR_MODEL) {
-    return null
-  }
-
-  const bytes = Uint8Array.from(Buffer.from(audioBase64, 'base64'))
-  const file = new Blob([bytes], { type: mimeType || 'audio/webm' })
-  const form = new FormData()
-  form.append('file', file, 'recording.webm')
-  form.append('model', ASR_MODEL)
-
-  const response = await fetch(`${ASR_BASE_URL.replace(/\/$/, '')}/audio/transcriptions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${ASR_API_KEY}`,
-    },
-    body: form,
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(text || `ASR provider failed: ${response.status}`)
-  }
-
-  const payload = await response.json()
-  const text = `${payload?.text ?? payload?.result ?? ''}`.trim()
-  return text || null
-}
-
 wss.on('connection', (ws) => {
   let registeredUserId = null
 
@@ -332,32 +304,7 @@ app.get('/api/family-space', (_, response) => {
   response.json(getCurrentFamilySpace())
 })
 
-app.post('/api/asr/transcribe', async (request, response) => {
-  const audioBase64 = `${request.body?.audioBase64 ?? ''}`.trim()
-  const mimeType = `${request.body?.mimeType ?? 'audio/webm'}`.trim()
-
-  if (!audioBase64) {
-    response.status(400).json({ error: 'audioBase64 is required' })
-    return
-  }
-
-  try {
-    const text = await tryTranscribeWithProvider(audioBase64, mimeType)
-
-    if (!text) {
-      response.status(503).json({
-        error: 'ASR provider is not configured. Please use Chrome/Edge browser speech recognition or configure KINLOOP_ASR_MODEL and KINLOOP_ASR_API_KEY.',
-      })
-      return
-    }
-
-    response.json({ ok: true, text, provider: 'remote_asr' })
-  } catch (error) {
-    response.status(502).json({
-      error: error instanceof Error ? error.message : 'ASR transcription failed',
-    })
-  }
-})
+registerAsrRoutes(app)
 
 app.post('/api/ai/elder-intent', async (request, response) => {
   const spokenText = `${request.body?.spokenText ?? ''}`.trim()
