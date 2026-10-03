@@ -10,7 +10,7 @@ type FilmCardItem = {
   name: string
   timeLabel: string
   unreadLabel: string
-  previewType: 'image' | 'voice' | 'text'
+  previewType: 'image' | 'voice' | 'video' | 'text'
   title: string
   detail: string
   footer: string

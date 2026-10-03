@@ -33,7 +33,7 @@ export type ConversationCard = {
   unreadSummary: string
   primaryMessage: {
     id: string
-    type: 'text' | 'image' | 'voice'
+    type: 'text' | 'image' | 'voice' | 'video'
     preview: string
     mediaLabel: string | null
   } | null
@@ -224,6 +224,7 @@ export const MessageType = {
   TEXT: 'text',
   IMAGE: 'image',
   VOICE: 'voice',
+  VIDEO: 'video',
 } as const
 
 export type MessageType = typeof MessageType[keyof typeof MessageType]
@@ -235,7 +236,7 @@ export interface IMessage {
   recipientId: string
   senderDisplayName?: string
   content: string
-  type: MessageType | 'text' | 'image' | 'voice'
+  type: MessageType | 'text' | 'image' | 'voice' | 'video'
   status: MessageStatus | 'sending' | 'sent' | 'delivered' | 'read'
   timestamp: number
   mediaUrl?: string

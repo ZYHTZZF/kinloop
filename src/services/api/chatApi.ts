@@ -6,7 +6,7 @@ interface SendMessageParams {
   senderId: string
   recipientId: string
   content: string
-  type?: MessageType | 'text' | 'image' | 'voice'
+  type?: MessageType | 'text' | 'image' | 'voice' | 'video'
   mediaUrl?: string
   voiceDurationMs?: number
 }

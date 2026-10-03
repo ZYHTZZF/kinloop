@@ -1,18 +1,33 @@
-import { useEffect, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
+import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import { createMemoryEntry, getConversationDetail, getCurrentFamilySpace, getWebSocketUrl, sendMessage } from '../../services/api'
 import type { ConversationDetail, Message } from '../../services/api'
 import type { ICallSignal } from '../../services/api/types'
 import { formatClock } from '../../utils/dateTime'
+import { ensureChatImageFile, readFileAsDataUrl } from '../../utils/chatImage'
+import {
+  ensureChatVideoFile,
+  getPlayableVideoUrl,
+} from '../../utils/chatImage'
+import {
+  cancelVoiceRecording,
+  formatVoiceDuration,
+  formatVoiceDurationMs,
+  getPlayableVoiceUrl,
+  readVoiceBlobAsDataUrl,
+  startVoiceRecording,
+  stopVoiceRecording,
+  type VoiceRecordingSession,
+} from '../../utils/chatVoice'
 import type { ElderVoiceIntentResult } from '../../domain/elderVoice'
 import { webrtcManager } from '../../services/webrtc/WebRTCManager'
 import * as chatApi from '../../services/api/chatApi'
 import VoiceCall from '../../components/chat/VoiceCall'
 import VideoCall from '../../components/chat/VideoCall'
 
-const STATIC_EMOJIS = ['😀', '😁', '😂', '🤣', '😊', '😍', '😘', '😎', '🥳', '😭', '😡', '👍', '👏', '🙏', '❤️', '🎉']
+const STATIC_EMOJIS = ['😀', '😁', '😂', '😃', '😉', '😏', '😝', '🙂', '😊', '😶', '😨', '👍', '🙏', '❤️', '🎉']
 
 export function ElderConversationPage() {
   const location = useLocation()
@@ -27,7 +42,11 @@ export function ElderConversationPage() {
   const [error, setError] = useState('')
   const [draftText, setDraftText] = useState(prefillDraft || '')
   const [showEmojiPanel, setShowEmojiPanel] = useState(false)
+  const [showAttachmentOptions, setShowAttachmentOptions] = useState(false)
   const [sending, setSending] = useState(false)
+  const [isDraggingImage, setIsDraggingImage] = useState(false)
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false)
+  const [voiceDurationMs, setVoiceDurationMs] = useState(0)
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
   const [savingAiMemory, setSavingAiMemory] = useState(false)
@@ -46,6 +65,10 @@ export function ElderConversationPage() {
   const incomingOfferRef = useRef<string | null>(null)
   const autoSendOnceRef = useRef(false)
   const messageListRef = useRef<HTMLDivElement | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const videoInputRef = useRef<HTMLInputElement | null>(null)
+  const voiceSessionRef = useRef<VoiceRecordingSession | null>(null)
+  const voiceTimerRef = useRef<number>(0)
 
   const currentUserId = conversation?.elderMemberId ?? null
   const otherUserId = conversation?.familyMemberId ?? null
@@ -354,6 +377,18 @@ export function ElderConversationPage() {
     })
   }, [messages.length, loading])
 
+  useEffect(() => {
+    return () => {
+      if (voiceTimerRef.current) {
+        clearInterval(voiceTimerRef.current)
+      }
+
+      if (voiceSessionRef.current) {
+        cancelVoiceRecording(voiceSessionRef.current)
+      }
+    }
+  }, [])
+
   return (
     <section className="screen screen--elder-conversation">
       <section className="surface-card">
@@ -371,8 +406,8 @@ export function ElderConversationPage() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '16px', paddingRight: '16px' }}>
-                <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Voice call">📓</button>
-                <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Video call">📴</button>
+                <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Voice call">{'\u{1F4DE}'}</button>
+                <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Video call">{'\u{1F4F9}'}</button>
               </div>
             </div>
           ) : null}
@@ -427,44 +462,145 @@ export function ElderConversationPage() {
           ) : null}
 
           {messages.map((message) => (
-            <article
+            <div
               key={message.id}
-              className={`message-bubble message-bubble--${message.senderType === 'Family' ? 'family' : 'elder'}`}
+              className={`message-thread message-thread--${message.senderType === 'Elder' ? 'self' : 'peer'}`}
             >
-              <span className="message-bubble__sender">{getSenderLabel(message, conversation?.name ?? 'Family')}</span>
-              {message.messageType === 'Image' ? (
-                <div className="message-media">
-                  <span>{message.mediaUrl ?? 'Image content'}</span>
-                </div>
-              ) : null}
-              <p>{message.textContent ?? message.transcript ?? 'Voice message'}</p>
-              <footer className="message-bubble__footer">
-                <span>{formatClock(message.createdAt)}</span>
-                {message.senderType === 'Family' ? (
-                  <button
-                    className="text-action"
-                    type="button"
-                    disabled={savingMemoryId === message.id}
-                    onClick={() => void handleAddMemory(message)}
-                  >
-                    {savingMemoryId === message.id ? 'Saving...' : 'Add to memories'}
-                  </button>
+              <article
+                className={`message-bubble message-bubble--${message.senderType === 'Family' ? 'family' : 'elder'}`}
+              >
+                <span className="message-bubble__sender">{getSenderLabel(message, conversation?.name ?? 'Family')}</span>
+                {message.messageType === 'Image' ? (
+                  <div className="message-media">
+                    {message.mediaUrl ? (
+                      <img className="message-media__image" src={message.mediaUrl} alt="聊天图片" />
+                    ) : (
+                      <span>图片加载失败</span>
+                    )}
+                  </div>
                 ) : null}
-                {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
-              </footer>
-            </article>
+                {message.messageType === 'Video' ? (
+                  <div className="message-video">
+                    {getPlayableVideoUrl(message.mediaUrl) ? (
+                      <video
+                        className="message-video__player"
+                        controls
+                        preload="metadata"
+                        src={getPlayableVideoUrl(message.mediaUrl) ?? undefined}
+                      />
+                    ) : (
+                      <div className="message-voice__fallback">这条视频暂时无法播放</div>
+                    )}
+                  </div>
+                ) : null}
+                {message.messageType === 'Voice' ? (
+                  <div className="message-voice">
+                    {getPlayableVoiceUrl(message.mediaUrl) ? (
+                      <audio
+                        className="message-voice__player"
+                        controls
+                        preload="metadata"
+                        src={getPlayableVoiceUrl(message.mediaUrl) ?? undefined}
+                      />
+                    ) : (
+                      <div className="message-voice__fallback">这条语音暂时无法播放</div>
+                    )}
+                    <div className="message-voice__meta">
+                      <span>{formatVoiceDuration(message.voiceDurationSec)}</span>
+                      {message.transcript ? <span>{message.transcript}</span> : null}
+                    </div>
+                  </div>
+                ) : null}
+                {(message.messageType !== 'Image' && message.messageType !== 'Voice' && message.messageType !== 'Video') || message.textContent ? (
+                  <p>{message.textContent ?? message.transcript ?? 'Voice message'}</p>
+                ) : null}
+                <footer className="message-bubble__footer">
+                  <span>{formatClock(message.createdAt)}</span>
+                  {message.senderType === 'Family' ? (
+                    <button
+                      className="text-action"
+                      type="button"
+                      disabled={savingMemoryId === message.id}
+                      onClick={() => void handleAddMemory(message)}
+                    >
+                      {savingMemoryId === message.id ? 'Saving...' : 'Add to memories'}
+                    </button>
+                  ) : null}
+                  {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
+                </footer>
+              </article>
+            </div>
           ))}
         </div>
 
         {conversation ? (
-          <form className="ai-confirm-card" onSubmit={handleSubmitReply}>
+          <form
+            className={`ai-confirm-card ${isDraggingImage ? 'composer-card--dragging' : ''}`}
+            onSubmit={handleSubmitReply}
+            onDragOver={handleComposerDragOver}
+            onDragLeave={handleComposerDragLeave}
+            onDrop={handleComposerDrop}
+          >
             <p className="surface-card__eyebrow">AI draft confirm</p>
             <strong>Send to {conversation.name}:</strong>
+            <div className="composer-input-row">
+              <input
+                aria-label="AI draft"
+                value={draftText}
+                onChange={(event) => setDraftText(event.target.value)}
+              />
+              <button
+                className="ghost-action composer-plus-button"
+                type="button"
+                onClick={() => setShowAttachmentOptions((prev) => !prev)}
+                disabled={sending || isRecordingVoice}
+                aria-label="选择附件"
+                title="发送图片或视频"
+              >
+                +
+              </button>
+            </div>
             <input
-              aria-label="AI draft"
-              value={draftText}
-              onChange={(event) => setDraftText(event.target.value)}
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleSelectImage}
             />
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              style={{ display: 'none' }}
+              onChange={handleSelectVideo}
+            />
+            {showAttachmentOptions ? (
+              <div className="attachment-menu">
+                <button
+                  className="ghost-action attachment-menu__button"
+                  type="button"
+                  disabled={sending || isRecordingVoice}
+                  onClick={() => {
+                    setShowAttachmentOptions(false)
+                    imageInputRef.current?.click()
+                  }}
+                >
+                  图片
+                </button>
+                <button
+                  className="ghost-action attachment-menu__button"
+                  type="button"
+                  disabled={sending || isRecordingVoice}
+                  onClick={() => {
+                    setShowAttachmentOptions(false)
+                    videoInputRef.current?.click()
+                  }}
+                >
+                  视频
+                </button>
+              </div>
+            ) : null}
+            {isDraggingImage ? <p className="composer-drop-tip">松手后直接发送图片或视频</p> : null}
             {showEmojiPanel ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px' }}>
                 {STATIC_EMOJIS.map((emoji) => (
@@ -482,7 +618,7 @@ export function ElderConversationPage() {
             ) : null}
             <div className="inline-actions">
               <button className="ghost-action" type="button" onClick={() => setShowEmojiPanel((prev) => !prev)}>
-                😀
+                {'\u{1F600}'}
               </button>
               <button
                 className="ghost-action"
@@ -492,8 +628,16 @@ export function ElderConversationPage() {
               >
                 {savingAiMemory ? 'Saving...' : 'Save as memory'}
               </button>
-              <button className="primary-action" type="submit" disabled={sending || !draftText.trim()}>
+              <button className="primary-action" type="submit" disabled={sending || isRecordingVoice || !draftText.trim()}>
                 {sending ? 'Sending...' : 'Send'}
+              </button>
+              <button
+                className={`ghost-action voice-action ${isRecordingVoice ? 'voice-action--recording' : ''}`}
+                type="button"
+                disabled={sending}
+                onClick={() => void handleToggleVoiceRecording()}
+              >
+                {isRecordingVoice ? formatVoiceDurationMs(voiceDurationMs) : '语音'}
               </button>
             </div>
           </form>
@@ -526,6 +670,175 @@ export function ElderConversationPage() {
     } finally {
       setSending(false)
     }
+  }
+
+  async function handleToggleVoiceRecording() {
+    if (isRecordingVoice) {
+      await handleStopVoiceRecording()
+      return
+    }
+
+    try {
+      setError('')
+      const session = await startVoiceRecording()
+      voiceSessionRef.current = session
+      setIsRecordingVoice(true)
+      setVoiceDurationMs(0)
+      voiceTimerRef.current = window.setInterval(() => {
+        setVoiceDurationMs(Date.now() - session.startedAt)
+      }, 200)
+    } catch (recordError) {
+      setError(recordError instanceof Error ? recordError.message : '无法开始录音')
+    }
+  }
+
+  async function handleStopVoiceRecording() {
+    const session = voiceSessionRef.current
+    if (!session || !conversation) {
+      return
+    }
+
+    try {
+      setSending(true)
+      setError('')
+      const { blob, durationMs } = await stopVoiceRecording(session)
+      const mediaUrl = await readVoiceBlobAsDataUrl(blob)
+      const nextConversation = await sendMessage(conversation.id, {
+        senderType: 'Elder',
+        senderMemberId: conversation.elderMemberId,
+        messageType: 'Voice',
+        textContent: null,
+        mediaUrl,
+        voiceDurationSec: Math.max(1, Math.round(durationMs / 1000)),
+        transcript: null,
+        transcriptConfidence: null,
+        aiDrafted: false,
+        isLowInformation: false,
+      })
+      setConversation(nextConversation)
+    } catch (recordError) {
+      setError(recordError instanceof Error ? recordError.message : '发送语音失败')
+    } finally {
+      voiceSessionRef.current = null
+      setIsRecordingVoice(false)
+      setVoiceDurationMs(0)
+      if (voiceTimerRef.current) {
+        clearInterval(voiceTimerRef.current)
+      }
+      setSending(false)
+    }
+  }
+
+  async function handleSendImage(file: File) {
+    if (!conversation) {
+      return
+    }
+
+    try {
+      setSending(true)
+      setError('')
+      const imageFile = ensureChatImageFile(file)
+      const mediaUrl = await readFileAsDataUrl(imageFile)
+      const nextConversation = await sendMessage(conversation.id, {
+        senderType: 'Elder',
+        senderMemberId: conversation.elderMemberId,
+        messageType: 'Image',
+        textContent: null,
+        mediaUrl,
+        aiDrafted: false,
+        isLowInformation: false,
+      })
+      setConversation(nextConversation)
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : '发送图片失败')
+    } finally {
+      setSending(false)
+      setIsDraggingImage(false)
+      setShowAttachmentOptions(false)
+      if (imageInputRef.current) {
+        imageInputRef.current.value = ''
+      }
+    }
+  }
+
+  async function handleSendVideo(file: File) {
+    if (!conversation) {
+      return
+    }
+
+    try {
+      setSending(true)
+      setError('')
+      const videoFile = ensureChatVideoFile(file)
+      const mediaUrl = await readFileAsDataUrl(videoFile)
+      const nextConversation = await sendMessage(conversation.id, {
+        senderType: 'Elder',
+        senderMemberId: conversation.elderMemberId,
+        messageType: 'Video',
+        textContent: null,
+        mediaUrl,
+        aiDrafted: false,
+        isLowInformation: false,
+      })
+      setConversation(nextConversation)
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : '发送视频失败')
+    } finally {
+      setSending(false)
+      setIsDraggingImage(false)
+      setShowAttachmentOptions(false)
+      if (videoInputRef.current) {
+        videoInputRef.current.value = ''
+      }
+    }
+  }
+
+  function handleSelectImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (file) {
+      void handleSendImage(file)
+    }
+  }
+
+  function handleSelectVideo(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (file) {
+      void handleSendVideo(file)
+    }
+  }
+
+  function handleComposerDragOver(event: DragEvent<HTMLFormElement>) {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setIsDraggingImage(true)
+  }
+
+  function handleComposerDragLeave(event: DragEvent<HTMLFormElement>) {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return
+    }
+
+    setIsDraggingImage(false)
+  }
+
+  function handleComposerDrop(event: DragEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsDraggingImage(false)
+
+    const file = Array.from(event.dataTransfer.files).find(
+      (item) => item.type.startsWith('image/') || item.type.startsWith('video/'),
+    )
+    if (!file) {
+      setError('请拖入图片或视频文件')
+      return
+    }
+
+    if (file.type.startsWith('video/')) {
+      void handleSendVideo(file)
+      return
+    }
+
+    void handleSendImage(file)
   }
 
   async function handleAddMemory(message: Message) {
@@ -645,3 +958,4 @@ function buildFamilyMemoryTitle(familyName: string, message: Message) {
 
   return `${familyName} text message`
 }
+

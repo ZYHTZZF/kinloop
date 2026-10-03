@@ -1,4 +1,4 @@
-import { getDatabase } from '../db/index.mjs'
+﻿import { getDatabase } from '../db/index.mjs'
 
 function mapMessage(row) {
   return {
@@ -32,8 +32,8 @@ function buildPrimaryMessage(message) {
     return {
       id: message.id,
       type: 'voice',
-      preview: message.transcript ?? '发来一段语音',
-      mediaLabel: message.mediaUrl,
+      preview: message.transcript ?? '发来一条语音',
+      mediaLabel: null,
     }
   }
 
@@ -41,8 +41,17 @@ function buildPrimaryMessage(message) {
     return {
       id: message.id,
       type: 'image',
-      preview: message.textContent ?? '发来一张照片',
-      mediaLabel: message.mediaUrl,
+      preview: message.textContent ?? '发来一张图片',
+      mediaLabel: '图片',
+    }
+  }
+
+  if (message.messageType === 'Video') {
+    return {
+      id: message.id,
+      type: 'video',
+      preview: message.textContent ?? '发来一段视频',
+      mediaLabel: '视频',
     }
   }
 
@@ -55,7 +64,7 @@ function buildPrimaryMessage(message) {
 }
 
 function buildUnreadSummary(messages) {
-  const counts = { image: 0, voice: 0, text: 0 }
+  const counts = { image: 0, voice: 0, video: 0, text: 0 }
 
   for (const message of messages) {
     const type = message.messageType.toLowerCase()
@@ -65,13 +74,13 @@ function buildUnreadSummary(messages) {
   }
 
   const parts = []
-  if (counts.image > 0) parts.push(`还有 ${counts.image} 张照片`)
+  if (counts.image > 0) parts.push(`还有 ${counts.image} 张图片`)
+  if (counts.video > 0) parts.push(`还有 ${counts.video} 条视频`)
   if (counts.voice > 0) parts.push(`还有 ${counts.voice} 条语音`)
   if (counts.text > 0) parts.push(`还有 ${counts.text} 条文字`)
 
   return parts.join('，') || '暂无未读'
 }
-
 function fetchConversationRows(db) {
   return db.prepare(`
     select
@@ -300,3 +309,4 @@ export function createMessage(conversationId, payload) {
 
   return getConversationDetail(conversationId)
 }
+

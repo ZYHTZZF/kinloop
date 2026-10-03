@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   Alert,
   ConversationCard,
   ConversationDetail,
@@ -247,13 +247,13 @@ function buildConversationCards(state: MockState): ConversationCard[] {
         avatar: conversation.avatar,
         lastActivityAt: lastMessage?.createdAt ?? null,
         unreadCount,
-        unreadSummary: unreadCount > 0 ? `有 ${unreadCount} 条新消息` : '最近没有新消息',
+        unreadSummary: unreadCount > 0 ? `还有 ${unreadCount} 条新消息` : '最近没有新消息',
         primaryMessage: lastMessage
           ? {
               id: lastMessage.id,
               type: normalizeMessageType(lastMessage.messageType),
-              preview: lastMessage.textContent ?? lastMessage.transcript ?? lastMessage.mediaUrl ?? '发来一条新内容',
-              mediaLabel: lastMessage.mediaUrl ? '图片' : null,
+              preview: buildPrimaryPreview(lastMessage),
+              mediaLabel: buildPrimaryMediaLabel(lastMessage),
             }
           : null,
       }
@@ -261,12 +261,26 @@ function buildConversationCards(state: MockState): ConversationCard[] {
     .sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0))
 }
 
-function normalizeMessageType(messageType: string): 'text' | 'image' | 'voice' {
+function normalizeMessageType(messageType: string): 'text' | 'image' | 'voice' | 'video' {
   if (messageType === 'Image') return 'image'
   if (messageType === 'Voice') return 'voice'
+  if (messageType === 'Video') return 'video'
   return 'text'
 }
 
+function buildPrimaryPreview(message: Message) {
+  if (message.textContent) return message.textContent
+  if (message.messageType === 'Voice') return message.transcript ?? '发来一条语音'
+  if (message.messageType === 'Image') return '发来一张图片'
+  if (message.messageType === 'Video') return '发来一段视频'
+  return message.mediaUrl ?? '发来一条新内容'
+}
+
+function buildPrimaryMediaLabel(message: Message) {
+  if (message.messageType === 'Image') return '图片'
+  if (message.messageType === 'Video') return '视频'
+  return null
+}
 function getState() {
   if (memoryState) return memoryState
 
@@ -306,7 +320,7 @@ function buildInitialState(): MockState {
   const familySpace: FamilySpace = {
     id: 'fs_demo',
     name: '汤先生一家',
-    elderDisplayName: '汤先生',
+    elderDisplayName: '汤老先生',
     primaryMemberId: 'member_daughter',
     createdAt: now - 30 * 24 * hour,
     updatedAt: now,
@@ -356,10 +370,10 @@ function buildInitialState(): MockState {
       elderMemberId: 'member_elder',
       name: 'daughter',
       familyDisplayName: '大女儿',
-      elderDisplayName: '汤先生',
+      elderDisplayName: '汤老先生',
       avatar: '女',
       messages: [
-        makeMessage('msg_d1', 'daughter', 'Elder', null, 'Text', '女儿中午回不回来吃饭啊', now - 6 * hour),
+        makeMessage('msg_d1', 'daughter', 'Elder', null, 'Text', '女儿，中午回不回来吃饭？', now - 6 * hour),
         makeMessage('msg_d2', 'daughter', 'Family', 'member_daughter', 'Text', '我中午不回去了，晚上给您带点水果。', now - 5.5 * hour),
         makeMessage('msg_d3', 'daughter', 'Elder', null, 'Voice', null, now - 4 * hour, '那你晚上早点回来。'),
       ],
@@ -371,7 +385,7 @@ function buildInitialState(): MockState {
       elderMemberId: 'member_elder',
       name: 'son',
       familyDisplayName: '儿子',
-      elderDisplayName: '汤先生',
+      elderDisplayName: '汤老先生',
       avatar: '子',
       messages: [
         makeMessage('msg_s1', 'son', 'Family', 'member_son', 'Image', '今天路过公园拍的花。', now - 26 * hour, null, '公园照片'),
@@ -385,7 +399,7 @@ function buildInitialState(): MockState {
       elderMemberId: 'member_elder',
       name: 'granddaughter',
       familyDisplayName: '孙女',
-      elderDisplayName: '汤先生',
+      elderDisplayName: '汤老先生',
       avatar: '孙',
       messages: [
         makeMessage('msg_g1', 'granddaughter', 'Family', 'member_granddaughter', 'Text', '爷爷，我今天比赛拿奖啦。', now - 10 * hour),
@@ -536,7 +550,6 @@ function buildInitialState(): MockState {
     permissionPolicies,
   }
 }
-
 function makeMessage(
   id: string,
   conversationId: string,
@@ -572,3 +585,5 @@ function makeMessage(
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
+
+

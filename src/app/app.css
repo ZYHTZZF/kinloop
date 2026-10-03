@@ -785,6 +785,60 @@
   color: var(--app-accent-strong);
 }
 
+.message-media {
+  overflow: hidden;
+  padding: 12px;
+}
+
+.message-media__image {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+.message-video {
+  display: grid;
+  gap: 10px;
+}
+
+.message-video__player {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  max-height: 320px;
+  border-radius: 16px;
+  background: rgba(24, 30, 36, 0.9);
+}
+
+.message-voice {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(86, 104, 147, 0.14);
+}
+
+.message-voice__player {
+  width: 100%;
+  max-width: 280px;
+}
+
+.message-voice__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.92rem;
+  color: var(--app-accent-strong);
+}
+
+.message-voice__fallback {
+  color: var(--app-accent-strong);
+  font-size: 0.95rem;
+}
+
 .content-preview--voice,
 .content-preview--text {
   display: grid;
@@ -804,6 +858,18 @@
   background: rgba(69, 107, 143, 0.12);
   color: var(--app-accent-strong);
   font-weight: 700;
+}
+
+.content-preview--image span {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 0 12px;
+  overflow: hidden;
+  color: inherit;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .conversation-card__footer {
@@ -1116,6 +1182,18 @@
   border: 1px solid rgba(96, 77, 61, 0.1);
 }
 
+.composer-card--dragging {
+  border-color: rgba(61, 86, 112, 0.3);
+  background: rgba(239, 246, 255, 0.96);
+  box-shadow: inset 0 0 0 2px rgba(61, 86, 112, 0.12);
+}
+
+.composer-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .ai-confirm-card input,
 .composer-card input {
   width: 100%;
@@ -1124,6 +1202,41 @@
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.9);
   color: var(--app-ink);
+}
+
+.composer-plus-button {
+  flex: 0 0 46px;
+  width: 46px;
+  min-height: 46px;
+  padding: 0;
+  border-radius: 16px;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.composer-drop-tip {
+  color: var(--app-accent-strong);
+  font-size: 0.95rem;
+}
+
+.attachment-menu {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.attachment-menu__button {
+  min-width: 88px;
+}
+
+.voice-action {
+  min-width: 84px;
+}
+
+.voice-action--recording {
+  background: rgba(204, 102, 82, 0.12);
+  color: #a24b38;
+  border-color: rgba(162, 75, 56, 0.18);
 }
 
 .inline-actions {
