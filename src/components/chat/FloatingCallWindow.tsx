@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import styles from './FloatingCallWindow.module.css'
 
 type FloatingCallWindowProps = {

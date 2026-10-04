@@ -39,7 +39,7 @@ export function FamilyChatsPage() {
   }, [])
 
   return (
-    <section className="screen">
+    <section className="screen screen--family-chats">
       <section className="surface-card">
         <div className="section-heading">
           <div>

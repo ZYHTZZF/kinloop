@@ -1,4 +1,4 @@
-﻿import { INotificationOptions } from '../services/api/types'
+import { INotificationOptions } from '../services/api/types'
 
 export async function requestNotificationPermission(): Promise<boolean> {
   if (!('Notification' in window)) {

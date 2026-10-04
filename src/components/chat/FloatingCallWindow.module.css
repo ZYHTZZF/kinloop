@@ -1,4 +1,4 @@
-﻿.window {
+.window {
   position: fixed;
   z-index: 1200;
   max-width: calc(100vw - 12px);

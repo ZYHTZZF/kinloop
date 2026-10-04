@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import ChatDetailView from '../../components/chat/ChatDetailView'
 import { PRESET_MESSAGES_ELDER } from '../../domain/content/chatPrompts'

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IConversation } from '../../services/api/types'
 import * as chatApi from '../../services/api/chatApi'

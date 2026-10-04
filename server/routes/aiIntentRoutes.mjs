@@ -1,4 +1,4 @@
-﻿import { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } from '../config.mjs'
+import { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } from '../config.mjs'
 
 const INTENT_TYPES = ['companion', 'chat', 'support', 'memory', 'clarify']
 const NEXT_ACTIONS = ['stay', 'open_conversation', 'trigger_alert', 'save_memory', 'open_memories', 'clarify']

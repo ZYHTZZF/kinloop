@@ -193,6 +193,42 @@
   gap: var(--app-space-lg);
 }
 
+.bottom-tab-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.bottom-tab-nav__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(75, 90, 106, 0.14);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--app-accent-strong);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+
+.bottom-tab-nav__item:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(75, 90, 106, 0.22);
+}
+
+.bottom-tab-nav__item.is-active {
+  background: rgba(49, 88, 68, 0.96);
+  color: #f7f4ed;
+  border-color: rgba(49, 88, 68, 0.96);
+  box-shadow: 0 10px 18px rgba(49, 88, 68, 0.2);
+}
+
 .screen--elder-home {
   gap: 22px;
 }
@@ -1635,6 +1671,89 @@
   color: var(--app-muted);
 }
 
+/* Family Today: reduce "instruction-heavy" feel and emphasize decisions. */
+.screen--family-today > .surface-card > .section-heading .surface-card__eyebrow {
+  opacity: 0.7;
+}
+
+.screen--family-today > .surface-card > .section-heading h2 {
+  max-width: 22ch;
+  margin-bottom: 0;
+}
+
+.screen--family-today .family-emotion-summary-note {
+  display: none;
+}
+
+.screen--family-today .family-emotion-empty p {
+  display: none;
+}
+
+/* Family product tone: compact, tag-first, decision-oriented. */
+:is(
+  .screen--family-today,
+  .screen--family-status,
+  .screen--family-collaboration,
+  .screen--family-memories,
+  .screen--family-chats,
+  .screen--family-conversation
+) .surface-card__eyebrow {
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(78, 89, 103, 0.2);
+  background: rgba(255, 255, 255, 0.82);
+  color: rgba(66, 76, 90, 0.9);
+  letter-spacing: 0.06em;
+  font-size: 10px;
+}
+
+:is(
+  .screen--family-today,
+  .screen--family-status,
+  .screen--family-collaboration,
+  .screen--family-memories,
+  .screen--family-chats,
+  .screen--family-conversation
+) .surface-card__eyebrow::before {
+  display: none;
+}
+
+:is(
+  .screen--family-today,
+  .screen--family-status,
+  .screen--family-collaboration,
+  .screen--family-memories,
+  .screen--family-chats,
+  .screen--family-conversation
+) .section-heading h2 {
+  max-width: 22ch;
+  font-size: clamp(1.18rem, 1.35vw, 1.55rem);
+  line-height: 1.16;
+}
+
+:is(
+  .screen--family-today,
+  .screen--family-status,
+  .screen--family-collaboration,
+  .screen--family-memories,
+  .screen--family-chats
+) .state-panel--default p {
+  display: none;
+}
+
+.screen--family-status .trend-card p,
+.screen--family-collaboration .note-card p:last-child,
+.screen--family-collaboration .relay-card p:last-of-type {
+  display: none;
+}
+
+.screen--family-collaboration .today-overview-chip span,
+.screen--family-today .status-pill {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
 @keyframes ai-breathe {
   0%,
   100% {
@@ -1723,6 +1842,10 @@
 @media (max-width: 640px) {
   .app-shell {
     padding: 20px 12px 112px;
+  }
+
+  .bottom-tab-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .family-emotion-dashboard,

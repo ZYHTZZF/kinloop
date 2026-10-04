@@ -85,7 +85,6 @@ export function FamilyTodayPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">首页概览</p>
-            <h2>这里只看异常情绪和本周汇总，具体情绪请回到聊天窗口里看。</h2>
           </div>
           <Link className="primary-action" to="/family/chats">
             去聊天窗口
