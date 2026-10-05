@@ -1,4 +1,17 @@
-﻿import { getDatabase } from '../db/index.mjs'
+import { getDatabase } from '../db/index.mjs'
+
+function looksGarbled(text) {
+  if (typeof text !== 'string' || !text) return false
+  if (text.includes('?')) return true
+  const questionMarks = (text.match(/\?/g) || []).length
+  const cjkChars = (text.match(/[\u4e00-\u9fff]/g) || []).length
+  return questionMarks >= 3 && cjkChars === 0
+}
+
+function sanitizeText(text, fallback = '?????????????') {
+  if (typeof text !== 'string' || !text) return text ?? null
+  return looksGarbled(text) ? fallback : text
+}
 
 function mapMessage(row) {
   return {
@@ -7,7 +20,7 @@ function mapMessage(row) {
     senderType: row.senderType,
     senderMemberId: row.senderMemberId,
     messageType: row.messageType,
-    textContent: row.textContent,
+    textContent: sanitizeText(row.textContent),
     mediaUrl: row.mediaUrl,
     voiceDurationSec: row.voiceDurationSec,
     transcript: row.transcript,
@@ -58,7 +71,7 @@ function buildPrimaryMessage(message) {
   return {
     id: message.id,
     type: 'text',
-    preview: message.textContent ?? '',
+    preview: sanitizeText(message.textContent, '??????') ?? '',
     mediaLabel: message.mediaUrl,
   }
 }
@@ -85,6 +98,7 @@ function fetchConversationRows(db) {
   return db.prepare(`
     select
       conversations.id as conversationId,
+      conversations.conversation_type as conversationType,
       conversations.last_meaningful_activity_at as lastMeaningfulActivityAt,
       members.id as memberId,
       conversations.family_member_id as familyMemberId,
@@ -202,6 +216,15 @@ function fetchConversationMessages(db, conversationId) {
 export function listConversationCards(viewer = 'elder') {
   const db = getDatabase()
   const conversations = fetchConversationRows(db)
+    .filter((conversation) => !(viewer === 'family' && conversation.conversationType === 'AI_ASSISTANT'))
+    .sort((a, b) => {
+      if (viewer === 'elder') {
+        const aAi = a.conversationType === 'AI_ASSISTANT' ? 1 : 0
+        const bAi = b.conversationType === 'AI_ASSISTANT' ? 1 : 0
+        if (aAi !== bAi) return bAi - aAi
+      }
+      return Number(b.lastMeaningfulActivityAt ?? 0) - Number(a.lastMeaningfulActivityAt ?? 0)
+    })
 
   return conversations.map((conversation) => {
     const messages = fetchConversationMessages(db, conversation.conversationId)
@@ -216,6 +239,7 @@ export function listConversationCards(viewer = 'elder') {
 
     return {
       id: conversation.conversationId,
+      conversationType: conversation.conversationType ?? 'FAMILY_CHAT',
       memberId: conversation.memberId,
       familyMemberId: conversation.familyMemberId,
       elderMemberId: conversation.elderMemberId,
@@ -236,6 +260,7 @@ export function getConversationDetail(conversationId) {
   const conversation = db.prepare(`
     select
       conversations.id as conversationId,
+      conversations.conversation_type as conversationType,
       members.id as memberId,
       conversations.family_member_id as familyMemberId,
       conversations.elder_member_id as elderMemberId,
@@ -255,6 +280,7 @@ export function getConversationDetail(conversationId) {
 
   return {
     id: conversation.conversationId,
+    conversationType: conversation.conversationType ?? 'FAMILY_CHAT',
     memberId: conversation.memberId,
     familyMemberId: conversation.familyMemberId,
     elderMemberId: conversation.elderMemberId,
@@ -309,4 +335,3 @@ export function createMessage(conversationId, payload) {
 
   return getConversationDetail(conversationId)
 }
-

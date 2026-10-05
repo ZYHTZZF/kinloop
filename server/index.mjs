@@ -1,6 +1,6 @@
 import express from 'express'
 import { createServer } from 'node:http'
-import { API_HOST, API_PORT, DB_PATH, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, UPLOADS_DIR } from './config.mjs'
+import { API_HOST, API_PORT, DB_PATH, UPLOADS_DIR } from './config.mjs'
 import { WebSocketServer } from 'ws'
 import { getDatabase } from './db/index.mjs'
 import { acknowledgeAlert, createAlert, listActiveAlerts, resolveAlert } from './repositories/alertRepository.mjs'
@@ -19,6 +19,7 @@ import {
   toErrorResponse,
 } from './services/emotion/emotionService.mjs'
 import { registerAsrRoutes } from './routes/asrRoutes.mjs'
+import { registerAiIntentRoutes } from './routes/aiIntentRoutes.mjs'
 
 getDatabase()
 
@@ -44,202 +45,6 @@ function notifyConversationMembers(conversation, payload) {
     if (client) {
       sendJson(client, payload)
     }
-  }
-}
-
-function normalizeText(value) {
-  return `${value ?? ''}`.replace(/\s+/g, '').trim().toLowerCase()
-}
-
-function containsAny(text, keywords) {
-  return keywords.some((keyword) => text.includes(normalizeText(keyword)))
-}
-
-function buildSimpleAliases(members, conversations) {
-  return (Array.isArray(members) ? members : [])
-    .filter((member) => member?.role !== 'Elder')
-    .map((member) => {
-      const conversation = (Array.isArray(conversations) ? conversations : []).find((item) => item.memberId === member.id)
-      const aliases = new Set([
-        member.displayName,
-        member.elderAlias ?? '',
-        `${member.displayName ?? ''}`.replace('大', ''),
-        `${member.displayName ?? ''}`.replace('小', ''),
-      ])
-
-      if (member.id === 'member_daughter') {
-        ;['女儿', '大女儿', '闺女', '姑娘'].forEach((alias) => aliases.add(alias))
-      }
-      if (member.id === 'member_son') {
-        ;['儿子', '小儿子', '孩子'].forEach((alias) => aliases.add(alias))
-      }
-
-      return {
-        memberId: member.id,
-        memberLabel: member.elderAlias ?? member.displayName ?? '家人',
-        conversationId: conversation?.id ?? null,
-        aliases: Array.from(aliases).filter(Boolean).map((alias) => normalizeText(alias)),
-      }
-    })
-}
-
-function findMatchedMember(normalizedText, aliases) {
-  return aliases.find((member) => member.aliases.some((alias) => normalizedText.includes(alias))) ?? null
-}
-
-function buildIntentResult(spokenText, members, conversations) {
-  const normalized = normalizeText(spokenText)
-  const aliases = buildSimpleAliases(members, conversations)
-  const matchedMember = findMatchedMember(normalized, aliases)
-  const emergencyKeywords = ['救命', '快来', '摔倒', '胸口疼', '喘不上气', '站不起来', '急救']
-  const supportKeywords = ['不舒服', '难受', '头晕', '心慌', '疼', '帮助我', '联系家人', '找人来', '身体']
-  const memoryKeywords = ['记下来', '记住', '留着', '回忆', '照片', '相片']
-  const openMemoryKeywords = ['想看看', '再看看', '翻出来']
-  const chatKeywords = ['告诉', '发给', '转给', '联系', '找', '说给', '问']
-
-  if (!normalized) {
-    return {
-      spokenText,
-      normalizedText: normalized,
-      intentType: 'clarify',
-      targetMemberId: null,
-      targetMemberLabel: null,
-      targetConversationId: null,
-      confidence: 0.35,
-      requiresConfirmation: false,
-      nextAction: 'clarify',
-      urgencyLevel: 'none',
-      memoryAction: null,
-      promptTitle: '我还没听清这句话',
-      promptBody: '请再说完整一点，我再帮你判断。',
-      confirmLabel: '再说一次',
-      draftText: '',
-      autoSendMessage: false,
-    }
-  }
-
-  if (containsAny(normalized, emergencyKeywords)) {
-    return {
-      spokenText,
-      normalizedText: normalized,
-      intentType: 'support',
-      targetMemberId: matchedMember?.memberId ?? null,
-      targetMemberLabel: matchedMember?.memberLabel ?? '家人',
-      targetConversationId: matchedMember?.conversationId ?? null,
-      confidence: 0.98,
-      requiresConfirmation: false,
-      nextAction: 'trigger_alert',
-      urgencyLevel: 'emergency',
-      memoryAction: null,
-      promptTitle: '我听出来这是紧急情况',
-      promptBody: '我会立刻通知家人处理。',
-      confirmLabel: '立即通知',
-      draftText: '',
-      autoSendMessage: false,
-    }
-  }
-
-  if (containsAny(normalized, openMemoryKeywords)) {
-    return {
-      spokenText,
-      normalizedText: normalized,
-      intentType: 'memory',
-      targetMemberId: matchedMember?.memberId ?? null,
-      targetMemberLabel: matchedMember?.memberLabel ?? null,
-      targetConversationId: matchedMember?.conversationId ?? null,
-      confidence: 0.82,
-      requiresConfirmation: false,
-      nextAction: 'open_memories',
-      urgencyLevel: 'none',
-      memoryAction: 'open_memory',
-      promptTitle: '我带你看看之前留住的内容',
-      promptBody: '我可以帮你打开和家人的会话或回忆内容。',
-      confirmLabel: '去看看',
-      draftText: '',
-      autoSendMessage: false,
-    }
-  }
-
-  if (containsAny(normalized, memoryKeywords)) {
-    return {
-      spokenText,
-      normalizedText: normalized,
-      intentType: 'memory',
-      targetMemberId: matchedMember?.memberId ?? null,
-      targetMemberLabel: matchedMember?.memberLabel ?? null,
-      targetConversationId: matchedMember?.conversationId ?? null,
-      confidence: 0.88,
-      requiresConfirmation: true,
-      nextAction: 'save_memory',
-      urgencyLevel: 'none',
-      memoryAction: 'save_note',
-      promptTitle: '这句话像是想记下来',
-      promptBody: '我可以把它保存成回忆。',
-      confirmLabel: '帮我记下',
-      draftText: spokenText.trim(),
-      autoSendMessage: false,
-    }
-  }
-
-  if (matchedMember && containsAny(normalized, chatKeywords.concat(matchedMember.aliases))) {
-    return {
-      spokenText,
-      normalizedText: normalized,
-      intentType: 'chat',
-      targetMemberId: matchedMember.memberId,
-      targetMemberLabel: matchedMember.memberLabel,
-      targetConversationId: matchedMember.conversationId,
-      confidence: 0.9,
-      requiresConfirmation: true,
-      nextAction: 'open_conversation',
-      urgencyLevel: 'none',
-      memoryAction: null,
-      promptTitle: `我带你去找${matchedMember.memberLabel}`,
-      promptBody: `我会打开和${matchedMember.memberLabel}的对话，再把你想说的话带过去。`,
-      confirmLabel: `打开${matchedMember.memberLabel}`,
-      draftText: spokenText.trim(),
-      autoSendMessage: false,
-    }
-  }
-
-  if (containsAny(normalized, supportKeywords)) {
-    return {
-      spokenText,
-      normalizedText: normalized,
-      intentType: 'support',
-      targetMemberId: matchedMember?.memberId ?? null,
-      targetMemberLabel: matchedMember?.memberLabel ?? '家人',
-      targetConversationId: matchedMember?.conversationId ?? null,
-      confidence: 0.84,
-      requiresConfirmation: true,
-      nextAction: 'trigger_alert',
-      urgencyLevel: 'attention',
-      memoryAction: null,
-      promptTitle: '我听出来你现在需要人帮忙',
-      promptBody: '如果你愿意，我现在就通知家人。',
-      confirmLabel: '通知家人',
-      draftText: '',
-      autoSendMessage: false,
-    }
-  }
-
-  return {
-    spokenText,
-    normalizedText: normalized,
-    intentType: 'companion',
-    targetMemberId: null,
-    targetMemberLabel: null,
-    targetConversationId: null,
-    confidence: 0.7,
-    requiresConfirmation: false,
-    nextAction: 'stay',
-    urgencyLevel: 'none',
-    memoryAction: null,
-    promptTitle: '我先陪你说说话',
-    promptBody: '如果你想转给家人，我也可以继续帮你。',
-    confirmLabel: '继续说',
-    draftText: '',
-    autoSendMessage: false,
   }
 }
 
@@ -306,71 +111,7 @@ app.get('/api/family-space', (_, response) => {
 
 registerAsrRoutes(app)
 
-app.post('/api/ai/elder-intent', async (request, response) => {
-  const spokenText = `${request.body?.spokenText ?? ''}`.trim()
-  const members = Array.isArray(request.body?.members) ? request.body.members : []
-  const conversations = Array.isArray(request.body?.conversations) ? request.body.conversations : []
-
-  if (!spokenText) {
-    response.status(400).json({ error: 'spokenText is required' })
-    return
-  }
-
-  if (LLM_API_KEY && LLM_MODEL) {
-    try {
-      const systemPrompt = [
-        'You are an intent parser for an elder voice assistant.',
-        'Return strict JSON only.',
-        'Keys: intentType,targetMemberId,targetMemberLabel,targetConversationId,confidence,requiresConfirmation,nextAction,urgencyLevel,memoryAction,promptTitle,promptBody,confirmLabel,draftText,autoSendMessage.',
-      ].join(' ')
-
-      const llmResponse = await fetch(`${LLM_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${LLM_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: LLM_MODEL,
-          temperature: 0.2,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: JSON.stringify({ spokenText, members, conversations }),
-            },
-          ],
-        }),
-      })
-
-      if (llmResponse.ok) {
-        const payload = await llmResponse.json()
-        const content = payload?.choices?.[0]?.message?.content
-        if (typeof content === 'string' && content.trim()) {
-          const parsed = JSON.parse(content)
-          response.json({
-            ok: true,
-            result: {
-              spokenText,
-              normalizedText: normalizeText(spokenText),
-              autoSendMessage: false,
-              ...parsed,
-            },
-          })
-          return
-        }
-      }
-    } catch (error) {
-      console.warn('[ai-intent] llm fallback to local rules', error)
-    }
-  }
-
-  response.json({
-    ok: true,
-    result: buildIntentResult(spokenText, members, conversations),
-  })
-})
+registerAiIntentRoutes(app)
 
 app.get('/api/members', (_, response) => {
   response.json(listMembers())

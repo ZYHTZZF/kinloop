@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { classifyElderSpeech, type ElderVoiceIntentResult } from '../../domain/elderVoice'
 import {
@@ -8,6 +8,7 @@ import {
   inferElderIntent,
   listConversationCards,
   listMembers,
+  sendMessage,
 } from '../../services/api'
 import type { ConversationCard, Member } from '../../services/api'
 
@@ -19,6 +20,7 @@ const examplePrompts = [
 ]
 
 type AssistantStage = 'idle' | 'recording' | 'transcribing' | 'classifying' | 'result' | 'acting'
+const AUTO_EXECUTE_CONFIDENCE = 0.78
 
 type SpeechRecognitionResultLike = {
   0: { transcript: string }
@@ -62,6 +64,7 @@ export function ElderVoiceAssistant() {
   const [conversations, setConversations] = useState<ConversationCard[]>([])
   const [familySpaceId, setFamilySpaceId] = useState('fs_demo')
   const [elderMemberId, setElderMemberId] = useState('member_elder')
+  const [aiConversationId, setAiConversationId] = useState<string | null>(null)
   const [stage, setStage] = useState<AssistantStage>('idle')
   const [open, setOpen] = useState(false)
   const [spokenText, setSpokenText] = useState('')
@@ -172,7 +175,7 @@ export function ElderVoiceAssistant() {
             <article className="voice-sheet__result-card">
               <p className="surface-card__eyebrow">AI 判断</p>
               <strong>{result.promptTitle}</strong>
-              <p>{feedback || result.promptBody}</p>
+              <p>{feedback || result.assistantReply || result.promptBody}</p>
 
               <div className="voice-sheet__meta">
                 <span className="status-pill">置信度 {Math.round(result.confidence * 100)}%</span>
@@ -208,6 +211,7 @@ export function ElderVoiceAssistant() {
       setConversations(nextConversations)
       setFamilySpaceId(familySpace.id)
       setElderMemberId(nextMembers.find((member) => member.role === 'Elder')?.id ?? 'member_elder')
+      setAiConversationId(nextConversations.find((conversation) => conversation.conversationType === 'AI_ASSISTANT')?.id ?? null)
       setError('')
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '暂时没连上本地服务')
@@ -255,13 +259,29 @@ export function ElderVoiceAssistant() {
     setError('')
     setFeedback('')
     setAssistantNotice('')
+    await appendAiLog(spokenText.trim(), 'Elder', elderMemberId)
 
     await delay(420)
     const nextResult = await resolveIntent(spokenText)
     setResult(nextResult)
     setStage('result')
 
-    if (!nextResult.requiresConfirmation && nextResult.nextAction !== 'clarify') {
+    if (nextResult.nextAction === 'clarify') {
+      const clarifyReply = nextResult.assistantReply || nextResult.promptBody || nextResult.promptTitle
+      speak(clarifyReply)
+      await appendAiLog(clarifyReply, 'System', null)
+      return
+    }
+
+    if (nextResult.nextAction === 'stay') {
+      const stayReply = nextResult.assistantReply || nextResult.promptBody || nextResult.promptTitle
+      speak(stayReply)
+      await appendAiLog(stayReply, 'System', null)
+      return
+    }
+
+    if (shouldAutoExecute(nextResult)) {
+      speak(nextResult.assistantReply || nextResult.promptTitle || 'I got it. I will handle this now.')
       await executeIntent(nextResult)
     }
   }
@@ -270,7 +290,6 @@ export function ElderVoiceAssistant() {
     try {
       setStage('acting')
       setError('')
-
       if (nextResult.nextAction === 'open_conversation' && nextResult.targetConversationId) {
         setFeedback(`我这就带你去找${nextResult.targetMemberLabel ?? '家人'}。`)
         await delay(280)
@@ -278,7 +297,7 @@ export function ElderVoiceAssistant() {
           state: {
             elderVoiceResult: nextResult,
             prefillDraft: nextResult.draftText,
-            autoSendMessage: nextResult.autoSendMessage,
+            autoSendMessage: Boolean(nextResult.autoSendMessage) || shouldAutoExecute(nextResult),
           },
         })
         return
@@ -336,7 +355,7 @@ export function ElderVoiceAssistant() {
       }
 
       if (nextResult.nextAction === 'stay') {
-        setFeedback('我在。你想继续说，就再点一次下面的麦克风。')
+        setFeedback(nextResult.assistantReply || '我在。你想继续说，就再点一次下面的麦克风。')
         setStage('result')
         return
       }
@@ -357,6 +376,9 @@ export function ElderVoiceAssistant() {
   }
 
   function resetAssistant() {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel()
+    }
     stopRecording(false)
     setOpen(false)
     setStage('idle')
@@ -569,6 +591,44 @@ export function ElderVoiceAssistant() {
       setAssistantNotice('服务端 AI 暂时不可用，已切换到本地规则继续处理。')
       return classifyElderSpeech(input, members, conversations)
     }
+  }
+
+  async function appendAiLog(
+    text: string,
+    senderType: 'System' | 'Elder' = 'System',
+    senderMemberId: string | null = null,
+  ) {
+    if (!aiConversationId || !text.trim()) return
+    try {
+      await sendMessage(aiConversationId, {
+        senderType,
+        senderMemberId,
+        messageType: 'Text',
+        textContent: text.trim(),
+        aiDrafted: false,
+        isLowInformation: false,
+      })
+    } catch (logError) {
+      console.warn('[Voice Assistant] failed to append AI log:', logError)
+    }
+  }
+
+  function shouldAutoExecute(intent: ElderVoiceIntentResult) {
+    if (intent.nextAction === 'clarify' || intent.nextAction === 'stay') return false
+    if (intent.nextAction === 'open_conversation' && !intent.targetConversationId) return false
+    return intent.confidence >= AUTO_EXECUTE_CONFIDENCE
+  }
+
+  function speak(text: string) {
+    if (typeof window === 'undefined') return
+    const content = text?.trim()
+    if (!content) return
+    if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(content)
+    utterance.lang = 'zh-CN'
+    utterance.rate = 1
+    window.speechSynthesis.speak(utterance)
   }
 
   async function ensureMicrophoneReady() {

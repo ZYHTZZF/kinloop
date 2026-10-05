@@ -1,4 +1,6 @@
 const baseTime = Date.parse('2026-03-30T10:30:00+08:00')
+const AI_MEMBER_ID = 'member_ai_assistant'
+const AI_CONVERSATION_ID = 'conv_ai_assistant'
 
 const familySpace = {
   id: 'fs_demo',
@@ -54,6 +56,17 @@ const members = [
     alert_priority: 3,
     status: 'Active',
   },
+  {
+    id: AI_MEMBER_ID,
+    family_space_id: familySpace.id,
+    role: 'AI',
+    display_name: 'AI助手',
+    elder_alias: 'AI助手',
+    phone: null,
+    last_activity_at: baseTime,
+    alert_priority: null,
+    status: 'Active',
+  },
 ]
 
 const conversations = [
@@ -62,6 +75,7 @@ const conversations = [
     family_space_id: familySpace.id,
     elder_member_id: 'member_elder',
     family_member_id: 'member_daughter',
+    conversation_type: 'FAMILY_CHAT',
     last_meaningful_activity_at: baseTime - 10 * 60 * 1000,
     created_at: baseTime - 7 * 24 * 60 * 60 * 1000,
   },
@@ -70,7 +84,17 @@ const conversations = [
     family_space_id: familySpace.id,
     elder_member_id: 'member_elder',
     family_member_id: 'member_son',
+    conversation_type: 'FAMILY_CHAT',
     last_meaningful_activity_at: baseTime - 16 * 60 * 60 * 1000,
+    created_at: baseTime - 7 * 24 * 60 * 60 * 1000,
+  },
+  {
+    id: AI_CONVERSATION_ID,
+    family_space_id: familySpace.id,
+    elder_member_id: 'member_elder',
+    family_member_id: AI_MEMBER_ID,
+    conversation_type: 'AI_ASSISTANT',
+    last_meaningful_activity_at: baseTime - 5 * 60 * 1000,
     created_at: baseTime - 7 * 24 * 60 * 60 * 1000,
   },
 ]
@@ -169,6 +193,25 @@ const messages = [
     created_at: baseTime - 16 * 60 * 60 * 1000,
     delivered_at: baseTime - 16 * 60 * 60 * 1000,
     consumed_at: null,
+    recalled_at: null,
+  },
+  {
+    id: 'msg_ai_1',
+    conversation_id: AI_CONVERSATION_ID,
+    sender_type: 'System',
+    sender_member_id: AI_MEMBER_ID,
+    message_type: 'Text',
+    text_content: '你好，我是AI助手。你可以直接说“给儿子发消息”或“帮我联系家人”。',
+    media_url: null,
+    voice_duration_sec: null,
+    transcript: null,
+    transcript_confidence: null,
+    ai_drafted: 0,
+    status: 'DELIVERED',
+    is_low_information: 0,
+    created_at: baseTime - 5 * 60 * 1000,
+    delivered_at: baseTime - 5 * 60 * 1000,
+    consumed_at: baseTime - 5 * 60 * 1000,
     recalled_at: null,
   },
 ]
@@ -323,10 +366,125 @@ function insertMany(db, sql, rows) {
   }
 }
 
+function ensureAiAssistantSeed(db, familySpaceId) {
+  const elderRow = db.prepare(`
+    select id
+    from members
+    where family_space_id = ?
+      and role = 'Elder'
+    limit 1
+  `).get(familySpaceId)
+
+  if (!elderRow?.id) {
+    return
+  }
+
+  const hasAiMember = db.prepare(`
+    select 1 as ok
+    from members
+    where id = ?
+    limit 1
+  `).get(AI_MEMBER_ID)
+
+  if (!hasAiMember) {
+    db.prepare(`
+      insert into members (
+        id, family_space_id, role, display_name, elder_alias, phone,
+        last_activity_at, alert_priority, status
+      ) values (
+        $id, $family_space_id, $role, $display_name, $elder_alias, $phone,
+        $last_activity_at, $alert_priority, $status
+      )
+    `).run({
+      id: AI_MEMBER_ID,
+      family_space_id: familySpaceId,
+      role: 'AI',
+      display_name: 'AI助手',
+      elder_alias: 'AI助手',
+      phone: null,
+      last_activity_at: Date.now(),
+      alert_priority: null,
+      status: 'Active',
+    })
+  }
+
+  const hasAiConversation = db.prepare(`
+    select 1 as ok
+    from conversations
+    where id = ?
+    limit 1
+  `).get(AI_CONVERSATION_ID)
+
+  if (!hasAiConversation) {
+    const now = Date.now()
+    db.prepare(`
+      insert into conversations (
+        id, family_space_id, elder_member_id, family_member_id, conversation_type,
+        last_meaningful_activity_at, created_at
+      ) values (
+        $id, $family_space_id, $elder_member_id, $family_member_id, $conversation_type,
+        $last_meaningful_activity_at, $created_at
+      )
+    `).run({
+      id: AI_CONVERSATION_ID,
+      family_space_id: familySpaceId,
+      elder_member_id: elderRow.id,
+      family_member_id: AI_MEMBER_ID,
+      conversation_type: 'AI_ASSISTANT',
+      last_meaningful_activity_at: now,
+      created_at: now,
+    })
+  }
+
+  const hasWelcomeMessage = db.prepare(`
+    select 1 as ok
+    from messages
+    where conversation_id = ?
+    limit 1
+  `).get(AI_CONVERSATION_ID)
+
+  if (!hasWelcomeMessage) {
+    const now = Date.now()
+    db.prepare(`
+      insert into messages (
+        id, conversation_id, sender_type, sender_member_id, message_type,
+        text_content, media_url, voice_duration_sec, transcript, transcript_confidence,
+        ai_drafted, status, is_low_information, created_at, delivered_at, consumed_at, recalled_at
+      ) values (
+        $id, $conversation_id, $sender_type, $sender_member_id, $message_type,
+        $text_content, $media_url, $voice_duration_sec, $transcript, $transcript_confidence,
+        $ai_drafted, $status, $is_low_information, $created_at, $delivered_at, $consumed_at, $recalled_at
+      )
+    `).run({
+      id: `msg_ai_seed_${now}`,
+      conversation_id: AI_CONVERSATION_ID,
+      sender_type: 'System',
+      sender_member_id: AI_MEMBER_ID,
+      message_type: 'Text',
+      text_content: '你好，我是AI助手。你可以直接说“给儿子发消息”或“帮我联系家人”。',
+      media_url: null,
+      voice_duration_sec: null,
+      transcript: null,
+      transcript_confidence: null,
+      ai_drafted: 0,
+      status: 'DELIVERED',
+      is_low_information: 0,
+      created_at: now,
+      delivered_at: now,
+      consumed_at: now,
+      recalled_at: null,
+    })
+  }
+}
+
 export function seedDatabase(db) {
   const countRow = db.prepare('select count(*) as count from family_spaces').get()
 
   if ((countRow?.count ?? 0) > 0) {
+    const existingFamilySpace = db.prepare('select id from family_spaces limit 1').get()
+    if (existingFamilySpace?.id) {
+      ensureAiAssistantSeed(db, existingFamilySpace.id)
+    }
     return
   }
 
@@ -351,10 +509,10 @@ export function seedDatabase(db) {
   insertMany(db, `
     insert into conversations (
       id, family_space_id, elder_member_id, family_member_id,
-      last_meaningful_activity_at, created_at
+      conversation_type, last_meaningful_activity_at, created_at
     ) values (
       $id, $family_space_id, $elder_member_id, $family_member_id,
-      $last_meaningful_activity_at, $created_at
+      $conversation_type, $last_meaningful_activity_at, $created_at
     )
   `, conversations)
 
@@ -435,4 +593,6 @@ export function seedDatabase(db) {
       $created_by_member_id, $approved_member_id, $expires_at, $created_at, $approved_at
     )
   `, inviteCodes)
+
+  ensureAiAssistantSeed(db, familySpace.id)
 }

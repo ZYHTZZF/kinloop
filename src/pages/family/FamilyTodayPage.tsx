@@ -207,7 +207,7 @@ function isMeaningfulExcerpt(excerpt: string | null | undefined) {
   if (!excerpt) return false
   const normalized = excerpt.trim()
   if (!normalized) return false
-  return !/^[\?\uff1f]+$/.test(normalized)
+  return !/^[?\uff1f]+$/.test(normalized)
 }
 
 function formatPulseSummary(summary: string) {

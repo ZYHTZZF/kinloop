@@ -15,6 +15,7 @@ export type ElderMemoryAction = 'save_note' | 'open_memory' | null
 export type ElderVoiceIntentResult = {
   spokenText: string
   normalizedText: string
+  assistantReply?: string
   intentType: ElderIntentType
   targetMemberId: string | null
   targetMemberLabel: string | null
@@ -26,6 +27,7 @@ export type ElderVoiceIntentResult = {
   memoryAction: ElderMemoryAction
   promptTitle: string
   promptBody: string
+  clarifyQuestion?: string
   confirmLabel: string
   draftText: string
   autoSendMessage?: boolean

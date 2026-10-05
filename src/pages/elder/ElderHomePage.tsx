@@ -89,7 +89,8 @@ export function ElderHomePage() {
   }, [])
 
   const usingMockCards = !loading && Boolean(error)
-  const filmCards = usingMockCards ? mockFilmCards : cards.slice(0, 5).map(mapConversationToFilmCard)
+  const familyCards = cards.filter((card) => card.conversationType !== 'AI_ASSISTANT')
+  const filmCards = usingMockCards ? mockFilmCards : familyCards.slice(0, 5).map(mapConversationToFilmCard)
   const [activeFilmIndex, setActiveFilmIndex] = useState(0)
   const activeMockCard = mockFilmCards.find((card) => card.id === activeMockCardId) ?? mockFilmCards[0]
 

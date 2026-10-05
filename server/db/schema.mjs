@@ -25,6 +25,7 @@ export const schemaSql = `
     family_space_id text not null,
     elder_member_id text not null,
     family_member_id text not null,
+    conversation_type text not null default 'FAMILY_CHAT',
     last_meaningful_activity_at integer,
     created_at integer not null
   );
@@ -145,6 +146,7 @@ export function initializeSchema(db) {
     'alter table pulses add column emotion_source text',
     'alter table pulses add column emotion_label text',
     'alter table pulses add column emotion_mode text',
+    "alter table conversations add column conversation_type text not null default 'FAMILY_CHAT'",
   ]) {
     try {
       db.exec(statement)

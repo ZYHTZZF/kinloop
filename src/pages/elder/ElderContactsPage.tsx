@@ -17,7 +17,7 @@ export function ElderContactsPage() {
       try {
         const nextCards = await listConversationCards()
         if (!cancelled) {
-          setCards(nextCards)
+          setCards(sortElderContacts(nextCards))
           setError('')
         }
       } catch (loadError) {
@@ -73,17 +73,28 @@ export function ElderContactsPage() {
           ) : null}
 
           {cards.map((card) => (
-            <Link className="list-row" key={card.id} to={`/elder/conversations/${card.id}`}>
+            <Link
+              className={`list-row${card.conversationType === 'AI_ASSISTANT' ? ' list-row--ai' : ''}`}
+              key={card.id}
+              to={`/elder/conversations/${card.id}`}
+            >
               <div className="list-row__main">
                 <span className="avatar-badge">{card.avatar}</span>
                 <div>
-                  <strong>{card.name}</strong>
+                  <strong>
+                    {card.name}
+                    {card.conversationType === 'AI_ASSISTANT' ? (
+                      <span className="status-pill status-pill--ai">AI助手</span>
+                    ) : null}
+                  </strong>
                   <p>{card.primaryMessage?.preview ?? '暂无内容'}</p>
                 </div>
               </div>
               <div className="list-row__meta">
                 <span>{formatClock(card.lastActivityAt)}</span>
-                {card.unreadCount > 0 ? <span className="status-pill">未读 {card.unreadCount}</span> : null}
+                {card.conversationType !== 'AI_ASSISTANT' && card.unreadCount > 0 ? (
+                  <span className="status-pill">未读 {card.unreadCount}</span>
+                ) : null}
               </div>
             </Link>
           ))}
@@ -91,4 +102,13 @@ export function ElderContactsPage() {
       </section>
     </section>
   )
+}
+
+function sortElderContacts(cards: ConversationCard[]) {
+  return [...cards].sort((a, b) => {
+    const aAi = a.conversationType === 'AI_ASSISTANT' ? 1 : 0
+    const bAi = b.conversationType === 'AI_ASSISTANT' ? 1 : 0
+    if (aAi !== bAi) return bAi - aAi
+    return Number(b.lastActivityAt ?? 0) - Number(a.lastActivityAt ?? 0)
+  })
 }

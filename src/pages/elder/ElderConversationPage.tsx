@@ -72,6 +72,19 @@ export function ElderConversationPage() {
 
   const currentUserId = conversation?.elderMemberId ?? null
   const otherUserId = conversation?.familyMemberId ?? null
+  const isAiAssistantConversation = conversation?.conversationType === 'AI_ASSISTANT'
+
+  const speakActionNotice = (text: string) => {
+    if (typeof window === 'undefined') return
+    if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return
+    const content = text.trim()
+    if (!content) return
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(content)
+    utterance.lang = 'zh-CN'
+    utterance.rate = 1
+    window.speechSynthesis.speak(utterance)
+  }
 
   const syncConversation = async () => {
     if (!conversationId) return
@@ -235,6 +248,9 @@ export function ElderConversationPage() {
           isLowInformation: isLowInformation(draftText),
         })
         setConversation(nextConversation)
+        const sentText = draftText.trim()
+        setDraftText('')
+        speakActionNotice(`已打开${conversation.name}的聊天页面，并发送：${sentText}`)
         setError('')
       } catch (submitError) {
         autoSendOnceRef.current = false
@@ -405,10 +421,12 @@ export function ElderConversationPage() {
                   <h2>{conversation.name}</h2>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '16px', paddingRight: '16px' }}>
-                <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Voice call">{'\u{1F4DE}'}</button>
-                <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Video call">{'\u{1F4F9}'}</button>
-              </div>
+              {!isAiAssistantConversation ? (
+                <div style={{ display: 'flex', gap: '16px', paddingRight: '16px' }}>
+                  <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Voice call">{'\u{1F4DE}'}</button>
+                  <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Video call">{'\u{1F4F9}'}</button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </header>
@@ -461,79 +479,92 @@ export function ElderConversationPage() {
             <PageState title="No messages yet" description="Start with a short message." />
           ) : null}
 
-          {messages.map((message) => (
+          {messages.map((message) => {
+            const displayMessage = normalizeMessageForAiAssistant(message, isAiAssistantConversation)
+            if (!displayMessage) return null
+            const isActionLog = false
+            const aiLogKind = null
+            return (
             <div
-              key={message.id}
-              className={`message-thread message-thread--${message.senderType === 'Elder' ? 'self' : 'peer'}`}
+              key={displayMessage.id}
+              className={`message-thread message-thread--${displayMessage.senderType === 'Elder' ? 'self' : 'peer'}${isActionLog ? ' message-thread--ai-log' : ''}`}
             >
               <article
-                className={`message-bubble message-bubble--${message.senderType === 'Family' ? 'family' : 'elder'}`}
+                className={`message-bubble message-bubble--${isActionLog ? 'ai-log' : displayMessage.senderType === 'Elder' ? 'elder' : 'family'}${isActionLog && aiLogKind ? ` message-bubble--ai-log-${aiLogKind}` : ''}`}
               >
-                <span className="message-bubble__sender">{getSenderLabel(message, conversation?.name ?? 'Family')}</span>
-                {message.messageType === 'Image' ? (
+                <span className="message-bubble__sender">
+                  {getSenderLabel(displayMessage, conversation?.name ?? 'Family', isAiAssistantConversation)}
+                  {isActionLog && aiLogKind ? (
+                    <span className={`status-pill status-pill--ai-log status-pill--ai-log-${aiLogKind}`}>
+                      {getAiLogKindLabel(aiLogKind)}
+                    </span>
+                  ) : null}
+                </span>
+                {displayMessage.messageType === 'Image' ? (
                   <div className="message-media">
-                    {message.mediaUrl ? (
-                      <img className="message-media__image" src={message.mediaUrl} alt="聊天图片" />
+                    {displayMessage.mediaUrl ? (
+                      <img className="message-media__image" src={displayMessage.mediaUrl} alt="聊天图片" />
                     ) : (
                       <span>图片加载失败</span>
                     )}
                   </div>
                 ) : null}
-                {message.messageType === 'Video' ? (
+                {displayMessage.messageType === 'Video' ? (
                   <div className="message-video">
-                    {getPlayableVideoUrl(message.mediaUrl) ? (
+                    {getPlayableVideoUrl(displayMessage.mediaUrl) ? (
                       <video
                         className="message-video__player"
                         controls
                         preload="metadata"
-                        src={getPlayableVideoUrl(message.mediaUrl) ?? undefined}
+                        src={getPlayableVideoUrl(displayMessage.mediaUrl) ?? undefined}
                       />
                     ) : (
                       <div className="message-voice__fallback">这条视频暂时无法播放</div>
                     )}
                   </div>
                 ) : null}
-                {message.messageType === 'Voice' ? (
+                {displayMessage.messageType === 'Voice' ? (
                   <div className="message-voice">
-                    {getPlayableVoiceUrl(message.mediaUrl) ? (
+                    {getPlayableVoiceUrl(displayMessage.mediaUrl) ? (
                       <audio
                         className="message-voice__player"
                         controls
                         preload="metadata"
-                        src={getPlayableVoiceUrl(message.mediaUrl) ?? undefined}
+                        src={getPlayableVoiceUrl(displayMessage.mediaUrl) ?? undefined}
                       />
                     ) : (
                       <div className="message-voice__fallback">这条语音暂时无法播放</div>
                     )}
                     <div className="message-voice__meta">
-                      <span>{formatVoiceDuration(message.voiceDurationSec)}</span>
-                      {message.transcript ? <span>{message.transcript}</span> : null}
+                      <span>{formatVoiceDuration(displayMessage.voiceDurationSec)}</span>
+                      {displayMessage.transcript ? <span>{displayMessage.transcript}</span> : null}
                     </div>
                   </div>
                 ) : null}
-                {(message.messageType !== 'Image' && message.messageType !== 'Voice' && message.messageType !== 'Video') || message.textContent ? (
-                  <p>{message.textContent ?? message.transcript ?? 'Voice message'}</p>
+                {(displayMessage.messageType !== 'Image' && displayMessage.messageType !== 'Voice' && displayMessage.messageType !== 'Video') || displayMessage.textContent ? (
+                  <p>{displayMessage.textContent ?? displayMessage.transcript ?? 'Voice message'}</p>
                 ) : null}
                 <footer className="message-bubble__footer">
-                  <span>{formatClock(message.createdAt)}</span>
-                  {message.senderType === 'Family' ? (
+                  <span>{formatClock(displayMessage.createdAt)}</span>
+                  {displayMessage.senderType === 'Family' ? (
                     <button
                       className="text-action"
                       type="button"
-                      disabled={savingMemoryId === message.id}
-                      onClick={() => void handleAddMemory(message)}
+                      disabled={savingMemoryId === displayMessage.id}
+                      onClick={() => void handleAddMemory(displayMessage)}
                     >
-                      {savingMemoryId === message.id ? 'Saving...' : 'Add to memories'}
+                      {savingMemoryId === displayMessage.id ? 'Saving...' : 'Add to memories'}
                     </button>
                   ) : null}
-                  {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
+                  {displayMessage.aiDrafted && !isAiAssistantConversation ? <span className="status-pill">AI drafted</span> : null}
                 </footer>
               </article>
             </div>
-          ))}
+            )
+          })}
         </div>
 
-        {conversation ? (
+        {conversation && !isAiAssistantConversation ? (
           <form
             className={`ai-confirm-card ${isDraggingImage ? 'composer-card--dragging' : ''}`}
             onSubmit={handleSubmitReply}
@@ -641,6 +672,11 @@ export function ElderConversationPage() {
               </button>
             </div>
           </form>
+        ) : conversation ? (
+          <section className="state-note">
+            <strong>AI助手会话</strong>
+            <p>请使用底部语音按钮与 AI 互动，这里会自动记录“理解-执行-结果”的完整轨迹。</p>
+          </section>
         ) : null}
       </section>
     </section>
@@ -664,6 +700,9 @@ export function ElderConversationPage() {
         isLowInformation: isLowInformation(draftText),
       })
       setConversation(nextConversation)
+      const sentText = draftText.trim()
+      setDraftText('')
+      speakActionNotice(`已发送给${conversation.name}：${sentText}`)
       setError('')
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to send AI draft')
@@ -928,12 +967,61 @@ function isCallEndedPayload(data: unknown): data is { duration?: number } {
   return typeof data === 'object' && data !== null
 }
 
-function getSenderLabel(message: Message, familyName: string) {
+function getSenderLabel(message: Message, familyName: string, isAiAssistantConversation?: boolean) {
+  if (isAiAssistantConversation && message.senderType === 'System') {
+    return 'AI Assistant'
+  }
+
   if (message.senderType === 'Family') {
     return familyName
   }
 
   return 'Me'
+}
+
+function normalizeMessageForAiAssistant(message: Message, isAiAssistantConversation: boolean): Message | null {
+  if (!isAiAssistantConversation || message.senderType !== 'System') {
+    return message
+  }
+
+  const text = (message.textContent ?? '').trim()
+  if (!text) return message
+
+  if (
+    text.startsWith('AI理解：')
+    || text.startsWith('AI执行：')
+    || text.startsWith('AI执行结果：')
+  ) {
+    return null
+  }
+
+  if (text.startsWith('用户：')) {
+    return {
+      ...message,
+      senderType: 'Elder',
+      senderMemberId: message.senderMemberId ?? 'member_elder',
+      textContent: text.replace(/^用户：\s*/, ''),
+    }
+  }
+
+  if (text.startsWith('AI回复：') || text.startsWith('AI追问：') || text.startsWith('AI助手：')) {
+    return {
+      ...message,
+      textContent: text.replace(/^(AI回复：|AI追问：|AI助手：)\s*/, ''),
+    }
+  }
+
+  return message
+}
+
+type AiLogKind = 'user' | 'understand' | 'clarify' | 'execute' | 'result'
+
+function getAiLogKindLabel(kind: AiLogKind) {
+  if (kind === 'user') return '用户输入'
+  if (kind === 'understand') return 'AI理解'
+  if (kind === 'clarify') return 'AI追问'
+  if (kind === 'execute') return '执行中'
+  return '执行结果'
 }
 
 function isLowInformation(input: string) {
@@ -958,4 +1046,3 @@ function buildFamilyMemoryTitle(familyName: string, message: Message) {
 
   return `${familyName} text message`
 }
-

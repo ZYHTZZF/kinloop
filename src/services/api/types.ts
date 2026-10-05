@@ -21,6 +21,7 @@ export type Member = {
 
 export type ConversationCard = {
   id: string
+  conversationType: 'FAMILY_CHAT' | 'AI_ASSISTANT'
   memberId: string
   familyMemberId: string
   elderMemberId: string
@@ -70,6 +71,7 @@ export type Message = {
 
 export type ConversationDetail = {
   id: string
+  conversationType: 'FAMILY_CHAT' | 'AI_ASSISTANT'
   memberId: string
   familyMemberId: string
   elderMemberId: string

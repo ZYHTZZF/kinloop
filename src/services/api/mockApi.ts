@@ -238,6 +238,7 @@ function buildConversationCards(state: MockState): ConversationCard[] {
 
       return {
         id: conversation.id,
+        conversationType: conversation.conversationType,
         memberId: conversation.memberId,
         familyMemberId: conversation.familyMemberId,
         elderMemberId: conversation.elderMemberId,
@@ -365,6 +366,7 @@ function buildInitialState(): MockState {
   const conversations: ConversationDetail[] = [
     {
       id: 'daughter',
+      conversationType: 'FAMILY_CHAT',
       memberId: 'member_daughter',
       familyMemberId: 'member_daughter',
       elderMemberId: 'member_elder',
@@ -380,6 +382,7 @@ function buildInitialState(): MockState {
     },
     {
       id: 'son',
+      conversationType: 'FAMILY_CHAT',
       memberId: 'member_son',
       familyMemberId: 'member_son',
       elderMemberId: 'member_elder',
@@ -394,6 +397,7 @@ function buildInitialState(): MockState {
     },
     {
       id: 'granddaughter',
+      conversationType: 'FAMILY_CHAT',
       memberId: 'member_granddaughter',
       familyMemberId: 'member_granddaughter',
       elderMemberId: 'member_elder',
@@ -585,5 +589,4 @@ function makeMessage(
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
-
 

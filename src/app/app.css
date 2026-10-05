@@ -1070,6 +1070,15 @@
   box-shadow: var(--app-shadow-soft);
 }
 
+.list-row--ai {
+  border-color: rgba(67, 108, 139, 0.26);
+  background: linear-gradient(180deg, rgba(238, 246, 252, 0.94), rgba(250, 253, 255, 0.94));
+}
+
+.list-row--ai .avatar-badge {
+  background: radial-gradient(circle at 30% 30%, #f4faff, #cfe2f2 70%);
+}
+
 .list-row__main {
   display: flex;
   align-items: center;
@@ -1106,6 +1115,10 @@
   justify-items: start;
 }
 
+.message-thread--ai-log {
+  justify-items: stretch;
+}
+
 .message-bubble {
   display: grid;
   gap: 10px;
@@ -1125,6 +1138,33 @@
   margin-left: auto;
   background:
     linear-gradient(135deg, rgba(230, 238, 244, 0.96), rgba(240, 234, 225, 0.94));
+}
+
+.message-bubble--ai-log {
+  background: linear-gradient(180deg, rgba(244, 249, 255, 0.96), rgba(236, 245, 253, 0.96));
+  border-color: rgba(74, 114, 145, 0.2);
+  border-left: 4px solid rgba(74, 114, 145, 0.5);
+  max-width: min(100%, 760px);
+}
+
+.message-bubble--ai-log-user {
+  border-left-color: rgba(96, 116, 137, 0.5);
+}
+
+.message-bubble--ai-log-understand {
+  border-left-color: rgba(69, 118, 106, 0.55);
+}
+
+.message-bubble--ai-log-clarify {
+  border-left-color: rgba(189, 141, 66, 0.6);
+}
+
+.message-bubble--ai-log-execute {
+  border-left-color: rgba(76, 111, 148, 0.6);
+}
+
+.message-bubble--ai-log-result {
+  border-left-color: rgba(86, 132, 90, 0.6);
 }
 
 .message-bubble__sender {
@@ -1406,6 +1446,43 @@
   color: var(--app-accent-strong);
   font-size: 13px;
   font-weight: 600;
+}
+
+.status-pill--ai {
+  margin-left: 8px;
+  background: rgba(72, 115, 150, 0.14);
+  color: #2e5978;
+}
+
+.status-pill--ai-log {
+  margin-left: 8px;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.status-pill--ai-log-user {
+  background: rgba(96, 116, 137, 0.14);
+  color: #4b6075;
+}
+
+.status-pill--ai-log-understand {
+  background: rgba(69, 118, 106, 0.14);
+  color: #3d6f61;
+}
+
+.status-pill--ai-log-clarify {
+  background: rgba(189, 141, 66, 0.16);
+  color: #8f6727;
+}
+
+.status-pill--ai-log-execute {
+  background: rgba(76, 111, 148, 0.14);
+  color: #345b86;
+}
+
+.status-pill--ai-log-result {
+  background: rgba(86, 132, 90, 0.14);
+  color: #3f6a42;
 }
 
 .help-card {
