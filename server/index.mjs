@@ -86,6 +86,125 @@ function findMatchedMember(normalizedText, aliases) {
   return aliases.find((member) => member.aliases.some((alias) => normalizedText.includes(alias))) ?? null
 }
 
+const WEATHER_CODE_LABELS = {
+  0: '晴',
+  1: '晴间多云',
+  2: '多云',
+  3: '阴',
+  45: '有雾',
+  48: '有雾',
+  51: '毛毛雨',
+  53: '小雨',
+  55: '中雨',
+  56: '冻毛毛雨',
+  57: '冻毛毛雨',
+  61: '小雨',
+  63: '中雨',
+  65: '大雨',
+  66: '冻雨',
+  67: '冻雨',
+  71: '小雪',
+  73: '中雪',
+  75: '大雪',
+  77: '阵雪',
+  80: '阵雨',
+  81: '强阵雨',
+  82: '暴雨',
+  85: '阵雪',
+  86: '强阵雪',
+  95: '雷雨',
+  96: '雷雨冰雹',
+  99: '强雷雨冰雹',
+}
+
+function mapWeatherCodeToLabel(code) {
+  return WEATHER_CODE_LABELS[code] ?? '天气正常'
+}
+
+function buildWeatherAdvice(code, temperature) {
+  if (code >= 95) {
+    return '武汉当前有雷雨天气，尽量减少外出，记得关好门窗。'
+  }
+
+  if ([61, 63, 65, 80, 81, 82].includes(code)) {
+    return '武汉现在有降雨，出门记得带伞，路上慢一点更稳妥。'
+  }
+
+  if ([71, 73, 75, 77, 85, 86].includes(code)) {
+    return '天气偏冷，注意保暖，地面湿滑时尽量少走急路。'
+  }
+
+  if (temperature >= 32) {
+    return '武汉气温较高，注意补水，午后尽量在阴凉处活动。'
+  }
+
+  if (temperature <= 10) {
+    return '武汉气温偏低，出门加件外套，早晚注意保暖。'
+  }
+
+  return '天气比较平稳，适合按自己的节奏出门走一走。'
+}
+
+async function geocodeCity(city) {
+  const params = new URLSearchParams({
+    name: city,
+    count: '1',
+    language: 'zh',
+    format: 'json',
+  })
+
+  const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`)
+  if (!response.ok) {
+    throw new Error(`Geocoding failed: ${response.status}`)
+  }
+
+  const payload = await response.json()
+  const location = payload?.results?.[0]
+
+  if (!location) {
+    throw new Error(`City not found: ${city}`)
+  }
+
+  return {
+    name: location.name ?? city,
+    latitude: location.latitude,
+    longitude: location.longitude,
+  }
+}
+
+async function fetchCurrentWeather(city = '武汉') {
+  const location = await geocodeCity(city)
+  const params = new URLSearchParams({
+    latitude: `${location.latitude}`,
+    longitude: `${location.longitude}`,
+    current_weather: 'true',
+    timezone: 'Asia/Shanghai',
+  })
+
+  const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`)
+  if (!response.ok) {
+    throw new Error(`Weather request failed: ${response.status}`)
+  }
+
+  const payload = await response.json()
+  const current = payload?.current_weather
+
+  if (!current || typeof current.temperature !== 'number') {
+    throw new Error('Current weather is unavailable')
+  }
+
+  const weatherCode = Number(current.weathercode ?? -1)
+  const temperature = Math.round(current.temperature)
+
+  return {
+    city: location.name || city,
+    weatherLabel: mapWeatherCodeToLabel(weatherCode),
+    temperatureLabel: `${temperature}°C`,
+    advice: buildWeatherAdvice(weatherCode, temperature),
+    fetchedAt: Date.now(),
+  }
+}
+
 function buildIntentResult(spokenText, members, conversations) {
   const normalized = normalizeText(spokenText)
   const aliases = buildSimpleAliases(members, conversations)
@@ -326,6 +445,18 @@ app.get('/api/health', (_, response) => {
     dbPath: DB_PATH,
     timestamp: Date.now(),
   })
+})
+
+app.get('/api/weather/current', async (request, response) => {
+  const city = `${request.query?.city ?? '武汉'}`.trim() || '武汉'
+
+  try {
+    response.json(await fetchCurrentWeather(city))
+  } catch (error) {
+    response.status(502).json({
+      error: error instanceof Error ? error.message : 'Failed to load current weather',
+    })
+  }
 })
 
 app.get('/api/family-space', (_, response) => {
