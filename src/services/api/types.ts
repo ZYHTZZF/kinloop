@@ -7,6 +7,14 @@ export type FamilySpace = {
   updatedAt: number
 }
 
+export type CurrentWeatherSummary = {
+  city: string
+  weatherLabel: string
+  temperatureLabel: string
+  advice: string
+  fetchedAt: number
+}
+
 export type Member = {
   id: string
   familySpaceId: string
