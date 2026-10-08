@@ -59,6 +59,21 @@ export async function mockApiGet<T>(path: string): Promise<T> {
 export async function mockApiPost<T>(path: string, body: unknown): Promise<T> {
   const state = getState()
 
+  if (path === '/ai/generation-bridge/explain') {
+    const payload = body as { messageText?: string; requesterRole?: 'elder' | 'family' }
+    const messageText = String(payload.messageText ?? '').trim()
+    if (!messageText) {
+      throw new Error('messageText is required')
+    }
+
+    return {
+      explanation: buildMockGenerationBridgeExplanation(messageText, payload.requesterRole ?? 'elder'),
+      followUpSuggestion: payload.requesterRole === 'elder' ? '你可以回：这个词我刚懂，你再讲讲你的感受。' : '你可以回：明白了，我换个更好懂的说法给你。',
+      glossary: buildMockGenerationBridgeGlossary(messageText),
+      mode: 'fallback',
+    } as T
+  }
+
   const messageMatch = path.match(/^\/conversations\/([^/]+)\/messages$/)
   if (messageMatch) {
     const conversation = state.conversations.find((item) => item.id === messageMatch[1])
@@ -590,3 +605,23 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+function buildMockGenerationBridgeExplanation(messageText: string, requesterRole: 'elder' | 'family') {
+  if (requesterRole === 'elder') {
+    return `这句话更容易理解的意思是：${messageText}。如果有新词，可以点“？”继续问我。`
+  }
+
+  return `这句话可以换成更长辈容易理解的表达：${messageText}。可以尽量少用缩写和网络词。`
+}
+
+function buildMockGenerationBridgeGlossary(messageText: string) {
+  const glossaryMap: Array<{ term: string; meaning: string; pattern: RegExp }> = [
+    { term: 'emo', meaning: '情绪有点低落', pattern: /\bemo\b/i },
+    { term: 'ddl', meaning: '截止日期', pattern: /\bddl\b/i },
+    { term: 'KPI', meaning: '工作考核指标', pattern: /\bkpi\b/i },
+    { term: 'CPU', meaning: '电脑处理器', pattern: /\bcpu\b/i },
+  ]
+
+  return glossaryMap
+    .filter((item) => item.pattern.test(messageText))
+    .map((item) => ({ term: item.term, meaning: item.meaning }))
+}

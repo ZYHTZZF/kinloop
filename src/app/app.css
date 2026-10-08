@@ -1105,6 +1105,9 @@
 .message-thread {
   display: grid;
   gap: 8px;
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .message-thread--self {
@@ -1113,6 +1116,7 @@
 
 .message-thread--peer {
   justify-items: start;
+  justify-content: start;
 }
 
 .message-thread--ai-log {
@@ -1176,6 +1180,96 @@
 
 .message-bubble__footer {
   align-items: center;
+}
+
+.message-bridge-inline {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.message-bridge-inline p {
+  margin: 0;
+  flex: 1;
+  line-height: 1.6;
+}
+
+.message-bridge-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(86, 104, 147, 0.28);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--app-accent-strong);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.message-bridge-trigger--outside {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.message-thread--peer .message-bridge-trigger--outside {
+  right: -34px;
+  left: auto;
+}
+
+.message-thread--self .message-bridge-trigger--outside {
+  right: -34px;
+}
+
+.message-bridge-card {
+  display: grid;
+  gap: 8px;
+  max-width: min(100%, 640px);
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(76, 96, 114, 0.16);
+  background: rgba(243, 248, 252, 0.9);
+}
+
+.message-bridge-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.message-bridge-card p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.message-bridge-card .surface-card__eyebrow {
+  margin-bottom: 0;
+}
+
+.message-bridge-glossary {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.message-bridge-followup {
+  color: var(--app-accent-strong);
+}
+
+.message-bridge-close {
+  border: 1px solid rgba(86, 104, 147, 0.2);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--app-accent-strong);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
 }
 
 .message-emotion-chip {
@@ -1597,8 +1691,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 10px 0;
-  padding-right: 6px;
+  padding: 10px 40px 10px 40px;
   scrollbar-gutter: stable;
 }
 
@@ -1620,7 +1713,8 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-right: 6px;
+  padding-right: 40px;
+  padding-left: 40px;
   scrollbar-gutter: stable;
 }
 

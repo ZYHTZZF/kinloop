@@ -20,6 +20,7 @@ import {
 } from './services/emotion/emotionService.mjs'
 import { registerAsrRoutes } from './routes/asrRoutes.mjs'
 import { registerAiIntentRoutes } from './routes/aiIntentRoutes.mjs'
+import { registerGenerationBridgeRoutes } from './routes/generationBridgeRoutes.mjs'
 
 getDatabase()
 
@@ -243,6 +244,8 @@ app.get('/api/family-space', (_, response) => {
 registerAsrRoutes(app)
 
 registerAiIntentRoutes(app)
+
+registerGenerationBridgeRoutes(app)
 
 app.get('/api/members', (_, response) => {
   response.json(listMembers())

@@ -172,6 +172,24 @@ export type EmotionAnalyzeResponse = {
   }>
 }
 
+export type GenerationBridgeExplainRequest = {
+  messageText?: string
+  imageUrl?: string
+  requesterRole: 'elder' | 'family'
+}
+
+export type GenerationBridgeGlossaryItem = {
+  term: string
+  meaning: string
+}
+
+export type GenerationBridgeExplainResponse = {
+  explanation: string
+  followUpSuggestion: string | null
+  glossary: GenerationBridgeGlossaryItem[]
+  mode: 'llm' | 'fallback'
+}
+
 export type FollowupRecord = {
   id: string
   linkedPulseId: string | null

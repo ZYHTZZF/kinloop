@@ -2,8 +2,15 @@
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
-import { createMemoryEntry, getConversationDetail, getCurrentFamilySpace, getWebSocketUrl, sendMessage } from '../../services/api'
-import type { ConversationDetail, Message } from '../../services/api'
+import {
+  createMemoryEntry,
+  explainGenerationBridge,
+  getConversationDetail,
+  getCurrentFamilySpace,
+  getWebSocketUrl,
+  sendMessage,
+} from '../../services/api'
+import type { ConversationDetail, GenerationBridgeExplainResponse, Message } from '../../services/api'
 import type { ICallSignal } from '../../services/api/types'
 import { formatClock } from '../../utils/dateTime'
 import {
@@ -29,6 +36,13 @@ import VideoCall from '../../components/chat/VideoCall'
 
 const STATIC_EMOJIS = ['😀', '😁', '😂', '😃', '😉', '😏', '😝', '🙂', '😊', '😶', '😨', '👍', '🙏', '❤️', '🎉']
 
+type GenerationBridgeViewState = {
+  isOpen: boolean
+  loading: boolean
+  error: string | null
+  result: GenerationBridgeExplainResponse | null
+}
+
 export function FamilyConversationPage() {
   const { conversationId, userId } = useParams()
   const targetId = userId || conversationId || ''
@@ -45,6 +59,7 @@ export function FamilyConversationPage() {
   const [voiceDurationMs, setVoiceDurationMs] = useState(0)
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
+  const [generationBridgeByMessageId, setGenerationBridgeByMessageId] = useState<Record<string, GenerationBridgeViewState>>({})
 
   const [callState, setCallState] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle')
   const [isCallActive, setIsCallActive] = useState(false)
@@ -414,86 +429,139 @@ export function FamilyConversationPage() {
             <PageState title="No messages yet" description="Send your first message to start this conversation." />
           ) : null}
 
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`message-thread message-thread--${message.senderType === 'Family' ? 'self' : 'peer'}`}
-            >
-              <article
-                className={`message-bubble message-bubble--${message.senderType === 'Family' ? 'self' : 'peer'}`}
-              >
-                <span className="message-bubble__sender">{getSenderLabel(message, conversation)}</span>
-                {message.messageType === 'Image' ? (
-                  <div className="message-media">
-                    {message.mediaUrl ? (
-                      <img className="message-media__image" src={message.mediaUrl} alt="聊天图片" />
-                    ) : (
-                      <span>图片加载失败</span>
-                    )}
-                  </div>
-                ) : null}
-                {message.messageType === 'Video' ? (
-                  <div className="message-video">
-                    {getPlayableVideoUrl(message.mediaUrl) ? (
-                      <video
-                        className="message-video__player"
-                        controls
-                        preload="metadata"
-                        src={getPlayableVideoUrl(message.mediaUrl) ?? undefined}
-                      />
-                    ) : (
-                      <div className="message-voice__fallback">这条视频暂时无法播放</div>
-                    )}
-                  </div>
-                ) : null}
-                {message.messageType === 'Voice' ? (
-                  <div className="message-voice">
-                    {getPlayableVoiceUrl(message.mediaUrl) ? (
-                      <audio
-                        className="message-voice__player"
-                        controls
-                        preload="metadata"
-                        src={getPlayableVoiceUrl(message.mediaUrl) ?? undefined}
-                      />
-                    ) : (
-                      <div className="message-voice__fallback">这条语音暂时无法播放</div>
-                    )}
-                    <div className="message-voice__meta">
-                      <span>{formatVoiceDuration(message.voiceDurationSec)}</span>
-                      {message.transcript ? <span>{message.transcript}</span> : null}
-                    </div>
-                  </div>
-                ) : null}
-                {(message.messageType !== 'Image' && message.messageType !== 'Voice' && message.messageType !== 'Video') || message.textContent ? (
-                  <p>{message.textContent ?? message.transcript ?? 'Voice message'}</p>
-                ) : null}
-                <footer className="message-bubble__footer">
-                  <span>{formatClock(message.createdAt)}</span>
-                  <button
-                    className="text-action"
-                    type="button"
-                    disabled={savingMemoryId === message.id}
-                    onClick={() => void handleAddMemory(message)}
-                  >
-                    {savingMemoryId === message.id ? 'Saving...' : 'Add to memories'}
-                  </button>
-                  {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
-                </footer>
-              </article>
+          {messages.map((message) => {
+            const messageText =
+              (message.messageType !== 'Image' && message.messageType !== 'Voice' && message.messageType !== 'Video') || message.textContent
+                ? (message.textContent ?? message.transcript ?? 'Voice message')
+                : null
+            const explainImageUrl = message.messageType === 'Image' ? message.mediaUrl ?? null : null
+            const isIncomingMessage = message.senderType === 'Elder'
+            const canExplain = Boolean((messageText || explainImageUrl) && isIncomingMessage)
+            const bridgeState = generationBridgeByMessageId[message.id]
+            const isBridgeOpen = bridgeState?.isOpen ?? false
+            const explainLoading = bridgeState?.loading ?? false
+            const explainError = bridgeState?.error
+            const explainResult = bridgeState?.result
 
-              {message.senderType === 'Elder' && message.emotion ? (
-                <div className={`message-emotion-chip message-emotion-chip--${toSeverityTone(message.emotion.severity)}`}>
-                  <div className="message-emotion-chip__meta">
-                    <span>{getEmotionSourceLabel(message.emotion.source)}</span>
-                    <span className={`message-emotion-mode message-emotion-mode--${getEmotionModeTone(message.emotion.mode)}`}>
-                      {getEmotionModeLabel(message.emotion.mode)}
-                    </span>
+            return (
+              <div
+                key={message.id}
+                className={`message-thread message-thread--${message.senderType === 'Family' ? 'self' : 'peer'}`}
+              >
+                <article
+                  className={`message-bubble message-bubble--${message.senderType === 'Family' ? 'self' : 'peer'}`}
+                >
+                  <span className="message-bubble__sender">{getSenderLabel(message, conversation)}</span>
+                  {message.messageType === 'Image' ? (
+                    <div className="message-media">
+                      {message.mediaUrl ? (
+                        <img className="message-media__image" src={message.mediaUrl} alt="聊天图片" />
+                      ) : (
+                        <span>图片加载失败</span>
+                      )}
+                    </div>
+                  ) : null}
+                  {message.messageType === 'Video' ? (
+                    <div className="message-video">
+                      {getPlayableVideoUrl(message.mediaUrl) ? (
+                        <video
+                          className="message-video__player"
+                          controls
+                          preload="metadata"
+                          src={getPlayableVideoUrl(message.mediaUrl) ?? undefined}
+                        />
+                      ) : (
+                        <div className="message-voice__fallback">这条视频暂时无法播放</div>
+                      )}
+                    </div>
+                  ) : null}
+                  {message.messageType === 'Voice' ? (
+                    <div className="message-voice">
+                      {getPlayableVoiceUrl(message.mediaUrl) ? (
+                        <audio
+                          className="message-voice__player"
+                          controls
+                          preload="metadata"
+                          src={getPlayableVoiceUrl(message.mediaUrl) ?? undefined}
+                        />
+                      ) : (
+                        <div className="message-voice__fallback">这条语音暂时无法播放</div>
+                      )}
+                      <div className="message-voice__meta">
+                        <span>{formatVoiceDuration(message.voiceDurationSec)}</span>
+                        {message.transcript ? <span>{message.transcript}</span> : null}
+                      </div>
+                    </div>
+                  ) : null}
+                  {messageText ? (
+                    <div className="message-bridge-inline">
+                      <p>{messageText}</p>
+                    </div>
+                  ) : null}
+                  <footer className="message-bubble__footer">
+                    <span>{formatClock(message.createdAt)}</span>
+                    <button
+                      className="text-action"
+                      type="button"
+                      disabled={savingMemoryId === message.id}
+                      onClick={() => void handleAddMemory(message)}
+                    >
+                      {savingMemoryId === message.id ? 'Saving...' : 'Add to memories'}
+                    </button>
+                    {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
+                  </footer>
+                </article>
+                {canExplain ? (
+                  <button
+                    className="message-bridge-trigger message-bridge-trigger--outside"
+                    type="button"
+                    disabled={explainLoading}
+                    onClick={() => void handleExplainMessage(message)}
+                    title="看不懂这句话？点这里让AI解释"
+                    aria-label="代沟翻译"
+                  >
+                    ?
+                  </button>
+                ) : null}
+
+                {canExplain && isBridgeOpen ? (
+                  <div className="message-bridge-card">
+                    <div className="message-bridge-card__header">
+                      <span className="surface-card__eyebrow">AI解释</span>
+                      <button
+                        type="button"
+                        className="message-bridge-close"
+                        onClick={() => handleCloseExplainMessage(message.id)}
+                        aria-label="收起解释"
+                      >
+                        收起
+                      </button>
+                    </div>
+                    {explainLoading ? <p>AI 正在解释这句话...</p> : null}
+                    {explainError ? <p className="state-note state-note--error">{explainError}</p> : null}
+                    {explainResult ? (
+                      <>
+                        <p><strong>1. 这句话的意思：</strong>{explainResult.explanation}</p>
+                        <p className="message-bridge-followup"><strong>2. 建议回复：</strong>{explainResult.followUpSuggestion ?? '我懂了，你再说详细一点。'}</p>
+                      </>
+                    ) : null}
                   </div>
-                  <strong>{formatEmotionSummary(message.emotion.summary)}</strong>
-                </div>
-              ) : null}
-            </div>
-          ))}
+                ) : null}
+
+                {message.senderType === 'Elder' && message.emotion ? (
+                  <div className={`message-emotion-chip message-emotion-chip--${toSeverityTone(message.emotion.severity)}`}>
+                    <div className="message-emotion-chip__meta">
+                      <span>{getEmotionSourceLabel(message.emotion.source)}</span>
+                      <span className={`message-emotion-mode message-emotion-mode--${getEmotionModeTone(message.emotion.mode)}`}>
+                        {getEmotionModeLabel(message.emotion.mode)}
+                      </span>
+                    </div>
+                    <strong>{formatEmotionSummary(message.emotion.summary)}</strong>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
         </div>
 
         {showEmojiPanel ? (
@@ -824,6 +892,87 @@ export function FamilyConversationPage() {
     }
   }
 
+  async function handleExplainMessage(message: Message) {
+    const messageText = (message.textContent ?? message.transcript ?? '').trim()
+    const imageUrl = message.messageType === 'Image' ? message.mediaUrl ?? null : null
+    if (!messageText && !imageUrl) return
+    const currentState = generationBridgeByMessageId[message.id]
+
+    if (currentState?.isOpen) {
+      setGenerationBridgeByMessageId((prev) => ({
+        ...prev,
+        [message.id]: {
+          ...prev[message.id],
+          isOpen: false,
+          loading: false,
+        },
+      }))
+      return
+    }
+
+    if (currentState?.result && !currentState.error) {
+      setGenerationBridgeByMessageId((prev) => ({
+        ...prev,
+        [message.id]: {
+          ...prev[message.id],
+          isOpen: true,
+        },
+      }))
+      return
+    }
+
+    setGenerationBridgeByMessageId((prev) => ({
+      ...prev,
+      [message.id]: {
+        isOpen: true,
+        loading: true,
+        error: null,
+        result: prev[message.id]?.result ?? null,
+      },
+    }))
+
+    try {
+      const result = await explainGenerationBridge({
+        messageText: messageText || undefined,
+        imageUrl: imageUrl || undefined,
+        requesterRole: 'family',
+      })
+      setGenerationBridgeByMessageId((prev) => ({
+        ...prev,
+        [message.id]: {
+          isOpen: true,
+          loading: false,
+          error: null,
+          result,
+        },
+      }))
+    } catch (explainError) {
+      setGenerationBridgeByMessageId((prev) => ({
+        ...prev,
+        [message.id]: {
+          isOpen: true,
+          loading: false,
+          error: explainError instanceof Error ? explainError.message : '解释失败，请稍后重试',
+          result: null,
+        },
+      }))
+    }
+  }
+
+  function handleCloseExplainMessage(messageId: string) {
+    setGenerationBridgeByMessageId((prev) => {
+      if (!prev[messageId]) return prev
+      return {
+        ...prev,
+        [messageId]: {
+          ...prev[messageId],
+          isOpen: false,
+          loading: false,
+        },
+      }
+    })
+  }
+
   function handlePickEmoji(emoji: string) {
     setComposerText((prev) => `${prev}${emoji}`)
   }
@@ -932,4 +1081,3 @@ function getEmotionModeLabel(mode: string | null | undefined) {
 function getEmotionModeTone(mode: string | null | undefined) {
   return mode === 'fallback' ? 'fallback' : 'ai'
 }
-

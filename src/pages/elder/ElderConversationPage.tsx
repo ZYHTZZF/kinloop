@@ -2,8 +2,15 @@
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
-import { createMemoryEntry, getConversationDetail, getCurrentFamilySpace, getWebSocketUrl, sendMessage } from '../../services/api'
-import type { ConversationDetail, Message } from '../../services/api'
+import {
+  createMemoryEntry,
+  explainGenerationBridge,
+  getConversationDetail,
+  getCurrentFamilySpace,
+  getWebSocketUrl,
+  sendMessage,
+} from '../../services/api'
+import type { ConversationDetail, GenerationBridgeExplainResponse, Message } from '../../services/api'
 import type { ICallSignal } from '../../services/api/types'
 import { formatClock } from '../../utils/dateTime'
 import { ensureChatImageFile, readFileAsDataUrl } from '../../utils/chatImage'
@@ -29,6 +36,13 @@ import VideoCall from '../../components/chat/VideoCall'
 
 const STATIC_EMOJIS = ['😀', '😁', '😂', '😃', '😉', '😏', '😝', '🙂', '😊', '😶', '😨', '👍', '🙏', '❤️', '🎉']
 
+type GenerationBridgeViewState = {
+  isOpen: boolean
+  loading: boolean
+  error: string | null
+  result: GenerationBridgeExplainResponse | null
+}
+
 export function ElderConversationPage() {
   const location = useLocation()
   const { conversationId } = useParams()
@@ -50,6 +64,7 @@ export function ElderConversationPage() {
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
   const [savingAiMemory, setSavingAiMemory] = useState(false)
+  const [generationBridgeByMessageId, setGenerationBridgeByMessageId] = useState<Record<string, GenerationBridgeViewState>>({})
 
   const [callState, setCallState] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle')
   const [isCallActive, setIsCallActive] = useState(false)
@@ -83,6 +98,25 @@ export function ElderConversationPage() {
     const utterance = new SpeechSynthesisUtterance(content)
     utterance.lang = 'zh-CN'
     utterance.rate = 1
+    window.speechSynthesis.speak(utterance)
+  }
+
+  const speakGenerationBridge = (explanation: string, followUpSuggestion: string | null | undefined) => {
+    if (typeof window === 'undefined') return
+    if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return
+
+    const explain = explanation.trim()
+    const suggest = (followUpSuggestion ?? '').trim()
+    if (!explain && !suggest) return
+
+    const combined = suggest
+      ? `这句话的意思是：${explain}。建议你这样回复：${suggest}`
+      : `这句话的意思是：${explain}`
+
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(combined)
+    utterance.lang = 'zh-CN'
+    utterance.rate = 0.95
     window.speechSynthesis.speak(utterance)
   }
 
@@ -484,6 +518,18 @@ export function ElderConversationPage() {
             if (!displayMessage) return null
             const isActionLog = false
             const aiLogKind = null
+            const messageText =
+              (displayMessage.messageType !== 'Image' && displayMessage.messageType !== 'Voice' && displayMessage.messageType !== 'Video') || displayMessage.textContent
+                ? (displayMessage.textContent ?? displayMessage.transcript ?? 'Voice message')
+                : null
+            const explainImageUrl = displayMessage.messageType === 'Image' ? displayMessage.mediaUrl ?? null : null
+            const isIncomingMessage = displayMessage.senderType === 'Family'
+            const canExplain = Boolean((messageText || explainImageUrl) && isIncomingMessage)
+            const bridgeState = generationBridgeByMessageId[displayMessage.id]
+            const isBridgeOpen = bridgeState?.isOpen ?? false
+            const explainLoading = bridgeState?.loading ?? false
+            const explainError = bridgeState?.error
+            const explainResult = bridgeState?.result
             return (
             <div
               key={displayMessage.id}
@@ -541,8 +587,10 @@ export function ElderConversationPage() {
                     </div>
                   </div>
                 ) : null}
-                {(displayMessage.messageType !== 'Image' && displayMessage.messageType !== 'Voice' && displayMessage.messageType !== 'Video') || displayMessage.textContent ? (
-                  <p>{displayMessage.textContent ?? displayMessage.transcript ?? 'Voice message'}</p>
+                {messageText ? (
+                  <div className="message-bridge-inline">
+                    <p>{messageText}</p>
+                  </div>
                 ) : null}
                 <footer className="message-bubble__footer">
                   <span>{formatClock(displayMessage.createdAt)}</span>
@@ -559,6 +607,41 @@ export function ElderConversationPage() {
                   {displayMessage.aiDrafted && !isAiAssistantConversation ? <span className="status-pill">AI drafted</span> : null}
                 </footer>
               </article>
+              {canExplain ? (
+                <button
+                  className="message-bridge-trigger message-bridge-trigger--outside"
+                  type="button"
+                  disabled={explainLoading}
+                  onClick={() => void handleExplainMessage(displayMessage)}
+                  title="看不懂这句话？点这里让AI解释"
+                  aria-label="代沟翻译"
+                >
+                  ?
+                </button>
+              ) : null}
+              {canExplain && isBridgeOpen ? (
+                <div className="message-bridge-card">
+                  <div className="message-bridge-card__header">
+                    <span className="surface-card__eyebrow">AI解释</span>
+                    <button
+                      type="button"
+                      className="message-bridge-close"
+                      onClick={() => handleCloseExplainMessage(displayMessage.id)}
+                      aria-label="收起解释"
+                    >
+                      收起
+                    </button>
+                  </div>
+                  {explainLoading ? <p>AI 正在解释这句话...</p> : null}
+                  {explainError ? <p className="state-note state-note--error">{explainError}</p> : null}
+                  {explainResult ? (
+                    <>
+                      <p><strong>1. 这句话的意思：</strong>{explainResult.explanation}</p>
+                      <p className="message-bridge-followup"><strong>2. 建议回复：</strong>{explainResult.followUpSuggestion ?? '我懂了，你再说详细一点。'}</p>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             )
           })}
@@ -930,6 +1013,89 @@ export function ElderConversationPage() {
     } finally {
       setSavingAiMemory(false)
     }
+  }
+
+  async function handleExplainMessage(message: Message) {
+    const messageText = (message.textContent ?? message.transcript ?? '').trim()
+    const imageUrl = message.messageType === 'Image' ? message.mediaUrl ?? null : null
+    if (!messageText && !imageUrl) return
+    const currentState = generationBridgeByMessageId[message.id]
+
+    if (currentState?.isOpen) {
+      setGenerationBridgeByMessageId((prev) => ({
+        ...prev,
+        [message.id]: {
+          ...prev[message.id],
+          isOpen: false,
+          loading: false,
+        },
+      }))
+      return
+    }
+
+    if (currentState?.result && !currentState.error) {
+      setGenerationBridgeByMessageId((prev) => ({
+        ...prev,
+        [message.id]: {
+          ...prev[message.id],
+          isOpen: true,
+        },
+      }))
+      speakGenerationBridge(currentState.result.explanation, currentState.result.followUpSuggestion)
+      return
+    }
+
+    setGenerationBridgeByMessageId((prev) => ({
+      ...prev,
+      [message.id]: {
+        isOpen: true,
+        loading: true,
+        error: null,
+        result: prev[message.id]?.result ?? null,
+      },
+    }))
+
+    try {
+      const result = await explainGenerationBridge({
+        messageText: messageText || undefined,
+        imageUrl: imageUrl || undefined,
+        requesterRole: 'elder',
+      })
+      setGenerationBridgeByMessageId((prev) => ({
+        ...prev,
+        [message.id]: {
+          isOpen: true,
+          loading: false,
+          error: null,
+          result,
+        },
+      }))
+      speakGenerationBridge(result.explanation, result.followUpSuggestion)
+    } catch (explainError) {
+      setGenerationBridgeByMessageId((prev) => ({
+        ...prev,
+        [message.id]: {
+          isOpen: true,
+          loading: false,
+          error: explainError instanceof Error ? explainError.message : '解释失败，请稍后重试',
+          result: null,
+        },
+      }))
+    }
+  }
+
+  function handleCloseExplainMessage(messageId: string) {
+    setGenerationBridgeByMessageId((prev) => {
+      if (!prev[messageId]) return prev
+      return {
+        ...prev,
+        [messageId]: {
+          ...prev[messageId],
+          isOpen: false,
+          loading: false,
+        },
+      }
+    })
   }
 
   function handlePickEmoji(emoji: string) {
