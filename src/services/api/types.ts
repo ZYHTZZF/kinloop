@@ -122,6 +122,58 @@ export type Pulse = {
   resolvedAt: number | null
 }
 
+export type TodayEmotionTrendPoint = {
+  dayKey: string
+  dateLabel: string
+  dominantLabel: EmotionLabel | 'steady'
+  dominantLabelText: string
+  highestSeverity: EmotionSeverity
+  totalCount: number
+  abnormalCount: number
+  summary: string
+}
+
+export type TodayEmotionAbnormalCard = {
+  pulseId: string
+  summary: string
+  severity: EmotionSeverity
+  severityLabel: string
+  source: 'text' | 'voice_tone' | 'face'
+  sourceLabel: string
+  emotionLabel: EmotionLabel | null
+  happenedAt: number
+  sourceConversationId: string | null
+  sourceExcerpt: string | null
+  attentionSuggestion: string
+  actionSuggestion: string
+  status: string
+}
+
+export type TodayEmotionSourceBreakdownItem = {
+  source: 'text' | 'voice_tone' | 'face'
+  label: string
+  count: number
+  ratio: number
+}
+
+export type TodayEmotionSourceBreakdown = {
+  totalCount: number
+  fallbackToTextCount: number
+  items: TodayEmotionSourceBreakdownItem[]
+  note: string
+}
+
+export type TodayEmotionStatus = {
+  generatedAt: number
+  windowDays: number
+  totalEmotionCount: number
+  abnormalCount: number
+  stableSummary: string
+  trend: TodayEmotionTrendPoint[]
+  abnormalCards: TodayEmotionAbnormalCard[]
+  sourceBreakdown: TodayEmotionSourceBreakdown
+}
+
 export type EmotionSource = 'text' | 'face' | 'voice_tone' | 'text_fallback'
 
 export type EmotionLabel =

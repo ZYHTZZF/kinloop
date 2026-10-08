@@ -1,30 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
-import { listPulseHistory } from '../../services/api'
-import type { Pulse } from '../../services/api'
-import { formatClock, formatShortDate } from '../../utils/dateTime'
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+import { getTodayEmotionStatus } from '../../services/api'
+import type {
+  TodayEmotionSourceBreakdownItem,
+  TodayEmotionStatus,
+} from '../../services/api'
+import { formatShortDateTime } from '../../utils/dateTime'
 
 export function FamilyTodayPage() {
-  const [pulses, setPulses] = useState<Pulse[]>([])
+  const [status, setStatus] = useState<TodayEmotionStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelled = false
 
-    async function loadPulses() {
+    async function loadTodayStatus() {
       try {
-        const nextPulses = await listPulseHistory()
+        const nextStatus = await getTodayEmotionStatus()
         if (!cancelled) {
-          setPulses(nextPulses)
+          setStatus(nextStatus)
           setError('')
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载情绪状态失败')
+          setError(loadError instanceof Error ? loadError.message : '加载今日状态失败。')
         }
       } finally {
         if (!cancelled) {
@@ -33,107 +34,121 @@ export function FamilyTodayPage() {
       }
     }
 
-    void loadPulses()
+    void loadTodayStatus()
 
     return () => {
       cancelled = true
     }
   }, [])
 
-  const now = Date.now()
-  const weeklyPulses = useMemo(
-    () => pulses.filter((pulse) => now - pulse.createdAt <= WEEK_MS),
-    [now, pulses],
-  )
-  const abnormalPulses = useMemo(
-    () =>
-      weeklyPulses
-        .filter((pulse) => pulse.pulseType === 'Emotion' && pulse.severity !== 'LOW')
-        .slice(0, 3),
-    [weeklyPulses],
-  )
-  const weeklyEmotionPulses = useMemo(
-    () => weeklyPulses.filter((pulse) => pulse.pulseType === 'Emotion'),
-    [weeklyPulses],
-  )
-
-  const weeklySummary = useMemo(() => {
-    const summary = {
-      total: weeklyEmotionPulses.length,
-      abnormal: weeklyEmotionPulses.filter((pulse) => pulse.severity !== 'LOW').length,
-      text: 0,
-      voice: 0,
-      face: 0,
-    }
-
-    for (const pulse of weeklyEmotionPulses) {
-      if (pulse.emotionSource === 'voice_tone') {
-        summary.voice += 1
-      } else if (pulse.emotionSource === 'face') {
-        summary.face += 1
-      } else {
-        summary.text += 1
-      }
-    }
-
-    return summary
-  }, [weeklyEmotionPulses])
+  const trend = useMemo(() => status?.trend ?? [], [status])
+  const abnormalCards = useMemo(() => status?.abnormalCards ?? [], [status])
+  const sourceItems = useMemo(() => status?.sourceBreakdown.items ?? [], [status])
 
   return (
     <section className="screen screen--family-today">
       <section className="surface-card">
         <div className="section-heading">
           <div>
-            <p className="surface-card__eyebrow">首页概览</p>
-            <h2>这里只看异常情绪和本周汇总，具体情绪请回到聊天窗口里看。</h2>
+            <p className="surface-card__eyebrow">今日状态</p>
+            <h2>把零散情绪线索整理成家人今天更容易做决定的关怀视图。</h2>
           </div>
-          <Link className="primary-action" to="/family/chats">
-            去聊天窗口
-          </Link>
+          <div className="inline-actions">
+            <Link className="ghost-action ghost-action--link" to="/family/status">
+              去跟进记录
+            </Link>
+            <Link className="primary-action" to="/family/chats">
+              去聊天窗口
+            </Link>
+          </div>
         </div>
 
         {loading ? (
-          <PageState title="正在整理本周情绪状态" description="稍等一下，我在汇总异常情绪和周统计。" />
+          <PageState
+            title="正在整理近 7 天的情绪变化"
+            description="我会把趋势、需要优先关注的事件，以及判断来源一起整理出来。"
+          />
         ) : null}
         {error ? (
-          <PageState variant="error" title="首页暂时没连上本地服务" description={error} />
+          <PageState
+            variant="error"
+            title="今日状态暂时没有连上本地服务"
+            description={error}
+          />
         ) : null}
 
-        {!loading && !error ? (
-          <div className="family-emotion-dashboard">
+        {!loading && !error && status ? (
+          <div className="family-emotion-layout">
+            <article className="family-emotion-panel family-emotion-panel--hero">
+              <div className="family-emotion-hero">
+                <div>
+                  <p className="surface-card__eyebrow">关怀建议</p>
+                  <strong>{status.stableSummary}</strong>
+                </div>
+                <div className="family-emotion-summary-grid">
+                  <div className="family-emotion-summary-card">
+                    <span>近 7 天情绪线索</span>
+                    <strong>{status.totalEmotionCount}</strong>
+                  </div>
+                  <div className="family-emotion-summary-card">
+                    <span>建议优先关注</span>
+                    <strong>{status.abnormalCount}</strong>
+                  </div>
+                </div>
+              </div>
+            </article>
+
             <article className="family-emotion-panel family-emotion-panel--alert">
               <div className="section-heading">
                 <div>
-                  <p className="surface-card__eyebrow">异常情绪</p>
-                  <h2>需要优先关注的情绪变化</h2>
+                  <p className="surface-card__eyebrow">建议优先关注</p>
+                  <h2>先处理需要回应的变化，再决定今天谁来跟进。</h2>
                 </div>
-                <span className="status-pill">近 7 天 {abnormalPulses.length} 条</span>
+                <span className="status-pill">近 7 天 {abnormalCards.length} 条</span>
               </div>
 
-              {abnormalPulses.length === 0 ? (
+              {abnormalCards.length === 0 ? (
                 <div className="family-emotion-empty">
-                  <strong>本周没有新的异常情绪</strong>
-                  <p>首页会保持简洁，只有出现需要关注的变化时才在这里提示。</p>
+                  <strong>最近没有新的优先关注事件</strong>
+                  <p>这几天整体较平稳，可以继续保持自然问候和日常陪伴。</p>
                 </div>
               ) : (
                 <div className="family-emotion-alert-grid">
-                  {abnormalPulses.map((pulse) => (
-                    <article className="family-emotion-alert-card" key={pulse.id}>
-                      <span className={`status-pill status-pill--${toSeverityTone(pulse.severity)}`}>
-                        {getSeverityLabel(pulse.severity)}
-                      </span>
-                      <strong>{formatPulseSummary(pulse.summary)}</strong>
-                      <p>{getEmotionSourceLabel(pulse.emotionSource)}</p>
-                      {isMeaningfulExcerpt(pulse.sourceExcerpt) ? (
-                        <blockquote className="family-emotion-quote">“{pulse.sourceExcerpt}”</blockquote>
+                  {abnormalCards.map((card) => (
+                    <article className="family-emotion-alert-card" key={card.pulseId}>
+                      <div className="family-emotion-alert-head">
+                        <span className={`status-pill status-pill--${toSeverityTone(card.severity)}`}>
+                          {card.severityLabel}
+                        </span>
+                        <span className="family-emotion-source-chip">{card.sourceLabel}</span>
+                      </div>
+                      <strong>{card.summary}</strong>
+                      <p>{card.attentionSuggestion}</p>
+                      {card.sourceExcerpt ? (
+                        <blockquote className="family-emotion-quote">“{card.sourceExcerpt}”</blockquote>
                       ) : null}
+                      <div className="family-emotion-action-note">
+                        <span>建议行动</span>
+                        <p>{card.actionSuggestion}</p>
+                      </div>
                       <div className="family-emotion-alert-meta">
-                        <span>{formatShortDate(pulse.createdAt)} {formatClock(pulse.createdAt)}</span>
-                        {pulse.sourceConversationId ? (
-                          <Link className="ghost-action ghost-action--link" to={`/family/chats/${pulse.sourceConversationId}`}>
-                            查看原聊天
+                        <span>{formatShortDateTime(card.happenedAt)}</span>
+                        <div className="inline-actions">
+                          {card.sourceConversationId ? (
+                            <Link
+                              className="ghost-action ghost-action--link"
+                              to={`/family/chats/${card.sourceConversationId}`}
+                            >
+                              查看原聊天
+                            </Link>
+                          ) : null}
+                          <Link
+                            className="ghost-action ghost-action--link"
+                            to={`/family/status?pulseId=${encodeURIComponent(card.pulseId)}`}
+                          >
+                            去跟进记录
                           </Link>
-                        ) : null}
+                        </div>
                       </div>
                     </article>
                   ))}
@@ -141,40 +156,50 @@ export function FamilyTodayPage() {
               )}
             </article>
 
-            <article className="family-emotion-panel family-emotion-panel--summary">
+            <article className="family-emotion-panel">
               <div className="section-heading">
                 <div>
-                  <p className="surface-card__eyebrow">每周汇总</p>
-                  <h2>本周情绪识别概览</h2>
+                  <p className="surface-card__eyebrow">近 7 天趋势</p>
+                  <h2>帮助家人看变化，不只看某一次异常。</h2>
                 </div>
               </div>
 
-              <div className="family-emotion-summary-grid">
-                <div className="family-emotion-summary-card">
-                  <span>情绪识别总数</span>
-                  <strong>{weeklySummary.total}</strong>
+              <div className="family-emotion-trend-grid">
+                {trend.map((point) => (
+                  <article className="family-emotion-trend-card" key={point.dayKey}>
+                    <div className="family-emotion-trend-head">
+                      <strong>{point.dateLabel}</strong>
+                      <span className={`status-pill status-pill--${toSeverityTone(point.highestSeverity)}`}>
+                        {point.dominantLabelText}
+                      </span>
+                    </div>
+                    <div className="family-emotion-trend-stats">
+                      <span>线索 {point.totalCount}</span>
+                      <span>需关注 {point.abnormalCount}</span>
+                    </div>
+                    <p>{point.summary}</p>
+                  </article>
+                ))}
+              </div>
+            </article>
+
+            <article className="family-emotion-panel">
+              <div className="section-heading">
+                <div>
+                  <p className="surface-card__eyebrow">来源说明</p>
+                  <h2>让家人知道判断主要来自哪里，结论更容易理解。</h2>
                 </div>
-                <div className="family-emotion-summary-card">
-                  <span>异常情绪</span>
-                  <strong>{weeklySummary.abnormal}</strong>
-                </div>
-                <div className="family-emotion-summary-card">
-                  <span>文本情绪</span>
-                  <strong>{weeklySummary.text}</strong>
-                </div>
-                <div className="family-emotion-summary-card">
-                  <span>语气情绪</span>
-                  <strong>{weeklySummary.voice}</strong>
-                </div>
-                <div className="family-emotion-summary-card">
-                  <span>表情情绪</span>
-                  <strong>{weeklySummary.face}</strong>
-                </div>
+              </div>
+
+              <div className="family-emotion-source-grid">
+                {sourceItems.map((item) => (
+                  <SourceBreakdownCard key={item.source} item={item} />
+                ))}
               </div>
 
               <div className="family-emotion-summary-note">
-                <strong>查看方式已调整</strong>
-                <p>首页只保留异常情绪和周汇总，具体是哪一句话的情绪，请回到子女端聊天窗口查看。</p>
+                <strong>结论来源说明</strong>
+                <p>{status.sourceBreakdown.note}</p>
               </div>
             </article>
           </div>
@@ -184,33 +209,22 @@ export function FamilyTodayPage() {
   )
 }
 
+function SourceBreakdownCard({ item }: { item: TodayEmotionSourceBreakdownItem }) {
+  return (
+    <article className="family-emotion-source-card">
+      <span>{item.label}</span>
+      <strong>{toPercentLabel(item.ratio)}</strong>
+      <p>{item.count} 条相关线索</p>
+    </article>
+  )
+}
+
+function toPercentLabel(ratio: number) {
+  return `${Math.round(ratio * 100)}%`
+}
+
 function toSeverityTone(severity: string) {
   if (severity === 'HIGH') return 'high'
   if (severity === 'MEDIUM') return 'medium'
   return 'low'
-}
-
-function getSeverityLabel(severity: string) {
-  if (severity === 'HIGH') return '高风险'
-  if (severity === 'MEDIUM') return '需关注'
-  return '一般'
-}
-
-function getEmotionSourceLabel(source: string | null | undefined) {
-  if (source === 'voice_tone') return '语气情绪'
-  if (source === 'text_fallback') return '语气降级到文本情绪'
-  if (source === 'text') return '文本情绪'
-  if (source === 'face') return '表情情绪'
-  return '情绪识别'
-}
-
-function isMeaningfulExcerpt(excerpt: string | null | undefined) {
-  if (!excerpt) return false
-  const normalized = excerpt.trim()
-  if (!normalized) return false
-  return !/^[\?\uff1f]+$/.test(normalized)
-}
-
-function formatPulseSummary(summary: string) {
-  return summary.replace('fallback:neutral', '平稳').replace('：neutral', '：平稳')
 }
