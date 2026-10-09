@@ -11,7 +11,7 @@ import { approveInviteCode, createInviteCode, listInviteCodes } from './reposito
 import { listMembers } from './repositories/memberRepository.mjs'
 import { createMemoryEntry, listMemories } from './repositories/memoryRepository.mjs'
 import { listPermissionPolicies } from './repositories/permissionPolicyRepository.mjs'
-import { listPulseHistory, listTodayPulses } from './repositories/pulseRepository.mjs'
+import { getTodayEmotionSummary, listPulseHistory, listTodayPulses } from './repositories/pulseRepository.mjs'
 import {
   analyzeEmotionsAndCreatePulses,
   isEmotionRequestValid,
@@ -335,6 +335,10 @@ app.get('/api/pulses/today', (_, response) => {
 
 app.get('/api/pulses/history', (_, response) => {
   response.json(listPulseHistory())
+})
+
+app.get('/api/pulses/today-summary', (_, response) => {
+  response.json(getTodayEmotionSummary())
 })
 
 app.post('/api/emotions/analyze', async (request, response) => {

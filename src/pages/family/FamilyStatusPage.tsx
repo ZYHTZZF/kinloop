@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import { closureActions, followupTasks } from '../../domain/content/followupGuidance'
 import { createFollowup, listFollowups, listPulseHistory } from '../../services/api'
@@ -7,11 +7,13 @@ import type { FollowupRecord, Pulse } from '../../services/api'
 import { formatShortDateTime } from '../../utils/dateTime'
 
 export function FamilyStatusPage() {
+  const [searchParams] = useSearchParams()
   const [pulses, setPulses] = useState<Pulse[]>([])
   const [followups, setFollowups] = useState<FollowupRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [closingPulseId, setClosingPulseId] = useState<string | null>(null)
+  const focusPulseId = searchParams.get('pulseId')
 
   useEffect(() => {
     let cancelled = false
@@ -30,7 +32,7 @@ export function FamilyStatusPage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载状态历史失败')
+          setError(loadError instanceof Error ? loadError.message : '加载状态历史失败。')
         }
       } finally {
         if (!cancelled) {
@@ -56,13 +58,22 @@ export function FamilyStatusPage() {
     return map
   }, [followups])
 
+  const orderedPulses = useMemo(() => {
+    if (!focusPulseId) return pulses
+    return [...pulses].sort((a, b) => {
+      if (a.id === focusPulseId) return -1
+      if (b.id === focusPulseId) return 1
+      return Number(b.createdAt ?? 0) - Number(a.createdAt ?? 0)
+    })
+  }, [focusPulseId, pulses])
+
   return (
     <section className="screen screen--family-status">
       <section className="surface-card">
         <div className="section-heading">
           <div>
-            <p className="surface-card__eyebrow">状态与回访</p>
-            <h2>如果你看完状态后想立刻联系长辈，右边这个按钮就是聊天入口。</h2>
+            <p className="surface-card__eyebrow">状态与跟进</p>
+            <h2>把已经看到的变化转成一次具体回应，并把结果留在家庭协作里。</h2>
           </div>
           <Link className="primary-action" to="/family/chats">
             去聊天窗口
@@ -70,32 +81,43 @@ export function FamilyStatusPage() {
         </div>
 
         <div className="trend-card">
-          <strong>本周互动健康度</strong>
-          <p>这里适合看整体情况；一旦决定要联系长辈，直接去聊天页，不用再绕回首页。</p>
+          <strong>先看异常，再补记录</strong>
+          <p>如果你是从今日状态跳转过来的，这里会优先把那条需要跟进的事件放到最前面。</p>
         </div>
+
+        {focusPulseId ? (
+          <div className="family-status-focus-note">
+            <strong>已为你定位到本次建议跟进的情绪事件。</strong>
+            <p>完成一次联系后，可以直接点“快速记录”，让家人知道这条变化已经有人接住。</p>
+          </div>
+        ) : null}
 
         <div className="timeline-stack">
           {loading ? (
             <PageState
-              title="正在回看最近的状态与回访"
-              description="我会把今天和昨天的判断、跟进结果整理成一条线。"
+              title="正在整理最近的状态与跟进"
+              description="我会把近几次需要回应的状态变化和已经完成的处理结果串成一条时间线。"
             />
           ) : null}
           {error ? (
-            <PageState variant="error" title="状态历史暂时没连上本地服务" description={error} />
+            <PageState variant="error" title="状态历史暂时没有连上本地服务" description={error} />
           ) : null}
-          {!loading && !error && pulses.length === 0 ? (
+          {!loading && !error && orderedPulses.length === 0 ? (
             <PageState
               title="现在还没有可回看的状态记录"
-              description="等第一条状态脉冲和回访记录产生后，这里会形成完整时间线。"
+              description="等第一条状态脉冲和跟进结果产生后，这里会形成完整的协作时间线。"
             />
           ) : null}
 
-          {pulses.map((pulse) => {
+          {orderedPulses.map((pulse) => {
             const followup = followupByPulseId.get(pulse.id)
+            const isFocused = pulse.id === focusPulseId
 
             return (
-              <article className="timeline-card" key={pulse.id}>
+              <article
+                className={`timeline-card${isFocused ? ' timeline-card--focused' : ''}`}
+                key={pulse.id}
+              >
                 <div className="timeline-card__pulse">
                   <span className={`severity-dot severity-dot--${toSeverityTone(pulse.severity)}`} />
                   <div>
@@ -107,12 +129,12 @@ export function FamilyStatusPage() {
                 {followup ? (
                   <div className="timeline-card__followup">
                     {followup.resultTag ? <span className="status-pill">{followup.resultTag}</span> : null}
-                    <p>{followup.resultNote ?? '已完成跟进'}</p>
+                    <p>{followup.resultNote ?? '已完成一次跟进记录。'}</p>
                     <small>处理人：{followup.handlerMemberId}</small>
                   </div>
                 ) : pulse.status !== 'RESOLVED' ? (
                   <div className="timeline-card__followup">
-                    <p>这条状态还没有形成回访记录。</p>
+                    <p>这条状态还没有形成跟进记录，可以先联系，再把本次结果补进来。</p>
                     <div className="inline-actions">
                       <button
                         className="ghost-action"
@@ -120,11 +142,20 @@ export function FamilyStatusPage() {
                         disabled={closingPulseId === pulse.id}
                         onClick={() => void handleClosePulse(pulse)}
                       >
-                        {closingPulseId === pulse.id ? '提交中…' : '快速闭环'}
+                        {closingPulseId === pulse.id ? '提交中...' : '快速记录'}
                       </button>
-                      <Link className="ghost-action ghost-action--link" to="/family/chats">
-                        去聊天
-                      </Link>
+                      {pulse.sourceConversationId ? (
+                        <Link
+                          className="ghost-action ghost-action--link"
+                          to={`/family/chats/${pulse.sourceConversationId}`}
+                        >
+                          去聊天
+                        </Link>
+                      ) : (
+                        <Link className="ghost-action ghost-action--link" to="/family/chats">
+                          去聊天
+                        </Link>
+                      )}
                     </div>
                   </div>
                 ) : null}
@@ -135,7 +166,7 @@ export function FamilyStatusPage() {
 
         <div className="split-grid">
           <article className="support-card">
-            <p className="surface-card__eyebrow">轻量回访动作</p>
+            <p className="surface-card__eyebrow">轻量跟进动作</p>
             <div className="list-stack">
               {followupTasks.map((task) => (
                 <div className="signal-row" key={task.label}>
@@ -148,7 +179,7 @@ export function FamilyStatusPage() {
           </article>
 
           <article className="support-card">
-            <p className="surface-card__eyebrow">闭环原则</p>
+            <p className="surface-card__eyebrow">记录原则</p>
             <div className="list-stack">
               {closureActions.map((item) => (
                 <div className="signal-row" key={item.label}>
@@ -171,7 +202,7 @@ export function FamilyStatusPage() {
         handlerMemberId: 'member_daughter',
         actionType: 'Chat',
         resultTag: '已记录',
-        resultNote: '已完成一次轻量回访，并把结果补进状态闭环。',
+        resultNote: '已完成一次轻量跟进，并把结果补进状态闭环。',
       })
 
       const [nextPulses, nextFollowups] = await Promise.all([
@@ -182,7 +213,7 @@ export function FamilyStatusPage() {
       setFollowups(nextFollowups)
       setError('')
     } catch (closeError) {
-      setError(closeError instanceof Error ? closeError.message : '回访闭环失败')
+      setError(closeError instanceof Error ? closeError.message : '跟进记录失败。')
     } finally {
       setClosingPulseId(null)
     }

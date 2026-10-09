@@ -1784,6 +1784,11 @@
   gap: 16px;
 }
 
+.family-emotion-layout {
+  display: grid;
+  gap: 16px;
+}
+
 .family-emotion-panel {
   display: grid;
   gap: 18px;
@@ -1791,6 +1796,19 @@
   border-radius: 24px;
   border: 1px solid rgba(82, 69, 53, 0.08);
   background: rgba(255, 252, 247, 0.72);
+}
+
+.family-emotion-panel--hero {
+  background:
+    linear-gradient(135deg, rgba(255, 247, 235, 0.96), rgba(246, 251, 247, 0.92)),
+    rgba(255, 252, 247, 0.72);
+}
+
+.family-emotion-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  align-items: start;
 }
 
 .family-emotion-alert-grid,
@@ -1833,6 +1851,39 @@
   flex-wrap: wrap;
 }
 
+.family-emotion-alert-head,
+.family-emotion-trend-head,
+.family-emotion-trend-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.family-emotion-source-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(105, 128, 112, 0.1);
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.family-emotion-action-note {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(243, 246, 250, 0.88);
+}
+
+.family-emotion-action-note span {
+  font-size: 12px;
+  color: var(--app-muted);
+}
+
 .family-emotion-quote {
   margin: 0;
   padding: 12px 14px;
@@ -1840,6 +1891,50 @@
   border-radius: 12px;
   background: rgba(247, 243, 237, 0.9);
   color: var(--app-muted);
+}
+
+.family-emotion-trend-grid,
+.family-emotion-source-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.family-emotion-trend-card,
+.family-emotion-source-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(82, 69, 53, 0.08);
+}
+
+.family-emotion-trend-stats,
+.family-emotion-source-card span,
+.family-emotion-source-card p {
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.family-emotion-source-card strong {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.family-status-focus-note {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(247, 244, 227, 0.9);
+  border: 1px solid rgba(196, 152, 67, 0.18);
+}
+
+.timeline-card--focused {
+  border-color: rgba(196, 152, 67, 0.3);
+  box-shadow: 0 12px 28px rgba(196, 152, 67, 0.12);
 }
 
 /* Family Today: reduce "instruction-heavy" feel and emphasize decisions. */
@@ -2020,7 +2115,10 @@
   }
 
   .family-emotion-dashboard,
-  .family-emotion-summary-grid {
+  .family-emotion-summary-grid,
+  .family-emotion-hero,
+  .family-emotion-trend-grid,
+  .family-emotion-source-grid {
     grid-template-columns: 1fr;
   }
 
