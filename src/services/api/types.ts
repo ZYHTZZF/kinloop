@@ -242,6 +242,37 @@ export type GenerationBridgeExplainResponse = {
   mode: 'llm' | 'fallback'
 }
 
+export type PreSendSuggestionType = 'followup' | 'soften'
+
+export type PreSendSuggestion = {
+  shouldSuggest: boolean
+  type: PreSendSuggestionType
+  title: string
+  reason: string
+  suggestions: string[]
+  triggerKey: string
+}
+
+export type PreSendSuggestionRequest = {
+  conversationId: string
+  draft: string
+  messages: Array<{
+    id: string
+    senderType: string
+    messageType: string
+    textContent: string | null
+    transcript: string | null
+    mediaUrl: string | null
+    createdAt: number
+  }>
+}
+
+export type PreSendSuggestionResponse = {
+  ok: boolean
+  result: PreSendSuggestion | null
+  source: 'llm' | 'fallback'
+}
+
 export type FollowupRecord = {
   id: string
   linkedPulseId: string | null

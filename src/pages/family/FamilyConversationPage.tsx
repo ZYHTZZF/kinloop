@@ -7,10 +7,11 @@ import {
   explainGenerationBridge,
   getConversationDetail,
   getCurrentFamilySpace,
+  getPreSendSuggestion,
   getWebSocketUrl,
   sendMessage,
 } from '../../services/api'
-import type { ConversationDetail, GenerationBridgeExplainResponse, Message } from '../../services/api'
+import type { ConversationDetail, GenerationBridgeExplainResponse, Message, PreSendSuggestion } from '../../services/api'
 import type { ICallSignal } from '../../services/api/types'
 import { formatClock } from '../../utils/dateTime'
 import {
@@ -33,6 +34,7 @@ import { webrtcManager } from '../../services/webrtc/WebRTCManager'
 import * as chatApi from '../../services/api/chatApi'
 import VoiceCall from '../../components/chat/VoiceCall'
 import VideoCall from '../../components/chat/VideoCall'
+import { buildPreSendSuggestion } from '../../domain/content/preSendSuggestions'
 
 const STATIC_EMOJIS = ['😀', '😁', '😂', '😃', '😉', '😏', '😝', '🙂', '😊', '😶', '😨', '👍', '🙏', '❤️', '🎉']
 
@@ -60,6 +62,9 @@ export function FamilyConversationPage() {
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
   const [generationBridgeByMessageId, setGenerationBridgeByMessageId] = useState<Record<string, GenerationBridgeViewState>>({})
+  const [preSendSuggestion, setPreSendSuggestion] = useState<PreSendSuggestion | null>(null)
+  const [postSendFollowupSuggestion, setPostSendFollowupSuggestion] = useState<PreSendSuggestion | null>(null)
+  const [dismissedSuggestionKey, setDismissedSuggestionKey] = useState<string | null>(null)
 
   const [callState, setCallState] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle')
   const [isCallActive, setIsCallActive] = useState(false)
@@ -78,6 +83,7 @@ export function FamilyConversationPage() {
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const voiceSessionRef = useRef<VoiceRecordingSession | null>(null)
   const voiceTimerRef = useRef<number>(0)
+  const preSendRequestRef = useRef(0)
 
   const currentUserId = conversation?.familyMemberId ?? null
   const otherUserId = conversation?.elderMemberId ?? null
@@ -365,6 +371,31 @@ export function FamilyConversationPage() {
     }
   }, [])
 
+  useEffect(() => {
+    const trimmedDraft = composerText.trim()
+
+    if (!trimmedDraft || !conversation || isRecordingVoice) {
+      setPreSendSuggestion(null)
+      return
+    }
+
+    const localSuggestion = buildPreSendSuggestion({
+      draft: trimmedDraft,
+      messages,
+    })
+
+    if (localSuggestion?.type === 'soften') {
+      if (localSuggestion.triggerKey === dismissedSuggestionKey) {
+        setPreSendSuggestion(null)
+      } else {
+        setPreSendSuggestion(localSuggestion)
+      }
+      return
+    }
+
+    setPreSendSuggestion(null)
+  }, [composerText, conversation, dismissedSuggestionKey, isRecordingVoice, messages])
+
   return (
     <section className="screen screen--family-conversation">
       <section className="surface-card">
@@ -583,6 +614,89 @@ export function FamilyConversationPage() {
           </div>
         ) : null}
 
+        {preSendSuggestion ? (
+          <section className={`pre-send-suggestion-card pre-send-suggestion-card--${preSendSuggestion.type}`}>
+            <div className="pre-send-suggestion-card__header">
+              <div>
+                <p className="surface-card__eyebrow">
+                  {preSendSuggestion.type === 'soften' ? '情绪缓冲' : '接话续聊'}
+                </p>
+                <h3>{preSendSuggestion.title}</h3>
+              </div>
+              <button
+                className="text-action"
+                type="button"
+                onClick={() => handleDismissSuggestion(preSendSuggestion.triggerKey)}
+              >
+                收起
+              </button>
+            </div>
+            <p className="pre-send-suggestion-card__reason">{preSendSuggestion.reason}</p>
+            <div className="pre-send-suggestion-card__list">
+              {preSendSuggestion.suggestions.map((suggestion, index) => (
+                <button
+                  key={`${preSendSuggestion.triggerKey}-${index}`}
+                  className="pre-send-suggestion-option"
+                  type="button"
+                  onClick={() => handleApplySuggestion(suggestion)}
+                >
+                  <span>{suggestion}</span>
+                  <span className="status-pill">采用</span>
+                </button>
+              ))}
+            </div>
+            <div className="inline-actions">
+              <button
+                className="ghost-action"
+                type="button"
+                onClick={() => handleDismissSuggestion(preSendSuggestion.triggerKey)}
+              >
+                忽略
+              </button>
+              <button
+                className="primary-action"
+                type="button"
+                disabled={sending || isRecordingVoice || !composerText.trim()}
+                onClick={() => void handleSendCurrentText()}
+              >
+                {sending ? 'Sending...' : '继续发送原文'}
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {postSendFollowupSuggestion ? (
+          <section className="pre-send-suggestion-card pre-send-suggestion-card--followup">
+            <div className="pre-send-suggestion-card__header">
+              <div>
+                <p className="surface-card__eyebrow">发送后续聊</p>
+                <h3>{postSendFollowupSuggestion.title}</h3>
+              </div>
+              <button
+                className="text-action"
+                type="button"
+                onClick={() => handleDismissSuggestion(postSendFollowupSuggestion.triggerKey)}
+              >
+                收起
+              </button>
+            </div>
+            <p className="pre-send-suggestion-card__reason">{postSendFollowupSuggestion.reason}</p>
+            <div className="pre-send-suggestion-card__list">
+              {postSendFollowupSuggestion.suggestions.map((suggestion, index) => (
+                <button
+                  key={`${postSendFollowupSuggestion.triggerKey}-${index}`}
+                  className="pre-send-suggestion-option"
+                  type="button"
+                  onClick={() => handleApplySuggestion(suggestion)}
+                >
+                  <span>{suggestion}</span>
+                  <span className="status-pill">用这句续聊</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <form
           className={`composer-card ${isDraggingMedia ? 'composer-card--dragging' : ''}`}
           onSubmit={handleSubmit}
@@ -595,7 +709,10 @@ export function FamilyConversationPage() {
               aria-label="Input message"
               placeholder="Type a message..."
               value={composerText}
-              onChange={(event) => setComposerText(event.target.value)}
+              onChange={(event) => {
+                setComposerText(event.target.value)
+                setDismissedSuggestionKey(null)
+              }}
             />
             <button
               className="ghost-action composer-plus-button"
@@ -672,24 +789,38 @@ export function FamilyConversationPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    await handleSendCurrentText()
+  }
 
+  async function handleSendCurrentText() {
     if (!conversation || !composerText.trim()) {
       return
     }
 
     try {
+      const nextText = composerText.trim()
+      const followupSeed = buildPreSendSuggestion({
+        draft: nextText,
+        messages,
+      })
       setSending(true)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Family',
         senderMemberId: conversation.familyMemberId,
         messageType: 'Text',
-        textContent: composerText.trim(),
+        textContent: nextText,
         aiDrafted: false,
-        isLowInformation: isLowInformation(composerText),
+        isLowInformation: isLowInformation(nextText),
       })
       setConversation(nextConversation)
       setComposerText('')
+      setPreSendSuggestion(null)
+      setPostSendFollowupSuggestion(null)
+      setDismissedSuggestionKey(null)
       setError('')
+      if (followupSeed?.type === 'followup') {
+        void resolvePostSendFollowupSuggestion(nextText, followupSeed)
+      }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to send message')
     } finally {
@@ -975,6 +1106,67 @@ export function FamilyConversationPage() {
 
   function handlePickEmoji(emoji: string) {
     setComposerText((prev) => `${prev}${emoji}`)
+    setDismissedSuggestionKey(null)
+  }
+
+  function handleDismissSuggestion(triggerKey: string) {
+    setDismissedSuggestionKey(triggerKey)
+    setPreSendSuggestion(null)
+    setPostSendFollowupSuggestion(null)
+  }
+
+  function handleApplySuggestion(suggestion: string) {
+    setComposerText(suggestion)
+    setDismissedSuggestionKey(null)
+    setPreSendSuggestion(null)
+    setPostSendFollowupSuggestion(null)
+  }
+
+  async function resolvePostSendFollowupSuggestion(trimmedDraft: string, localSuggestion: PreSendSuggestion) {
+    const requestId = preSendRequestRef.current + 1
+    preSendRequestRef.current = requestId
+
+    try {
+      const response = await getPreSendSuggestion({
+        conversationId: conversation?.id ?? targetId,
+        draft: trimmedDraft,
+        messages: messages.slice(-5).map((message) => ({
+          id: message.id,
+          senderType: message.senderType,
+          messageType: message.messageType,
+          textContent: message.textContent,
+          transcript: message.transcript,
+          mediaUrl: message.mediaUrl,
+          createdAt: message.createdAt,
+        })),
+      })
+
+      if (preSendRequestRef.current !== requestId) {
+        return
+      }
+
+      const nextSuggestion = response.result?.type === 'followup' ? response.result : localSuggestion
+      if (!nextSuggestion || nextSuggestion.triggerKey === dismissedSuggestionKey) {
+        setPostSendFollowupSuggestion(null)
+        return
+      }
+
+      setPostSendFollowupSuggestion(nextSuggestion)
+      return
+    } catch (error) {
+      console.warn('[post-send-followup] falling back to local rules', error)
+    }
+
+    if (preSendRequestRef.current !== requestId) {
+      return
+    }
+
+    if (!localSuggestion || localSuggestion.triggerKey === dismissedSuggestionKey) {
+      setPostSendFollowupSuggestion(null)
+      return
+    }
+
+    setPostSendFollowupSuggestion(localSuggestion)
   }
 }
 

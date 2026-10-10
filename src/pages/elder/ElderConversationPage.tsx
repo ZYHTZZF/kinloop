@@ -82,6 +82,7 @@ export function ElderConversationPage() {
   const messageListRef = useRef<HTMLDivElement | null>(null)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const videoInputRef = useRef<HTMLInputElement | null>(null)
+  const draftInputRef = useRef<HTMLInputElement | null>(null)
   const voiceSessionRef = useRef<VoiceRecordingSession | null>(null)
   const voiceTimerRef = useRef<number>(0)
 
@@ -659,6 +660,7 @@ export function ElderConversationPage() {
             <strong>Send to {conversation.name}:</strong>
             <div className="composer-input-row">
               <input
+                ref={draftInputRef}
                 aria-label="AI draft"
                 value={draftText}
                 onChange={(event) => setDraftText(event.target.value)}
@@ -783,10 +785,13 @@ export function ElderConversationPage() {
         isLowInformation: isLowInformation(draftText),
       })
       setConversation(nextConversation)
-      const sentText = draftText.trim()
-      setDraftText('')
-      speakActionNotice(`已发送给${conversation.name}：${sentText}`)
-      setError('')
+        const sentText = draftText.trim()
+        setDraftText('')
+        if (draftInputRef.current) {
+          draftInputRef.current.value = ''
+        }
+        speakActionNotice(`已发送给${conversation.name}：${sentText}`)
+        setError('')
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to send AI draft')
     } finally {

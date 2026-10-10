@@ -1106,7 +1106,7 @@
   display: grid;
   gap: 8px;
   position: relative;
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
 }
 
@@ -1356,6 +1356,68 @@
   border-color: rgba(61, 86, 112, 0.3);
   background: rgba(239, 246, 255, 0.96);
   box-shadow: inset 0 0 0 2px rgba(61, 86, 112, 0.12);
+}
+
+.pre-send-suggestion-card {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(96, 77, 61, 0.1);
+  background: rgba(255, 252, 247, 0.98);
+}
+
+.pre-send-suggestion-card--followup {
+  background: rgba(250, 246, 238, 0.98);
+  border-color: rgba(115, 93, 61, 0.12);
+}
+
+.pre-send-suggestion-card--soften {
+  background: rgba(255, 244, 239, 0.98);
+  border-color: rgba(168, 88, 64, 0.18);
+}
+
+.pre-send-suggestion-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pre-send-suggestion-card__header h3 {
+  margin: 4px 0 0;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+}
+
+.pre-send-suggestion-card__reason {
+  margin: 0;
+  color: rgba(61, 47, 37, 0.84);
+  line-height: 1.55;
+}
+
+.pre-send-suggestion-card__list {
+  display: grid;
+  gap: 10px;
+}
+
+.pre-send-suggestion-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid rgba(96, 77, 61, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--app-ink);
+  text-align: left;
+}
+
+.pre-send-suggestion-option span:first-child {
+  line-height: 1.5;
 }
 
 .composer-input-row {
