@@ -21,6 +21,7 @@ import {
 import { registerAsrRoutes } from './routes/asrRoutes.mjs'
 import { registerAiIntentRoutes } from './routes/aiIntentRoutes.mjs'
 import { registerGenerationBridgeRoutes } from './routes/generationBridgeRoutes.mjs'
+import { registerPreSendSuggestionRoutes } from './routes/preSendSuggestionRoutes.mjs'
 
 getDatabase()
 
@@ -246,6 +247,8 @@ registerAsrRoutes(app)
 registerAiIntentRoutes(app)
 
 registerGenerationBridgeRoutes(app)
+
+registerPreSendSuggestionRoutes(app)
 
 app.get('/api/members', (_, response) => {
   response.json(listMembers())
