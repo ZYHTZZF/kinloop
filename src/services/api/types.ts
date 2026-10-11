@@ -145,6 +145,7 @@ export type TodayEmotionAbnormalCard = {
   emotionLabel: EmotionLabel | null
   happenedAt: number
   sourceConversationId: string | null
+  sourceMessageId: string | null
   sourceExcerpt: string | null
   attentionSuggestion: string
   actionSuggestion: string

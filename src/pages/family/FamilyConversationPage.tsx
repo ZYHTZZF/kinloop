@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import {
   createMemoryEntry,
@@ -47,6 +47,7 @@ type GenerationBridgeViewState = {
 
 export function FamilyConversationPage() {
   const { conversationId, userId } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const targetId = userId || conversationId || ''
   const [conversation, setConversation] = useState<ConversationDetail | null>(null)
   const [familySpaceId, setFamilySpaceId] = useState('fs_demo')
@@ -65,6 +66,8 @@ export function FamilyConversationPage() {
   const [preSendSuggestion, setPreSendSuggestion] = useState<PreSendSuggestion | null>(null)
   const [postSendFollowupSuggestion, setPostSendFollowupSuggestion] = useState<PreSendSuggestion | null>(null)
   const [dismissedSuggestionKey, setDismissedSuggestionKey] = useState<string | null>(null)
+  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
+  const [focusedMessageHintId, setFocusedMessageHintId] = useState<string | null>(null)
 
   const [callState, setCallState] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle')
   const [isCallActive, setIsCallActive] = useState(false)
@@ -84,6 +87,7 @@ export function FamilyConversationPage() {
   const voiceSessionRef = useRef<VoiceRecordingSession | null>(null)
   const voiceTimerRef = useRef<number>(0)
   const preSendRequestRef = useRef(0)
+  const messageElementMapRef = useRef(new Map<string, HTMLDivElement>())
 
   const currentUserId = conversation?.familyMemberId ?? null
   const otherUserId = conversation?.elderMemberId ?? null
@@ -347,6 +351,7 @@ export function FamilyConversationPage() {
   }, [targetId])
 
   const messages = conversation?.messages ?? []
+  const requestedMessageId = searchParams.get('messageId')
 
   useEffect(() => {
     const list = messageListRef.current
@@ -358,6 +363,46 @@ export function FamilyConversationPage() {
       list.scrollTop = list.scrollHeight
     })
   }, [messages.length, loading])
+
+  useEffect(() => {
+    if (!requestedMessageId || loading || messages.length === 0) {
+      return
+    }
+
+    const targetMessage = messages.find((message) => message.id === requestedMessageId)
+    const element = messageElementMapRef.current.get(requestedMessageId)
+    if (!targetMessage || !element) {
+      return
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+      setFocusedMessageId(requestedMessageId)
+      setFocusedMessageHintId(requestedMessageId)
+    })
+
+    const hintTimer = window.setTimeout(() => {
+      setFocusedMessageHintId((current) => (current === requestedMessageId ? null : current))
+    }, 2200)
+
+    const highlightTimer = window.setTimeout(() => {
+      setFocusedMessageId((current) => (current === requestedMessageId ? null : current))
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('messageId')
+        return next
+      }, { replace: true })
+    }, 2800)
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      window.clearTimeout(hintTimer)
+      window.clearTimeout(highlightTimer)
+    }
+  }, [loading, messages, requestedMessageId, setSearchParams])
 
   useEffect(() => {
     return () => {
@@ -477,10 +522,17 @@ export function FamilyConversationPage() {
             return (
               <div
                 key={message.id}
+                ref={(node) => {
+                  if (node) {
+                    messageElementMapRef.current.set(message.id, node)
+                  } else {
+                    messageElementMapRef.current.delete(message.id)
+                  }
+                }}
                 className={`message-thread message-thread--${message.senderType === 'Family' ? 'self' : 'peer'}`}
               >
                 <article
-                  className={`message-bubble message-bubble--${message.senderType === 'Family' ? 'self' : 'peer'}`}
+                  className={`message-bubble message-bubble--${message.senderType === 'Family' ? 'self' : 'peer'}${focusedMessageId === message.id ? ' message-bubble--focused' : ''}`}
                 >
                   <span className="message-bubble__sender">{getSenderLabel(message, conversation)}</span>
                   {message.messageType === 'Image' ? (
@@ -542,6 +594,9 @@ export function FamilyConversationPage() {
                     {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
                   </footer>
                 </article>
+                {focusedMessageHintId === message.id ? (
+                  <div className="message-focus-hint">已定位到相关消息</div>
+                ) : null}
                 {canExplain ? (
                   <button
                     className="message-bridge-trigger message-bridge-trigger--outside"

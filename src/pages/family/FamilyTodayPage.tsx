@@ -48,7 +48,7 @@ export function FamilyTodayPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">今日状态</p>
-            <h2>把零散情绪线索整理成家人今天更容易做决定的关怀视图。</h2>
+            <h2>今天的情绪线索和需要关注的变化都在这里。</h2>
           </div>
           <div className="inline-actions">
             <Link className="ghost-action ghost-action--link" to="/family/status">
@@ -63,7 +63,7 @@ export function FamilyTodayPage() {
         {loading ? (
           <PageState
             title="正在整理近 7 天的情绪变化"
-            description="我会把趋势、需要优先关注的事件，以及判断来源一起整理出来。"
+            description="我会把趋势、需要关注的事件，以及判断来源一起整理出来。"
           />
         ) : null}
         {error ? (
@@ -99,7 +99,7 @@ export function FamilyTodayPage() {
               <div className="section-heading">
                 <div>
                   <p className="surface-card__eyebrow">建议优先关注</p>
-                  <h2>先处理需要回应的变化，再决定今天谁来跟进。</h2>
+                  <h2>今天需要优先看的变化在这里。</h2>
                 </div>
                 <span className="status-pill">近 7 天 {abnormalCards.length} 条</span>
               </div>
@@ -107,7 +107,7 @@ export function FamilyTodayPage() {
               {abnormalCards.length === 0 ? (
                 <div className="family-emotion-empty">
                   <strong>最近没有新的优先关注事件</strong>
-                  <p>这几天整体较平稳，可以继续保持自然问候和日常陪伴。</p>
+                  <p>这几天整体比较平稳，可以继续保持自然问候和日常陪伴。</p>
                 </div>
               ) : (
                 <div className="family-emotion-alert-grid">
@@ -134,7 +134,7 @@ export function FamilyTodayPage() {
                           {card.sourceConversationId ? (
                             <Link
                               className="ghost-action ghost-action--link"
-                              to={`/family/chats/${card.sourceConversationId}`}
+                              to={`/family/chats/${card.sourceConversationId}${card.sourceMessageId ? `?messageId=${encodeURIComponent(card.sourceMessageId)}` : ''}`}
                             >
                               查看原聊天
                             </Link>
@@ -157,7 +157,7 @@ export function FamilyTodayPage() {
               <div className="section-heading">
                 <div>
                   <p className="surface-card__eyebrow">近 7 天趋势</p>
-                  <h2>帮助家人看变化，不只看某一次异常。</h2>
+                  <h2>近 7 天的情绪和状态变化趋势。</h2>
                 </div>
               </div>
 
@@ -184,7 +184,7 @@ export function FamilyTodayPage() {
               <div className="section-heading">
                 <div>
                   <p className="surface-card__eyebrow">来源说明</p>
-                  <h2>让家人知道判断主要来自哪里，结论更容易理解。</h2>
+                  <h2>今天的结论主要来自这些来源。</h2>
                 </div>
               </div>
 

@@ -18,6 +18,7 @@ function mapPulse(row) {
     emotionSource: row.emotionSource,
     emotionLabel: row.emotionLabel,
     emotionMode: row.emotionMode,
+    sourceSenderType: row.sourceSenderType ?? null,
     status: row.status,
     createdAt: row.createdAt,
     resolvedAt: row.resolvedAt,
@@ -28,23 +29,25 @@ export function listTodayPulses() {
   const db = getDatabase()
   return db.prepare(`
     select
-      id,
-      family_space_id as familySpaceId,
-      source_type as sourceType,
-      pulse_type as pulseType,
-      severity,
-      summary,
-      source_conversation_id as sourceConversationId,
-      source_message_id as sourceMessageId,
-      source_excerpt as sourceExcerpt,
-      emotion_source as emotionSource,
-      emotion_label as emotionLabel,
-      emotion_mode as emotionMode,
-      status,
-      created_at as createdAt,
-      resolved_at as resolvedAt
+      pulses.id as id,
+      pulses.family_space_id as familySpaceId,
+      pulses.source_type as sourceType,
+      pulses.pulse_type as pulseType,
+      pulses.severity as severity,
+      pulses.summary as summary,
+      pulses.source_conversation_id as sourceConversationId,
+      pulses.source_message_id as sourceMessageId,
+      pulses.source_excerpt as sourceExcerpt,
+      pulses.emotion_source as emotionSource,
+      pulses.emotion_label as emotionLabel,
+      pulses.emotion_mode as emotionMode,
+      messages.sender_type as sourceSenderType,
+      pulses.status as status,
+      pulses.created_at as createdAt,
+      pulses.resolved_at as resolvedAt
     from pulses
-    order by created_at desc
+    left join messages on messages.id = pulses.source_message_id
+    order by pulses.created_at desc
   `).all().map(mapPulse)
 }
 
@@ -58,7 +61,7 @@ export function getTodayEmotionSummary() {
   const threshold = now - EMOTION_WINDOW_MS
   const weeklyEmotionPulses = emotionPulses.filter((pulse) => Number(pulse.createdAt ?? 0) >= threshold)
   const abnormalPulses = weeklyEmotionPulses
-    .filter((pulse) => pulse.severity !== 'LOW')
+    .filter(shouldPrioritizePulse)
     .sort((a, b) => Number(b.createdAt ?? 0) - Number(a.createdAt ?? 0))
 
   return {
@@ -110,23 +113,25 @@ export function createPulse(payload) {
 
   const pulse = db.prepare(`
     select
-      id,
-      family_space_id as familySpaceId,
-      source_type as sourceType,
-      pulse_type as pulseType,
-      severity,
-      summary,
-      source_conversation_id as sourceConversationId,
-      source_message_id as sourceMessageId,
-      source_excerpt as sourceExcerpt,
-      emotion_source as emotionSource,
-      emotion_label as emotionLabel,
-      emotion_mode as emotionMode,
-      status,
-      created_at as createdAt,
-      resolved_at as resolvedAt
+      pulses.id as id,
+      pulses.family_space_id as familySpaceId,
+      pulses.source_type as sourceType,
+      pulses.pulse_type as pulseType,
+      pulses.severity as severity,
+      pulses.summary as summary,
+      pulses.source_conversation_id as sourceConversationId,
+      pulses.source_message_id as sourceMessageId,
+      pulses.source_excerpt as sourceExcerpt,
+      pulses.emotion_source as emotionSource,
+      pulses.emotion_label as emotionLabel,
+      pulses.emotion_mode as emotionMode,
+      messages.sender_type as sourceSenderType,
+      pulses.status as status,
+      pulses.created_at as createdAt,
+      pulses.resolved_at as resolvedAt
     from pulses
-    where id = ?
+    left join messages on messages.id = pulses.source_message_id
+    where pulses.id = ?
   `).get(id)
 
   return mapPulse(pulse)
@@ -156,7 +161,7 @@ function buildTrendPoints(pulses, now) {
   return [...dayMap.values()].map((bucket) => {
     const dominantLabel = pickDominantLabel(bucket.pulses)
     const highestSeverity = pickHighestSeverity(bucket.pulses)
-    const abnormalCount = bucket.pulses.filter((pulse) => pulse.severity !== 'LOW').length
+    const abnormalCount = bucket.pulses.filter(shouldPrioritizePulse).length
     return {
       dayKey: bucket.dayKey,
       dateLabel: bucket.dateLabel,
@@ -201,6 +206,7 @@ function buildAbnormalCard(pulse) {
     emotionLabel: pulse.emotionLabel ?? null,
     happenedAt: pulse.createdAt,
     sourceConversationId: pulse.sourceConversationId ?? null,
+    sourceMessageId: pulse.sourceMessageId ?? null,
     sourceExcerpt: pulse.sourceExcerpt ?? null,
     attentionSuggestion: buildAttentionSuggestion(pulse),
     actionSuggestion: buildActionSuggestion(pulse),
@@ -301,6 +307,26 @@ function buildStableSummary(pulses, abnormalPulses) {
   }
 
   return `最近 7 天共整理出 ${abnormalPulses.length} 条需要优先关注的变化，建议先处理异常，再看整体趋势。`
+}
+
+function shouldPrioritizePulse(pulse) {
+  if (!pulse || pulse.severity === 'LOW') {
+    return false
+  }
+
+  if (isStableEmotionLabel(pulse.emotionLabel)) {
+    return false
+  }
+
+  if (pulse.sourceSenderType && pulse.sourceSenderType !== 'Elder') {
+    return false
+  }
+
+  return true
+}
+
+function isStableEmotionLabel(label) {
+  return label === 'positive' || label === 'calm' || label === 'neutral' || label === 'steady'
 }
 
 function pickDominantLabel(pulses) {

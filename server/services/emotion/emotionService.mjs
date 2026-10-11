@@ -11,11 +11,14 @@ const DEFAULT_TIMEOUT_MS = Number(process.env.KINLOOP_EMOTION_TIMEOUT_MS ?? 1200
 function toProviderOptions(source) {
   const sourceKey = source.toUpperCase()
   const sourceTimeout = Number(process.env[`KINLOOP_EMOTION_${sourceKey}_TIMEOUT_MS`] ?? DEFAULT_TIMEOUT_MS)
+  const fallbackProvider = source === 'voice_tone' && process.env.HUME_API_KEY ? 'hume' : null
+  const fallbackApiKey = source === 'voice_tone' ? process.env.HUME_API_KEY ?? null : null
+  const fallbackSecretKey = source === 'voice_tone' ? process.env.HUME_SECRET_KEY ?? null : null
   return {
-    provider: process.env[`KINLOOP_EMOTION_${sourceKey}_PROVIDER`] ?? null,
+    provider: process.env[`KINLOOP_EMOTION_${sourceKey}_PROVIDER`] ?? fallbackProvider,
     endpoint: process.env[`KINLOOP_EMOTION_${sourceKey}_ENDPOINT`] ?? null,
-    apiKey: process.env[`KINLOOP_EMOTION_${sourceKey}_API_KEY`] ?? null,
-    secretKey: process.env[`KINLOOP_EMOTION_${sourceKey}_SECRET_KEY`] ?? null,
+    apiKey: process.env[`KINLOOP_EMOTION_${sourceKey}_API_KEY`] ?? fallbackApiKey,
+    secretKey: process.env[`KINLOOP_EMOTION_${sourceKey}_SECRET_KEY`] ?? fallbackSecretKey,
     timeoutMs: Number.isFinite(sourceTimeout) ? sourceTimeout : DEFAULT_TIMEOUT_MS,
   }
 }

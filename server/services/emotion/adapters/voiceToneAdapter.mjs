@@ -25,6 +25,7 @@ export async function detectVoiceToneEmotion(input, options = {}) {
     providerResult = await analyzeHumeVoiceTone({
       audioUrl: input.audioUrl ?? null,
       apiKey: options.apiKey,
+      secretKey: options.secretKey,
       timeoutMs: options.timeoutMs,
     })
   } else {
