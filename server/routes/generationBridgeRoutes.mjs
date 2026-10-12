@@ -9,6 +9,7 @@ const TEXT = {
   failed: 'Generation bridge explanation failed',
   fallbackExplain: '\u6682\u65f6\u6ca1\u80fd\u7a33\u5b9a\u89e3\u6790\u8fd9\u6761\u5185\u5bb9\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002',
   fallbackSuggest: '\u4f60\u53ef\u4ee5\u5148\u8fd9\u6837\u56de\uff1a\u6211\u60f3\u66f4\u597d\u5730\u7406\u89e3\u4f60\uff0c\u4f60\u80fd\u518d\u8bf4\u5f97\u8be6\u7ec6\u4e00\u70b9\u5417\uff1f',
+  fallbackMeme: '',
 }
 
 export function registerGenerationBridgeRoutes(app) {
@@ -16,6 +17,9 @@ export function registerGenerationBridgeRoutes(app) {
     try {
       const messageText = normalizeText(req.body?.messageText)
       const imageUrl = normalizeText(req.body?.imageUrl)
+      const requesterRole = normalizeRole(req.body?.requesterRole)
+      const requesterName = normalizeText(req.body?.requesterName)
+      const peerName = normalizeText(req.body?.peerName)
 
       if (!messageText && !imageUrl) {
         res.status(400).json({ error: TEXT.missingInput })
@@ -28,7 +32,7 @@ export function registerGenerationBridgeRoutes(app) {
       }
 
       try {
-        const result = await explainWithLlm({ messageText, imageUrl })
+        const result = await explainWithLlm({ messageText, imageUrl, requesterRole, requesterName, peerName })
         res.json(result)
       } catch (error) {
         console.warn('[GenerationBridge] LLM failed, fallback:', error)
@@ -41,21 +45,29 @@ export function registerGenerationBridgeRoutes(app) {
   })
 }
 
-async function explainWithLlm({ messageText, imageUrl }) {
+async function explainWithLlm({ messageText, imageUrl, requesterRole, requesterName, peerName }) {
+  const relationPrompt = buildRelationPrompt({ requesterRole, requesterName, peerName })
   const systemPrompt = [
     '\u4f60\u662f\u201c\u4ee3\u9645\u6c9f\u901a\u7ffb\u8bd1\u52a9\u624b\u201d\u3002',
-    '\u76ee\u6807\u53ea\u6709\u4e24\u4e2a\uff1a',
+    '\u76ee\u6807\u6709\u4e09\u4e2a\uff1a',
     '1) \u7528\u7b80\u5355\u81ea\u7136\u7684\u4e2d\u6587\u89e3\u91ca\u201c\u5bf9\u65b9\u8fd9\u53e5\u8bdd/\u8fd9\u5f20\u56fe\u60f3\u8868\u8fbe\u4ec0\u4e48\u201d\u3002',
     '2) \u7ed9\u4e00\u53e5\u53ef\u76f4\u63a5\u53d1\u9001\u7684\u5efa\u8bae\u56de\u590d\uff08\u9700\u8981\u6709\u5171\u60c5\uff0c\u4e0d\u751f\u786c\uff09\u3002',
+    '3) \u4e3b\u52a8\u5224\u65ad\u91cc\u9762\u6709\u6ca1\u6709\u6897\u3001\u7f51\u7edc\u70ed\u8bcd\u3001\u9ed1\u8bdd\u3001\u53cc\u5173\u6216\u9690\u542b\u5178\u6545\u3002',
     '\u786c\u6027\u8981\u6c42\uff1a',
     '- \u4e0d\u8981\u8f93\u51fa\u201c\u8fd9\u53e5\u8bdd\u7684\u610f\u601d\u662f\uff1a\u201d\u6216\u201c\u4f60\u53ef\u4ee5\u56de\u590d\uff1a\u201d\u8fd9\u7c7b\u524d\u7f00',
     '- \u4e0d\u8981\u7f16\u9020\u80cc\u666f\uff0c\u4e0d\u8981\u4e71\u731c\u8eab\u4efd',
     '- \u5efa\u8bae\u56de\u590d\u8981\u5177\u4f53\uff0c\u4e0d\u8981\u7a7a\u6cdb\u8ffd\u95ee',
+    '- \u5982\u679c\u6ca1\u6709\u68c0\u51fa\u660e\u786e\u7684\u6897\u6216\u70ed\u8bcd\uff0chasMeme \u5fc5\u987b\u4e3a false\uff0cmemeExplanation \u8fd4\u56de null',
+    '- \u5982\u679c\u6709\u68c0\u51fa\uff0c\u8bf7\u7528\u5927\u767d\u8bdd\u89e3\u91ca\u8fd9\u4e2a\u6897\u5728\u8bf4\u4ec0\u4e48\uff0c\u4e0d\u8981\u5356\u5f04',
     '- \u82e5\u5185\u5bb9\u786e\u5b9e\u4e0d\u6e05\u6670\uff0c\u660e\u786e\u8bf4\u4e0d\u786e\u5b9a\uff0c\u518d\u7ed9\u4e00\u53e5\u6e29\u548c\u6c42\u8865\u5145\u7684\u56de\u590d',
-    '\u4e25\u683c JSON \u8f93\u51fa\uff1a{"explanation":"...","followUpSuggestion":"..."}',
+    relationPrompt,
+    '\u4e25\u683c JSON \u8f93\u51fa\uff1a{"explanation":"...","followUpSuggestion":"...","hasMeme":true,"memeExplanation":"..."}',
   ].join('\n')
 
   const userParts = []
+  if (requesterName || peerName) {
+    userParts.push(`当前对话双方：发送者约为“${peerName || '对方'}”，接收者约为“${requesterName || '当前用户'}”`)
+  }
   if (messageText) {
     userParts.push(`\u6587\u672c\u5185\u5bb9\uff1a${messageText}`)
   }
@@ -134,10 +146,14 @@ async function explainWithLlm({ messageText, imageUrl }) {
 
   const explanation = normalizeText(parsed.explanation)
   const followUpSuggestion = normalizeText(parsed.followUpSuggestion)
+  const memeExplanation = normalizeText(parsed.memeExplanation)
+  const hasMeme = Boolean(parsed.hasMeme && memeExplanation)
 
   return {
     explanation: explanation || TEXT.fallbackExplain,
     followUpSuggestion: followUpSuggestion || TEXT.fallbackSuggest,
+    hasMeme,
+    memeExplanation: hasMeme ? memeExplanation : null,
     glossary: [],
     mode: 'llm',
   }
@@ -204,6 +220,8 @@ function buildFallbackPayload() {
   return {
     explanation: TEXT.fallbackExplain,
     followUpSuggestion: TEXT.fallbackSuggest,
+    hasMeme: false,
+    memeExplanation: TEXT.fallbackMeme || null,
     glossary: [],
     mode: 'fallback',
   }
@@ -212,6 +230,26 @@ function buildFallbackPayload() {
 function normalizeText(value) {
   if (typeof value !== 'string') return ''
   return value.trim()
+}
+
+function normalizeRole(value) {
+  return value === 'elder' || value === 'family' ? value : 'elder'
+}
+
+function buildRelationPrompt({ requesterRole, requesterName, peerName }) {
+  if (requesterRole === 'elder') {
+    return [
+      '生成“建议回复”时，请把接收者当作长辈，把发送者当作家人。',
+      `如果对方名字像“${peerName || '女儿/儿子/家人'}”，回复要像长辈对晚辈说话，语气自然、亲近、不过度年轻化。`,
+      `避免使用太潮、太互联网化、太书面化的表达。默认口吻像${requesterName || '长辈'}在和自家孩子说话。`,
+    ].join('')
+  }
+
+  return [
+    '生成“建议回复”时，请把接收者当作子女/晚辈，把发送者当作长辈。',
+    `回复要像${requesterName || '家人'}在对${peerName || '长辈'}说话，语气体贴、稳当、尊重，带一点亲人间的自然关心。`,
+    '避免太油腻、太官方、太命令式，也避免年轻人之间的玩梗口吻。',
+  ].join('')
 }
 
 function tryParseJson(content) {

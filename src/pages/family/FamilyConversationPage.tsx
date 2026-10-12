@@ -7,11 +7,13 @@ import {
   explainGenerationBridge,
   getConversationDetail,
   getCurrentFamilySpace,
+  markConversationRead,
   getPreSendSuggestion,
+  getUnreadSummary,
   getWebSocketUrl,
   sendMessage,
 } from '../../services/api'
-import type { ConversationDetail, GenerationBridgeExplainResponse, Message, PreSendSuggestion } from '../../services/api'
+import type { ConversationDetail, GenerationBridgeExplainResponse, Message, PreSendSuggestion, UnreadSummaryResponse } from '../../services/api'
 import type { ICallSignal } from '../../services/api/types'
 import { formatClock } from '../../utils/dateTime'
 import {
@@ -45,6 +47,13 @@ type GenerationBridgeViewState = {
   result: GenerationBridgeExplainResponse | null
 }
 
+type UnreadSummaryViewState = {
+  isOpen: boolean
+  loading: boolean
+  error: string | null
+  result: UnreadSummaryResponse | null
+}
+
 export function FamilyConversationPage() {
   const { conversationId, userId } = useParams()
   const targetId = userId || conversationId || ''
@@ -61,10 +70,18 @@ export function FamilyConversationPage() {
   const [voiceDurationMs, setVoiceDurationMs] = useState(0)
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
+  const [readFeedback, setReadFeedback] = useState('')
   const [generationBridgeByMessageId, setGenerationBridgeByMessageId] = useState<Record<string, GenerationBridgeViewState>>({})
   const [preSendSuggestion, setPreSendSuggestion] = useState<PreSendSuggestion | null>(null)
   const [postSendFollowupSuggestion, setPostSendFollowupSuggestion] = useState<PreSendSuggestion | null>(null)
   const [dismissedSuggestionKey, setDismissedSuggestionKey] = useState<string | null>(null)
+  const [markingRead, setMarkingRead] = useState(false)
+  const [unreadSummaryState, setUnreadSummaryState] = useState<UnreadSummaryViewState>({
+    isOpen: false,
+    loading: false,
+    error: null,
+    result: null,
+  })
 
   const [callState, setCallState] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle')
   const [isCallActive, setIsCallActive] = useState(false)
@@ -347,6 +364,11 @@ export function FamilyConversationPage() {
   }, [targetId])
 
   const messages = conversation?.messages ?? []
+  const unreadCount = messages.filter((message) => (
+    message.senderType === 'Elder'
+    && !message.consumedAt
+    && !message.recalledAt
+  )).length
 
   useEffect(() => {
     const list = messageListRef.current
@@ -408,6 +430,14 @@ export function FamilyConversationPage() {
             <h2>Conversation with {conversation?.elderDisplayName ?? 'Family member'}</h2>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button
+              className="ghost-action"
+              type="button"
+              onClick={() => void handleMarkConversationRead()}
+              disabled={markingRead || unreadCount === 0}
+            >
+              {markingRead ? '处理中...' : '一键已读'}
+            </button>
             <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Voice call">{'\u{1F4DE}'}</button>
             <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Video call">{'\u{1F4F9}'}</button>
           </div>
@@ -454,6 +484,7 @@ export function FamilyConversationPage() {
         {loading ? <PageState title="Loading conversation" description="Please wait..." /> : null}
         {error ? <PageState variant="error" title="Conversation unavailable" description={error} /> : null}
         {memoryFeedback ? <p className="state-note">{memoryFeedback}</p> : null}
+        {readFeedback ? <p className="state-note">{readFeedback}</p> : null}
 
         <div ref={messageListRef} className="message-list">
           {!loading && !error && messages.length === 0 ? (
@@ -573,7 +604,21 @@ export function FamilyConversationPage() {
                     {explainResult ? (
                       <>
                         <p><strong>1. 这句话的意思：</strong>{explainResult.explanation}</p>
-                        <p className="message-bridge-followup"><strong>2. 建议回复：</strong>{explainResult.followUpSuggestion ?? '我懂了，你再说详细一点。'}</p>
+                        <p className="message-bridge-followup">
+                          <strong>2. 建议回复：</strong>
+                          {explainResult.followUpSuggestion ?? '我懂了，你再说详细一点。'}
+                          <button
+                            type="button"
+                            className="ghost-action"
+                            style={{ marginLeft: '10px' }}
+                            onClick={() => handleApplyBridgeSuggestion(explainResult.followUpSuggestion)}
+                          >
+                            自动输入
+                          </button>
+                        </p>
+                        {explainResult.hasMeme && explainResult.memeExplanation ? (
+                          <p className="message-bridge-followup"><strong>3. 这句话里的梗：</strong>{explainResult.memeExplanation}</p>
+                        ) : null}
                       </>
                     ) : null}
                   </div>
@@ -697,6 +742,59 @@ export function FamilyConversationPage() {
           </section>
         ) : null}
 
+        {unreadSummaryState.isOpen ? (
+          <div className="unread-summary-overlay" role="dialog" aria-modal="true" aria-label="未读消息摘要">
+            <section className="unread-summary-dialog">
+              <div className="unread-summary-dialog__header">
+                <div>
+                  <p className="surface-card__eyebrow">AI 未读摘要</p>
+                  <h3>未读消息概要</h3>
+                </div>
+                <button className="ghost-action" type="button" onClick={handleCloseUnreadSummary}>
+                  关闭
+                </button>
+              </div>
+              {unreadSummaryState.loading ? <p className="state-note">AI 正在整理未读消息...</p> : null}
+              {unreadSummaryState.error ? <p className="state-note state-note--error">{unreadSummaryState.error}</p> : null}
+                  {unreadSummaryState.result ? (
+                    <div className="unread-summary-dialog__body">
+                  <div className="unread-summary-dialog__meta">
+                    <span className="status-pill">未读 {unreadSummaryState.result.unreadCount}</span>
+                    <span className="status-pill">{unreadSummaryState.result.mode === 'llm' ? 'AI 生成' : '快速摘要'}</span>
+                  </div>
+                  <div className="unread-summary-dialog__section">
+                    <strong>概要</strong>
+                    <p>{unreadSummaryState.result.summary}</p>
+                  </div>
+                  {unreadSummaryState.result.highlights.length > 0 ? (
+                    <div className="unread-summary-dialog__section">
+                      <strong>重点</strong>
+                      <ul className="unread-summary-dialog__list">
+                        {unreadSummaryState.result.highlights.map((item, index) => (
+                          <li key={`${index}-${item}`}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                    </div>
+                  ) : null}
+                  <div className="inline-actions">
+                    <button className="ghost-action" type="button" onClick={handleCloseUnreadSummary}>
+                      关闭
+                    </button>
+                    <button
+                      className="primary-action"
+                      type="button"
+                      onClick={() => void handleMarkConversationRead()}
+                      disabled={markingRead || unreadCount === 0}
+                    >
+                      {markingRead ? '处理中...' : '一键已读'}
+                    </button>
+                  </div>
+                </section>
+              </div>
+            ) : null}
+
         <form
           className={`composer-card ${isDraggingMedia ? 'composer-card--dragging' : ''}`}
           onSubmit={handleSubmit}
@@ -763,6 +861,14 @@ export function FamilyConversationPage() {
                 }}
               >
                 视频
+              </button>
+              <button
+                className="ghost-action attachment-menu__button"
+                type="button"
+                disabled={sending || isRecordingVoice}
+                onClick={() => void handleOpenUnreadSummary()}
+              >
+                未读摘要
               </button>
             </div>
           ) : null}
@@ -1067,6 +1173,8 @@ export function FamilyConversationPage() {
         messageText: messageText || undefined,
         imageUrl: imageUrl || undefined,
         requesterRole: 'family',
+        requesterName: conversation?.familyDisplayName || '家人',
+        peerName: conversation?.elderDisplayName || '长辈',
       })
       setGenerationBridgeByMessageId((prev) => ({
         ...prev,
@@ -1109,6 +1217,90 @@ export function FamilyConversationPage() {
     setDismissedSuggestionKey(null)
   }
 
+  async function handleOpenUnreadSummary() {
+    if (!conversation) {
+      return
+    }
+
+    setShowAttachmentOptions(false)
+    setUnreadSummaryState({
+      isOpen: true,
+      loading: true,
+      error: null,
+      result: null,
+    })
+
+    try {
+      const result = await getUnreadSummary({
+        conversationId: conversation.id,
+        requesterRole: 'family',
+      })
+
+      setUnreadSummaryState({
+        isOpen: true,
+        loading: false,
+        error: null,
+        result,
+      })
+    } catch (summaryError) {
+      setUnreadSummaryState({
+        isOpen: true,
+        loading: false,
+        error: summaryError instanceof Error ? summaryError.message : '未读摘要生成失败，请稍后再试',
+        result: null,
+      })
+    }
+  }
+
+  async function handleMarkConversationRead() {
+    if (!conversation || unreadCount === 0) {
+      setReadFeedback('现在没有新的未读消息')
+      return
+    }
+
+    try {
+      setMarkingRead(true)
+      setReadFeedback('')
+      const result = await markConversationRead(conversation.id, {
+        requesterRole: 'family',
+      })
+
+      if (result.conversation) {
+        setConversation(result.conversation)
+      }
+
+      setUnreadSummaryState((prev) => (
+        prev.isOpen
+          ? {
+              ...prev,
+              loading: false,
+              error: null,
+              result: {
+                unreadCount: 0,
+                summary: '现在没有新的未读消息。',
+                highlights: [],
+                mode: prev.result?.mode ?? 'fallback',
+              },
+            }
+          : prev
+      ))
+      setReadFeedback(result.updatedCount > 0 ? '已全部标为已读' : '现在没有新的未读消息')
+      setError('')
+    } catch (readError) {
+      setError(readError instanceof Error ? readError.message : '一键已读失败')
+    } finally {
+      setMarkingRead(false)
+    }
+  }
+
+  function handleCloseUnreadSummary() {
+    setUnreadSummaryState((prev) => ({
+      ...prev,
+      isOpen: false,
+      loading: false,
+    }))
+  }
+
   function handleDismissSuggestion(triggerKey: string) {
     setDismissedSuggestionKey(triggerKey)
     setPreSendSuggestion(null)
@@ -1120,6 +1312,16 @@ export function FamilyConversationPage() {
     setDismissedSuggestionKey(null)
     setPreSendSuggestion(null)
     setPostSendFollowupSuggestion(null)
+  }
+
+  function handleApplyBridgeSuggestion(suggestion: string | null | undefined) {
+    const nextSuggestion = (suggestion ?? '').trim()
+    if (!nextSuggestion) {
+      return
+    }
+
+    setComposerText(nextSuggestion)
+    setDismissedSuggestionKey(null)
   }
 
   async function resolvePostSendFollowupSuggestion(trimmedDraft: string, localSuggestion: PreSendSuggestion) {

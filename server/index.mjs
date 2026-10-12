@@ -4,7 +4,7 @@ import { API_HOST, API_PORT, DB_PATH, UPLOADS_DIR } from './config.mjs'
 import { WebSocketServer } from 'ws'
 import { getDatabase } from './db/index.mjs'
 import { acknowledgeAlert, createAlert, listActiveAlerts, resolveAlert } from './repositories/alertRepository.mjs'
-import { createMessage, getConversationDetail, listConversationCards } from './repositories/conversationRepository.mjs'
+import { createMessage, getConversationDetail, listConversationCards, markConversationUnreadAsRead } from './repositories/conversationRepository.mjs'
 import { getCurrentFamilySpace } from './repositories/familySpaceRepository.mjs'
 import { createFollowup, listFollowups } from './repositories/followupRepository.mjs'
 import { approveInviteCode, createInviteCode, listInviteCodes } from './repositories/inviteRepository.mjs'
@@ -22,6 +22,7 @@ import { registerAsrRoutes } from './routes/asrRoutes.mjs'
 import { registerAiIntentRoutes } from './routes/aiIntentRoutes.mjs'
 import { registerGenerationBridgeRoutes } from './routes/generationBridgeRoutes.mjs'
 import { registerPreSendSuggestionRoutes } from './routes/preSendSuggestionRoutes.mjs'
+import { registerUnreadSummaryRoutes } from './routes/unreadSummaryRoutes.mjs'
 
 getDatabase()
 
@@ -250,6 +251,8 @@ registerGenerationBridgeRoutes(app)
 
 registerPreSendSuggestionRoutes(app)
 
+registerUnreadSummaryRoutes(app)
+
 app.get('/api/members', (_, response) => {
   response.json(listMembers())
 })
@@ -268,6 +271,22 @@ app.get('/api/conversations/:conversationId', (request, response) => {
   }
 
   response.json(conversation)
+})
+
+app.patch('/api/conversations/:conversationId/read-all', (request, response) => {
+  const viewer = request.body?.requesterRole === 'family' ? 'family' : request.body?.requesterRole === 'elder' ? 'elder' : null
+  if (!viewer) {
+    response.status(400).json({ error: 'requesterRole must be elder or family' })
+    return
+  }
+
+  const conversation = getConversationDetail(request.params.conversationId)
+  if (!conversation) {
+    response.status(404).json({ error: 'Conversation not found' })
+    return
+  }
+
+  response.json(markConversationUnreadAsRead(request.params.conversationId, viewer))
 })
 
 app.post('/api/conversations/:conversationId/messages', (request, response) => {

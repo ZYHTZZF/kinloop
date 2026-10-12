@@ -228,6 +228,8 @@ export type GenerationBridgeExplainRequest = {
   messageText?: string
   imageUrl?: string
   requesterRole: 'elder' | 'family'
+  requesterName?: string
+  peerName?: string
 }
 
 export type GenerationBridgeGlossaryItem = {
@@ -238,6 +240,8 @@ export type GenerationBridgeGlossaryItem = {
 export type GenerationBridgeExplainResponse = {
   explanation: string
   followUpSuggestion: string | null
+  hasMeme: boolean
+  memeExplanation: string | null
   glossary: GenerationBridgeGlossaryItem[]
   mode: 'llm' | 'fallback'
 }
@@ -271,6 +275,27 @@ export type PreSendSuggestionResponse = {
   ok: boolean
   result: PreSendSuggestion | null
   source: 'llm' | 'fallback'
+}
+
+export type UnreadSummaryRequest = {
+  conversationId: string
+  requesterRole: 'elder' | 'family'
+}
+
+export type UnreadSummaryResponse = {
+  unreadCount: number
+  summary: string
+  highlights: string[]
+  mode: 'llm' | 'fallback'
+}
+
+export type MarkConversationReadRequest = {
+  requesterRole: 'elder' | 'family'
+}
+
+export type MarkConversationReadResponse = {
+  updatedCount: number
+  conversation: ConversationDetail | null
 }
 
 export type FollowupRecord = {

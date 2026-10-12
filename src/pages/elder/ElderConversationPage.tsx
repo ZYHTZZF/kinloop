@@ -7,10 +7,12 @@ import {
   explainGenerationBridge,
   getConversationDetail,
   getCurrentFamilySpace,
+  markConversationRead,
+  getUnreadSummary,
   getWebSocketUrl,
   sendMessage,
 } from '../../services/api'
-import type { ConversationDetail, GenerationBridgeExplainResponse, Message } from '../../services/api'
+import type { ConversationDetail, GenerationBridgeExplainResponse, Message, UnreadSummaryResponse } from '../../services/api'
 import type { ICallSignal } from '../../services/api/types'
 import { formatClock } from '../../utils/dateTime'
 import { ensureChatImageFile, readFileAsDataUrl } from '../../utils/chatImage'
@@ -43,6 +45,13 @@ type GenerationBridgeViewState = {
   result: GenerationBridgeExplainResponse | null
 }
 
+type UnreadSummaryViewState = {
+  isOpen: boolean
+  loading: boolean
+  error: string | null
+  result: UnreadSummaryResponse | null
+}
+
 export function ElderConversationPage() {
   const location = useLocation()
   const { conversationId } = useParams()
@@ -63,8 +72,16 @@ export function ElderConversationPage() {
   const [voiceDurationMs, setVoiceDurationMs] = useState(0)
   const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null)
   const [memoryFeedback, setMemoryFeedback] = useState('')
+  const [readFeedback, setReadFeedback] = useState('')
   const [savingAiMemory, setSavingAiMemory] = useState(false)
   const [generationBridgeByMessageId, setGenerationBridgeByMessageId] = useState<Record<string, GenerationBridgeViewState>>({})
+  const [markingRead, setMarkingRead] = useState(false)
+  const [unreadSummaryState, setUnreadSummaryState] = useState<UnreadSummaryViewState>({
+    isOpen: false,
+    loading: false,
+    error: null,
+    result: null,
+  })
 
   const [callState, setCallState] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle')
   const [isCallActive, setIsCallActive] = useState(false)
@@ -102,17 +119,22 @@ export function ElderConversationPage() {
     window.speechSynthesis.speak(utterance)
   }
 
-  const speakGenerationBridge = (explanation: string, followUpSuggestion: string | null | undefined) => {
+  const speakGenerationBridge = (
+    explanation: string,
+    followUpSuggestion: string | null | undefined,
+    memeExplanation: string | null | undefined,
+  ) => {
     if (typeof window === 'undefined') return
     if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return
 
     const explain = explanation.trim()
     const suggest = (followUpSuggestion ?? '').trim()
-    if (!explain && !suggest) return
+    const meme = (memeExplanation ?? '').trim()
+    if (!explain && !suggest && !meme) return
 
     const combined = suggest
-      ? `这句话的意思是：${explain}。建议你这样回复：${suggest}`
-      : `这句话的意思是：${explain}`
+      ? `这句话的意思是：${explain}。建议你这样回复：${suggest}${meme ? `。这句话里的梗是：${meme}` : ''}`
+      : `这句话的意思是：${explain}${meme ? `。这句话里的梗是：${meme}` : ''}`
 
     window.speechSynthesis.cancel()
     const utterance = new SpeechSynthesisUtterance(combined)
@@ -416,6 +438,11 @@ export function ElderConversationPage() {
   }
 
   const messages = conversation?.messages ?? []
+  const unreadCount = messages.filter((message) => (
+    message.senderType === 'Family'
+    && !message.consumedAt
+    && !message.recalledAt
+  )).length
 
   useEffect(() => {
     const list = messageListRef.current
@@ -458,6 +485,14 @@ export function ElderConversationPage() {
               </div>
               {!isAiAssistantConversation ? (
                 <div style={{ display: 'flex', gap: '16px', paddingRight: '16px' }}>
+                  <button
+                    className="ghost-action"
+                    type="button"
+                    onClick={() => void handleMarkConversationRead()}
+                    disabled={markingRead || unreadCount === 0}
+                  >
+                    {markingRead ? '处理中...' : '一键已读'}
+                  </button>
                   <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Voice call">{'\u{1F4DE}'}</button>
                   <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Video call">{'\u{1F4F9}'}</button>
                 </div>
@@ -508,6 +543,7 @@ export function ElderConversationPage() {
         {error ? <PageState variant="error" title="Conversation unavailable" description={error} /> : null}
         {voiceResult ? <p className="state-note">{voiceResult.promptTitle}</p> : null}
         {memoryFeedback ? <p className="state-note">{memoryFeedback}</p> : null}
+        {readFeedback ? <p className="state-note">{readFeedback}</p> : null}
 
         <div ref={messageListRef} className="message-list">
           {!loading && !error && messages.length === 0 ? (
@@ -638,7 +674,21 @@ export function ElderConversationPage() {
                   {explainResult ? (
                     <>
                       <p><strong>1. 这句话的意思：</strong>{explainResult.explanation}</p>
-                      <p className="message-bridge-followup"><strong>2. 建议回复：</strong>{explainResult.followUpSuggestion ?? '我懂了，你再说详细一点。'}</p>
+                      <p className="message-bridge-followup">
+                        <strong>2. 建议回复：</strong>
+                        {explainResult.followUpSuggestion ?? '我懂了，你再说详细一点。'}
+                        <button
+                          type="button"
+                          className="ghost-action"
+                          style={{ marginLeft: '10px' }}
+                          onClick={() => handleApplyBridgeSuggestion(explainResult.followUpSuggestion)}
+                        >
+                          自动输入
+                        </button>
+                      </p>
+                      {explainResult.hasMeme && explainResult.memeExplanation ? (
+                        <p className="message-bridge-followup"><strong>3. 这句话里的梗：</strong>{explainResult.memeExplanation}</p>
+                      ) : null}
                     </>
                   ) : null}
                 </div>
@@ -690,6 +740,58 @@ export function ElderConversationPage() {
               style={{ display: 'none' }}
               onChange={handleSelectVideo}
             />
+            {unreadSummaryState.isOpen ? (
+              <div className="unread-summary-overlay" role="dialog" aria-modal="true" aria-label="未读消息摘要">
+                <section className="unread-summary-dialog">
+                  <div className="unread-summary-dialog__header">
+                    <div>
+                      <p className="surface-card__eyebrow">AI 未读摘要</p>
+                      <h3>未读消息概要</h3>
+                    </div>
+                    <button className="ghost-action" type="button" onClick={handleCloseUnreadSummary}>
+                      关闭
+                    </button>
+                  </div>
+                  {unreadSummaryState.loading ? <p className="state-note">AI 正在整理未读消息...</p> : null}
+                  {unreadSummaryState.error ? <p className="state-note state-note--error">{unreadSummaryState.error}</p> : null}
+                  {unreadSummaryState.result ? (
+                    <div className="unread-summary-dialog__body">
+                      <div className="unread-summary-dialog__meta">
+                        <span className="status-pill">未读 {unreadSummaryState.result.unreadCount}</span>
+                        <span className="status-pill">{unreadSummaryState.result.mode === 'llm' ? 'AI 生成' : '快速摘要'}</span>
+                      </div>
+                      <div className="unread-summary-dialog__section">
+                        <strong>概要</strong>
+                        <p>{unreadSummaryState.result.summary}</p>
+                      </div>
+                      {unreadSummaryState.result.highlights.length > 0 ? (
+                        <div className="unread-summary-dialog__section">
+                          <strong>重点</strong>
+                          <ul className="unread-summary-dialog__list">
+                            {unreadSummaryState.result.highlights.map((item, index) => (
+                              <li key={`${index}-${item}`}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="inline-actions">
+                    <button className="ghost-action" type="button" onClick={handleCloseUnreadSummary}>
+                      关闭
+                    </button>
+                    <button
+                      className="primary-action"
+                      type="button"
+                      onClick={() => void handleMarkConversationRead()}
+                      disabled={markingRead || unreadCount === 0}
+                    >
+                      {markingRead ? '处理中...' : '一键已读'}
+                    </button>
+                  </div>
+                </section>
+              </div>
+            ) : null}
             {showAttachmentOptions ? (
               <div className="attachment-menu">
                 <button
@@ -713,6 +815,14 @@ export function ElderConversationPage() {
                   }}
                 >
                   视频
+                </button>
+                <button
+                  className="ghost-action attachment-menu__button"
+                  type="button"
+                  disabled={sending || isRecordingVoice}
+                  onClick={() => void handleOpenUnreadSummary()}
+                >
+                  未读摘要
                 </button>
               </div>
             ) : null}
@@ -1046,7 +1156,11 @@ export function ElderConversationPage() {
           isOpen: true,
         },
       }))
-      speakGenerationBridge(currentState.result.explanation, currentState.result.followUpSuggestion)
+      speakGenerationBridge(
+        currentState.result.explanation,
+        currentState.result.followUpSuggestion,
+        currentState.result.memeExplanation,
+      )
       return
     }
 
@@ -1065,6 +1179,8 @@ export function ElderConversationPage() {
         messageText: messageText || undefined,
         imageUrl: imageUrl || undefined,
         requesterRole: 'elder',
+        requesterName: conversation?.elderDisplayName || '长辈',
+        peerName: conversation?.name || '家人',
       })
       setGenerationBridgeByMessageId((prev) => ({
         ...prev,
@@ -1075,7 +1191,11 @@ export function ElderConversationPage() {
           result,
         },
       }))
-      speakGenerationBridge(result.explanation, result.followUpSuggestion)
+      speakGenerationBridge(
+        result.explanation,
+        result.followUpSuggestion,
+        result.memeExplanation,
+      )
     } catch (explainError) {
       setGenerationBridgeByMessageId((prev) => ({
         ...prev,
@@ -1105,6 +1225,102 @@ export function ElderConversationPage() {
 
   function handlePickEmoji(emoji: string) {
     setDraftText((prev) => `${prev}${emoji}`)
+  }
+
+  function handleApplyBridgeSuggestion(suggestion: string | null | undefined) {
+    const nextSuggestion = (suggestion ?? '').trim()
+    if (!nextSuggestion) {
+      return
+    }
+
+    setDraftText(nextSuggestion)
+    requestAnimationFrame(() => {
+      draftInputRef.current?.focus()
+    })
+  }
+
+  async function handleOpenUnreadSummary() {
+    if (!conversation) {
+      return
+    }
+
+    setShowAttachmentOptions(false)
+    setUnreadSummaryState({
+      isOpen: true,
+      loading: true,
+      error: null,
+      result: null,
+    })
+
+    try {
+      const result = await getUnreadSummary({
+        conversationId: conversation.id,
+        requesterRole: 'elder',
+      })
+
+      setUnreadSummaryState({
+        isOpen: true,
+        loading: false,
+        error: null,
+        result,
+      })
+    } catch (summaryError) {
+      setUnreadSummaryState({
+        isOpen: true,
+        loading: false,
+        error: summaryError instanceof Error ? summaryError.message : '未读摘要生成失败，请稍后再试',
+        result: null,
+      })
+    }
+  }
+
+  async function handleMarkConversationRead() {
+    if (!conversation || unreadCount === 0) {
+      setReadFeedback('现在没有新的未读消息')
+      return
+    }
+
+    try {
+      setMarkingRead(true)
+      setReadFeedback('')
+      const result = await markConversationRead(conversation.id, {
+        requesterRole: 'elder',
+      })
+
+      if (result.conversation) {
+        setConversation(result.conversation)
+      }
+
+      setUnreadSummaryState((prev) => (
+        prev.isOpen
+          ? {
+              ...prev,
+              loading: false,
+              error: null,
+              result: {
+                unreadCount: 0,
+                summary: '现在没有新的未读消息。',
+                highlights: [],
+                mode: prev.result?.mode ?? 'fallback',
+              },
+            }
+          : prev
+      ))
+      setReadFeedback(result.updatedCount > 0 ? '已全部标为已读' : '现在没有新的未读消息')
+      setError('')
+    } catch (readError) {
+      setError(readError instanceof Error ? readError.message : '一键已读失败')
+    } finally {
+      setMarkingRead(false)
+    }
+  }
+
+  function handleCloseUnreadSummary() {
+    setUnreadSummaryState((prev) => ({
+      ...prev,
+      isOpen: false,
+      loading: false,
+    }))
   }
 }
 
