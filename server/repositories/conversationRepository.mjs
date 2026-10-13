@@ -94,6 +94,19 @@ function buildUnreadSummary(messages) {
 
   return parts.join('，') || '暂无未读'
 }
+function getPeerSenderType(viewer) {
+  return viewer === 'family' ? 'Elder' : 'Family'
+}
+
+function getUnreadMessagesForViewer(messages, viewer) {
+  const peerSenderType = getPeerSenderType(viewer)
+  return messages.filter((message) => (
+    message.senderType === peerSenderType
+    && !message.consumedAt
+    && !message.recalledAt
+  ))
+}
+
 function fetchConversationRows(db) {
   return db.prepare(`
     select
@@ -229,13 +242,7 @@ export function listConversationCards(viewer = 'elder') {
   return conversations.map((conversation) => {
     const messages = fetchConversationMessages(db, conversation.conversationId)
     const latestMessage = messages.length > 0 ? messages[messages.length - 1] : null
-    const unreadMessages = messages.filter((message) => {
-      if (viewer === 'family') {
-        return message.senderType === 'Elder' && !message.consumedAt
-      }
-
-      return message.senderType === 'Family' && !message.consumedAt
-    })
+    const unreadMessages = getUnreadMessagesForViewer(messages, viewer)
 
     return {
       id: conversation.conversationId,
@@ -334,4 +341,26 @@ export function createMessage(conversationId, payload) {
   `).run(now, conversationId)
 
   return getConversationDetail(conversationId)
+}
+
+export function markConversationUnreadAsRead(conversationId, viewer = 'elder') {
+  const db = getDatabase()
+  const peerSenderType = getPeerSenderType(viewer)
+  const now = Date.now()
+
+  const result = db.prepare(`
+    update messages
+    set
+      consumed_at = ?,
+      status = 'READ'
+    where conversation_id = ?
+      and sender_type = ?
+      and consumed_at is null
+      and recalled_at is null
+  `).run(now, conversationId, peerSenderType)
+
+  return {
+    updatedCount: Number(result?.changes ?? 0),
+    conversation: getConversationDetail(conversationId),
+  }
 }
