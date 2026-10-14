@@ -1,0 +1,83 @@
+.auxContainer {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  max-width: 80%; /* 和气泡宽度对齐 */
+  margin-bottom: 8px; /* 加点间距，避免和下一条气泡挤太近 */
+}
+
+/* 区分对方还是我是为了左右对齐位置可以调整 */
+.isMine {
+  align-items: flex-end;
+  /* 往右边推 */
+  align-self: flex-end;
+}
+
+.isOther {
+  align-items: flex-start;
+  /* 往左边推，如果有头像，还可以加点 margin-left: 48px 之类的 */
+  align-self: flex-start;
+}
+
+.memoryCard {
+  background-color: var(--bg-secondary, #f0f0f5);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: var(--text-secondary, #666);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  cursor: pointer;
+  max-width: 100%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  transition: background-color 0.2s;
+  user-select: none; /* 避免文字意外被选中 */
+}
+
+.memoryCard:hover {
+  background-color: var(--bg-hover, #e0e0e5);
+}
+
+.memoryHeader {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icon {
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.memoryBody {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color, #e0e0e5);
+}
+
+.detailTitle {
+  font-weight: 500;
+  margin-bottom: 2px;
+  color: var(--text-primary, #333);
+}
+
+.detailSummary {
+  font-size: 0.8rem;
+  color: var(--text-primary, #333);
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.loadingTip {
+  font-size: 0.75rem;
+  color: #999;
+  padding: 2px 4px;
+  font-style: italic;
+}

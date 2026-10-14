@@ -54,6 +54,8 @@ type UnreadSummaryViewState = {
   result: UnreadSummaryResponse | null
 }
 
+import { MessageAuxArea } from '../../components/chat/MessageAuxArea'
+
 export function FamilyConversationPage() {
   const { conversationId, userId } = useParams()
   const targetId = userId || conversationId || ''
@@ -573,6 +575,7 @@ export function FamilyConversationPage() {
                     {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
                   </footer>
                 </article>
+                <MessageAuxArea message={message} isMine={message.senderType === 'Family'} />
                 {canExplain ? (
                   <button
                     className="message-bridge-trigger message-bridge-trigger--outside"

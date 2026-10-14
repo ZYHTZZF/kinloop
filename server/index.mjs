@@ -23,11 +23,15 @@ import { registerAiIntentRoutes } from './routes/aiIntentRoutes.mjs'
 import { registerGenerationBridgeRoutes } from './routes/generationBridgeRoutes.mjs'
 import { registerPreSendSuggestionRoutes } from './routes/preSendSuggestionRoutes.mjs'
 import { registerUnreadSummaryRoutes } from './routes/unreadSummaryRoutes.mjs'
+import memoryTriggerRoutes from './routes/memoryTriggerRoutes.mjs'
 
 getDatabase()
 
 const app = express()
 app.use(express.json({ limit: '30mb' }))
+
+// Register new memory trigger route
+app.use('/api/memories', memoryTriggerRoutes)
 app.use('/uploads', express.static(UPLOADS_DIR))
 const server = createServer(app)
 const wss = new WebSocketServer({ server })

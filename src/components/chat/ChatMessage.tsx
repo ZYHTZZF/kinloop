@@ -102,40 +102,42 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   }
 
   return (
-    <div className={messageClasses} onContextMenu={handleLongPress}>
-      {!isMine && senderAvatar && (
-        <img src={senderAvatar} alt={senderName} className={styles.avatar} />
-      )}
-
-      <div className={styles.bubble}>
-        {message.isDeleted ? (
-          <div className={styles.deletedText}>此消息已被撤回</div>
-        ) : (
-          <>
-            {renderMessageContent()}
-            {renderStatus()}
-          </>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start', width: '100%' }}>
+      <div className={messageClasses} onContextMenu={handleLongPress}>
+        {!isMine && senderAvatar && (
+          <img src={senderAvatar} alt={senderName} className={styles.avatar} />
         )}
-      </div>
 
-      <div className={styles.timestamp}>
-        {formatTime(message.timestamp)}
-      </div>
-
-      {showMenu && (
-        <div className={styles.contextMenu}>
-          {onForward && (
-            <button onClick={() => onForward(message)}>
-              转发
-            </button>
-          )}
-          {onDelete && (
-            <button onClick={() => onDelete(message.id)}>
-              删除
-            </button>
+        <div className={styles.bubble}>
+          {message.isDeleted ? (
+            <div className={styles.deletedText}>此消息已被撤回</div>
+          ) : (
+            <>
+              {renderMessageContent()}
+              {renderStatus()}
+            </>
           )}
         </div>
-      )}
+
+        <div className={styles.timestamp}>
+          {formatTime(message.timestamp)}
+        </div>
+
+        {showMenu && (
+          <div className={styles.contextMenu}>
+            {onForward && (
+              <button onClick={() => onForward(message)}>
+                转发
+              </button>
+            )}
+            {onDelete && (
+              <button onClick={() => onDelete(message.id)}>
+                删除
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
