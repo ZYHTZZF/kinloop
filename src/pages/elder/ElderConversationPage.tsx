@@ -52,6 +52,8 @@ type UnreadSummaryViewState = {
   result: UnreadSummaryResponse | null
 }
 
+import { MessageAuxArea } from '../../components/chat/MessageAuxArea'
+
 export function ElderConversationPage() {
   const location = useLocation()
   const { conversationId } = useParams()
@@ -644,6 +646,7 @@ export function ElderConversationPage() {
                   {displayMessage.aiDrafted && !isAiAssistantConversation ? <span className="status-pill">AI drafted</span> : null}
                 </footer>
               </article>
+              <MessageAuxArea message={displayMessage} isMine={displayMessage.senderType === 'Elder'} />
               {canExplain ? (
                 <button
                   className="message-bridge-trigger message-bridge-trigger--outside"

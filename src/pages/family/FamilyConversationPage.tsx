@@ -36,6 +36,7 @@ import { webrtcManager } from '../../services/webrtc/WebRTCManager'
 import * as chatApi from '../../services/api/chatApi'
 import VoiceCall from '../../components/chat/VoiceCall'
 import VideoCall from '../../components/chat/VideoCall'
+import { MessageAuxArea } from '../../components/chat/MessageAuxArea'
 import { buildPreSendSuggestion } from '../../domain/content/preSendSuggestions'
 
 const STATIC_EMOJIS = ['😀', '😁', '😂', '😃', '😉', '😏', '😝', '🙂', '😊', '😶', '😨', '👍', '🙏', '❤️', '🎉']
@@ -625,6 +626,7 @@ export function FamilyConversationPage() {
                     {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
                   </footer>
                 </article>
+                <MessageAuxArea message={message} isMine={message.senderType === 'Family'} />
                 {focusedMessageHintId === message.id ? (
                   <div className="message-focus-hint">已定位到相关消息</div>
                 ) : null}
