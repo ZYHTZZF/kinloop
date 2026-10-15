@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+!.env
+!.env.local
+!.env.*.local
 
 # Editor directories and files
 .vscode/*
@@ -29,6 +32,3 @@ data/
 *.db-wal
 
 # 环境变量配置文件（包含敏感信息）
-.env
-.env.local
-.env.*.local

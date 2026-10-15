@@ -29,6 +29,358 @@
   isolation: isolate;
 }
 
+.welcome-shell {
+  position: relative;
+  min-height: 100vh;
+  padding: 28px 16px 40px;
+  display: grid;
+  place-items: center;
+  color: #3f352e;
+}
+
+.welcome-shell__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(188, 206, 191, 0.36), transparent 24%),
+    radial-gradient(circle at 88% 14%, rgba(224, 202, 176, 0.42), transparent 28%),
+    linear-gradient(180deg, #fbf7f1 0%, #f3ece2 100%);
+}
+
+.welcome-card {
+  width: min(100%, 1120px);
+  display: grid;
+  gap: 22px;
+  padding: 28px;
+  border: 1px solid rgba(88, 72, 56, 0.1);
+  border-radius: 32px;
+  background: rgba(255, 252, 247, 0.86);
+  box-shadow: 0 24px 60px rgba(73, 57, 44, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.welcome-card__intro {
+  display: grid;
+  gap: 10px;
+  max-width: 780px;
+}
+
+.welcome-card__intro h1,
+.welcome-panel h2 {
+  font-family: var(--font-display);
+  color: #3f352e;
+  letter-spacing: -0.03em;
+}
+
+.welcome-card__intro h1 {
+  font-size: clamp(2rem, 3vw, 3.4rem);
+  line-height: 1.06;
+}
+
+.welcome-card__intro p,
+.welcome-panel__header p,
+.role-choice-card p,
+.family-binding-card p,
+.binding-result-card p,
+.binding-result-card span,
+.family-board__hint {
+  color: #6a5d53;
+  line-height: 1.6;
+}
+
+.welcome-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.welcome-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(70, 93, 82, 0.18);
+  background: rgba(239, 246, 241, 0.85);
+  color: #456153;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.welcome-tag--muted {
+  border-color: rgba(88, 72, 56, 0.12);
+  background: rgba(255, 255, 255, 0.76);
+  color: #6f6359;
+}
+
+.welcome-kicker {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(88, 72, 56, 0.1);
+  color: #7b6b5f;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.welcome-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.welcome-step {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(88, 72, 56, 0.08);
+  background: rgba(247, 243, 236, 0.78);
+  color: #7c6e62;
+}
+
+.welcome-step span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  color: #5d5047;
+  font-weight: 700;
+}
+
+.welcome-step.is-active {
+  background: linear-gradient(135deg, rgba(255, 249, 239, 0.98), rgba(239, 245, 240, 0.88));
+  border-color: rgba(82, 116, 142, 0.18);
+  color: #3f352e;
+  box-shadow: 0 12px 24px rgba(74, 59, 45, 0.08);
+}
+
+.welcome-step.is-done span,
+.role-choice-card.is-active::after {
+  background: #4e6d60;
+  color: #f8f3ea;
+}
+
+.welcome-error {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 240, 237, 0.92);
+  border: 1px solid rgba(160, 79, 61, 0.14);
+  color: #9b4333;
+}
+
+.welcome-panel {
+  display: grid;
+  gap: 22px;
+  padding: 24px;
+  border-radius: 28px;
+  background: rgba(252, 249, 244, 0.94);
+  border: 1px solid rgba(88, 72, 56, 0.08);
+}
+
+.welcome-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.welcome-tabs,
+.family-mode-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.welcome-tabs button,
+.family-mode-grid button,
+.welcome-secondary,
+.welcome-primary {
+  min-height: 44px;
+  padding: 11px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(88, 72, 56, 0.12);
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.welcome-tabs button,
+.family-mode-grid button,
+.welcome-secondary {
+  background: rgba(255, 255, 255, 0.78);
+  color: #4f6258;
+}
+
+.welcome-tabs button.is-active,
+.family-mode-grid button.is-active {
+  background: rgba(62, 86, 73, 0.96);
+  border-color: rgba(62, 86, 73, 0.96);
+  color: #faf5ec;
+}
+
+.welcome-primary {
+  border: 0;
+  background: linear-gradient(135deg, #486b5a, #6a8d77);
+  color: #fdf8ef;
+  box-shadow: 0 10px 24px rgba(72, 107, 90, 0.2);
+}
+
+.welcome-secondary--block {
+  width: 100%;
+}
+
+.welcome-form-grid,
+.family-binding-grid,
+.role-choice-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.welcome-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.role-choice-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.role-choice-card {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  text-align: left;
+  border-radius: 24px;
+  border: 1px solid rgba(88, 72, 56, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(244, 239, 230, 0.94));
+}
+
+.role-choice-card::after {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(88, 72, 56, 0.16);
+}
+
+.role-choice-card strong {
+  font-size: 1.04rem;
+  color: #3f352e;
+}
+
+.family-binding-grid {
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+}
+
+.family-binding-card {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(88, 72, 56, 0.08);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.family-binding-card--directory {
+  background:
+    linear-gradient(180deg, rgba(250, 247, 239, 0.95), rgba(237, 244, 239, 0.92));
+}
+
+.family-id-box,
+.welcome-badge,
+.bound-member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  padding: 10px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(88, 72, 56, 0.08);
+}
+
+.welcome-badge {
+  color: #486657;
+  font-weight: 700;
+}
+
+.welcome-field {
+  display: grid;
+  gap: 8px;
+}
+
+.welcome-field span {
+  color: #7b6d61;
+  font-size: 0.92rem;
+}
+
+.welcome-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(88, 72, 56, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  color: #3f352e;
+}
+
+.family-board__head,
+.binding-result-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.binding-result-list,
+.bound-member-list {
+  display: grid;
+  gap: 12px;
+}
+
+.binding-result-card {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(88, 72, 56, 0.08);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.binding-result-card span {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.92rem;
+}
+
+.bound-member-list {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.bound-member-chip {
+  width: auto;
+  justify-content: space-between;
+}
+
+.bound-member-chip span {
+  color: #7b6d61;
+  font-size: 0.9rem;
+}
+
+.welcome-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .app-shell::before,
 .app-shell::after {
   content: '';
@@ -2208,6 +2560,11 @@
 }
 
 @media (max-width: 1024px) {
+  .family-binding-grid,
+  .role-choice-grid {
+    grid-template-columns: 1fr;
+  }
+
   .screen--family-collaboration .collaboration-stack {
     grid-template-columns: 1fr;
   }
@@ -2237,6 +2594,17 @@
 }
 
 @media (max-width: 820px) {
+  .welcome-steps,
+  .welcome-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome-panel__header,
+  .family-board__head,
+  .binding-result-card {
+    display: grid;
+  }
+
   .app-shell {
     padding-inline: 14px;
   }
@@ -2268,6 +2636,16 @@
 }
 
 @media (max-width: 640px) {
+  .welcome-shell {
+    padding-inline: 12px;
+  }
+
+  .welcome-card,
+  .welcome-panel {
+    padding: 20px;
+    border-radius: 24px;
+  }
+
   .app-shell {
     padding: 20px 12px 112px;
   }

@@ -3,9 +3,11 @@ import { Link, Outlet } from 'react-router-dom'
 import { ElderVoiceAssistant } from '../../components/elder/ElderVoiceAssistant'
 import { getCurrentWeather } from '../../services/api'
 import { getElderGreeting, getFallbackElderGreetingSummary } from '../../utils/elderHeader'
+import { getOnboardingState } from '../onboardingStorage'
 
 export function ElderAppLayout() {
   const [headerSummary, setHeaderSummary] = useState(() => getFallbackElderGreetingSummary())
+  const onboarding = getOnboardingState()
 
   useEffect(() => {
     let cancelled = false
@@ -46,7 +48,7 @@ export function ElderAppLayout() {
     <div className="app-shell app-shell--elder">
       <header className="app-shell__header">
         <div className="app-shell__header-copy">
-          <p className="app-shell__eyebrow">Kinloop · 长辈端</p>
+          <p className="app-shell__eyebrow">{onboarding.familyName || 'Kinloop 家庭'}</p>
           <h1>{headerSummary.greeting}</h1>
           <div className="elder-header__weather">
             <span className="status-pill">{headerSummary.locationLabel}</span>
@@ -56,6 +58,9 @@ export function ElderAppLayout() {
           <p className="elder-header__advice">{headerSummary.advice}</p>
         </div>
         <div className="app-shell__header-actions">
+          <Link className="ghost-action ghost-action--link" to="/welcome">
+            调整进入信息
+          </Link>
           <Link className="ghost-action ghost-action--link" to="/elder/home">
             回到首页
           </Link>
