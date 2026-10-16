@@ -1,7 +1,7 @@
 import { buildEmotionResult, callHttpProvider } from '../common.mjs'
 import { EMOTION_ERROR_CODES, EmotionProviderError } from '../errors.mjs'
 import { mockTextEmotion } from '../mockProviders.mjs'
-import { analyzeBaiduTextEmotion } from '../providerClients.mjs'
+import { analyzeBaiduTextEmotion, analyzeLlmTextEmotion } from '../providerClients.mjs'
 
 function validateInput(input) {
   if (!input || typeof input !== 'object') {
@@ -18,7 +18,12 @@ export async function detectTextEmotion(input, options = {}) {
   const provider = options.provider ?? 'baidu'
   let providerResult = null
 
-  if (provider === 'baidu') {
+  if (provider === 'llm') {
+    providerResult = await analyzeLlmTextEmotion({
+      text: input.text,
+      timeoutMs: options.timeoutMs,
+    })
+  } else if (provider === 'baidu') {
     providerResult = await analyzeBaiduTextEmotion({
       text: input.text,
       apiKey: options.apiKey,

@@ -17,17 +17,28 @@ const negativeWords = [
   '伤心',
   '失望',
   '生气',
+  '太过分了',
+  '过分',
   '气死',
   '气炸',
   '烦死',
+  '窝火',
+  '刁难',
+  '忍无可忍',
   '委屈',
   '难过',
-  '压秤',
+  '压抑',
   '被骗',
   '不舒服',
   '不吃饭',
-  '愤怒',
+  '不中用了',
+  '没什么盼头',
+  '没盼头',
+  '愁',
   '讨厌',
+  'emo',
+  '蚌埠住了',
+  '烦不烦',
   'angry',
   'sad',
 ]
@@ -40,6 +51,7 @@ const anxiousWords = [
   '不安',
   '慌',
   '睡不着',
+  '力不从心',
   'worry',
   'anxious',
 ]
@@ -69,11 +81,29 @@ function inferFromText(textValue) {
   }
 
   if (containsAny(text, negativeWords)) {
-    if (text.includes('气死') || text.includes('气炸') || text.includes('愤怒')) {
+    if (
+      text.includes('气死') ||
+      text.includes('气炸') ||
+      text.includes('窝火') ||
+      text.includes('过分') ||
+      text.includes('忍无可忍') ||
+      text.includes('刁难') ||
+      text.includes('烦不烦') ||
+      text.includes('愁')
+    ) {
       return { label: 'angry', score: 0.92 }
     }
 
-    if (text.includes('伤心') || text.includes('难过') || text.includes('委屈')) {
+    if (
+      text.includes('伤心') ||
+      text.includes('难过') ||
+      text.includes('委屈') ||
+      text.includes('不中用了') ||
+      text.includes('没什么盼头') ||
+      text.includes('没盼头') ||
+      text.includes('emo') ||
+      text.includes('蚌埠住了')
+    ) {
       return { label: 'sad', score: 0.86 }
     }
 

@@ -1,8 +1,10 @@
+import { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } from '../../config.mjs'
 import { fetchJson, normalizeScore } from './common.mjs'
 import { EMOTION_ERROR_CODES, EmotionProviderError } from './errors.mjs'
 
 const baiduTokenCache = new Map()
 const DEFAULT_HUME_TRANSCRIPTION_LANGUAGE = process.env.HUME_TRANSCRIPTION_LANGUAGE ?? 'zh'
+const LLM_TEXT_EMOTION_TIMEOUT_MS = Number(process.env.KINLOOP_LLM_TEXT_EMOTION_TIMEOUT_MS ?? 15000)
 
 function mapBaiduEmotionLabel(value) {
   const normalized = `${value ?? ''}`.toLowerCase()
@@ -46,6 +48,32 @@ function parseBaiduConversationEmotionItem(item) {
   }
 }
 
+function parseBaiduConversationEmotion(data) {
+  const candidates = [
+    ...(Array.isArray(data?.items) ? data.items : []),
+    ...(Array.isArray(data?.results) ? data.results : []),
+    ...(Array.isArray(data?.result?.items) ? data.result.items : []),
+  ].filter((item) => item && typeof item === 'object')
+
+  if (candidates.length === 0) {
+    return null
+  }
+
+  const parsedCandidates = candidates.map((item) => parseBaiduConversationEmotionItem(item))
+  return parsedCandidates.sort((left, right) => right.score - left.score)[0] ?? null
+}
+
+function isSuspiciousBaiduTextEcho(originalText, echoedText) {
+  const source = `${originalText ?? ''}`.trim()
+  const echoed = `${echoedText ?? ''}`.trim()
+
+  if (!source || !echoed) {
+    return false
+  }
+
+  return /^\?+$/.test(echoed)
+}
+
 function mapBaiduFaceEmotion(type) {
   const normalized = `${type ?? ''}`.toLowerCase()
   if (normalized.includes('happy')) return 'positive'
@@ -57,6 +85,126 @@ function mapBaiduFaceEmotion(type) {
   if (normalized.includes('disgust')) return 'negative'
   if (normalized.includes('calm')) return 'calm'
   return 'neutral'
+}
+
+function extractJsonObjectFromContent(content) {
+  if (typeof content !== 'string') {
+    return {}
+  }
+
+  try {
+    return JSON.parse(content)
+  } catch {
+    const match = content.match(/\{[\s\S]*\}/)
+    if (!match) {
+      return {}
+    }
+
+    try {
+      return JSON.parse(match[0])
+    } catch {
+      return {}
+    }
+  }
+}
+
+function normalizeLlmEmotionLabel(value) {
+  const normalized = `${value ?? ''}`.trim().toLowerCase()
+
+  if (['positive', 'neutral', 'negative', 'anxious', 'sad', 'angry', 'calm'].includes(normalized)) {
+    return normalized
+  }
+
+  if (normalized.includes('joy') || normalized.includes('happy') || normalized.includes('积极')) return 'positive'
+  if (normalized.includes('平静') || normalized.includes('calm')) return 'calm'
+  if (normalized.includes('焦虑') || normalized.includes('worry') || normalized.includes('anx')) return 'anxious'
+  if (normalized.includes('生气') || normalized.includes('愤怒') || normalized.includes('angry')) return 'angry'
+  if (normalized.includes('难过') || normalized.includes('悲伤') || normalized.includes('sad')) return 'sad'
+  if (normalized.includes('消极') || normalized.includes('负面') || normalized.includes('negative')) return 'negative'
+  return 'neutral'
+}
+
+export async function analyzeLlmTextEmotion({
+  text,
+  timeoutMs = LLM_TEXT_EMOTION_TIMEOUT_MS,
+}) {
+  if (!LLM_API_KEY || !LLM_MODEL) {
+    return null
+  }
+
+  const systemPrompt = [
+    '你是一个中文文本情绪识别器。',
+    '请判断说话者此刻最主要的情绪。',
+    '可选标签只能是：positive, neutral, negative, anxious, sad, angry, calm。',
+    '请特别注意中文里隐含的低落、无望、委屈、烦躁、丧气、绝望，不要因为语气平静就误判为 neutral。',
+    '只返回严格 JSON，不要输出解释文字。',
+    '格式：{"label":"sad","score":0.88,"reason":"一句极短中文理由"}',
+  ].join('')
+
+  const payloadBase = {
+    model: LLM_MODEL,
+    temperature: 0,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `文本：${text}` },
+    ],
+  }
+
+  let response = await fetch(`${LLM_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${LLM_API_KEY}`,
+    },
+    body: JSON.stringify({
+      ...payloadBase,
+      response_format: { type: 'json_object' },
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+
+  if (!response.ok && response.status === 400) {
+    const rawText = await response.text()
+    if (/response_format|json_object/i.test(rawText)) {
+      response = await fetch(`${LLM_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${LLM_API_KEY}`,
+        },
+        body: JSON.stringify(payloadBase),
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+    } else {
+      throw new EmotionProviderError(
+        EMOTION_ERROR_CODES.UNAVAILABLE,
+        `LLM text emotion failed: ${rawText}`,
+      )
+    }
+  }
+
+  if (!response.ok) {
+    throw new EmotionProviderError(
+      EMOTION_ERROR_CODES.UNAVAILABLE,
+      `LLM text emotion failed: ${response.status}`,
+    )
+  }
+
+  const data = await response.json()
+  const content = data?.choices?.[0]?.message?.content
+  const parsed = extractJsonObjectFromContent(content)
+  const label = normalizeLlmEmotionLabel(parsed?.label)
+  const score = normalizeScore(Number(parsed?.score))
+
+  return {
+    label,
+    score: score || 0.7,
+    raw: {
+      provider: 'llm',
+      reason: typeof parsed?.reason === 'string' ? parsed.reason : null,
+      completion: data,
+    },
+  }
 }
 
 export async function getBaiduAccessToken({ apiKey, secretKey, timeoutMs = 3000 }) {
@@ -121,16 +269,22 @@ export async function analyzeBaiduTextEmotion({
     )
   }
 
-  const item = data?.items?.[0] ?? data?.results?.[0] ?? data?.result?.items?.[0]
-  if (!item) {
+  if (isSuspiciousBaiduTextEcho(text, data?.text)) {
+    throw new EmotionProviderError(
+      EMOTION_ERROR_CODES.UNAVAILABLE,
+      'Baidu conversation emotion returned garbled text echo',
+      data,
+    )
+  }
+
+  const parsed = parseBaiduConversationEmotion(data)
+  if (!parsed) {
     throw new EmotionProviderError(
       EMOTION_ERROR_CODES.UNAVAILABLE,
       'Baidu conversation emotion response missing items',
       data,
     )
   }
-
-  const parsed = parseBaiduConversationEmotionItem(item)
 
   return {
     label: parsed.label,
