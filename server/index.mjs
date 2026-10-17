@@ -18,6 +18,10 @@ import {
   normalizeEmotionRequest,
   toErrorResponse,
 } from './services/emotion/emotionService.mjs'
+import {
+  buildVideoCallEmotionSummary,
+  isVideoCallEmotionSummaryRequestValid,
+} from './services/emotion/videoCallSummaryService.mjs'
 import { registerAsrRoutes } from './routes/asrRoutes.mjs'
 import { registerAiIntentRoutes } from './routes/aiIntentRoutes.mjs'
 import { registerGenerationBridgeRoutes } from './routes/generationBridgeRoutes.mjs'
@@ -385,6 +389,53 @@ app.post('/api/emotions/analyze', async (request, response) => {
   } catch (error) {
     response.status(502).json(toErrorResponse(error))
   }
+})
+
+app.post('/api/emotions/video-call-summary', (request, response) => {
+  const familySpace = getCurrentFamilySpace()
+  const payload = {
+    ...request.body,
+    familySpaceId: request.body?.familySpaceId ?? familySpace?.id ?? null,
+  }
+
+  if (!isVideoCallEmotionSummaryRequestValid(payload)) {
+    response.status(400).json({
+      code: 'EMOTION_INVALID_INPUT',
+      message: 'conversationId/familySpaceId/callType/targetRole and summary samples are required.',
+    })
+    return
+  }
+
+  const conversation = getConversationDetail(payload.conversationId)
+  if (!conversation) {
+    response.status(404).json({ error: 'Conversation not found' })
+    return
+  }
+
+  const summaryResult = buildVideoCallEmotionSummary(payload)
+  const nextConversation = createMessage(payload.conversationId, {
+    senderType: 'System',
+    senderMemberId: null,
+    messageType: 'Text',
+    textContent: summaryResult.summary,
+    aiDrafted: false,
+    isLowInformation: false,
+  })
+  const createdMessage = nextConversation.messages.at(-1) ?? null
+
+  notifyConversationMembers(nextConversation, {
+    type: 'conversation-updated',
+    data: {
+      conversationId: nextConversation.id,
+      conversation: nextConversation,
+    },
+    timestamp: Date.now(),
+  })
+
+  response.status(201).json({
+    ...summaryResult,
+    createdMessage,
+  })
 })
 
 app.get('/api/followups', (_, response) => {

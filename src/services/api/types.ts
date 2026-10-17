@@ -225,6 +225,32 @@ export type EmotionAnalyzeResponse = {
   }>
 }
 
+export type VideoCallEmotionSummaryLabel = 'calm' | 'positive' | 'sad' | 'anxious' | 'neutral'
+
+export type VideoCallEmotionSample = {
+  timestamp: number
+  label: VideoCallEmotionSummaryLabel
+  score: number
+  confidence: number
+}
+
+export type VideoCallEmotionSummaryRequest = {
+  conversationId: string
+  familySpaceId: string
+  callType: 'video'
+  durationMs: number
+  targetRole: 'elder'
+  faceSamples: VideoCallEmotionSample[]
+  voiceSamples: VideoCallEmotionSample[]
+}
+
+export type VideoCallEmotionSummaryResponse = {
+  summary: string
+  dominantLabel: VideoCallEmotionSummaryLabel | null
+  sampleCount: number
+  createdMessage: Message | null
+}
+
 export type GenerationBridgeExplainRequest = {
   messageText?: string
   imageUrl?: string

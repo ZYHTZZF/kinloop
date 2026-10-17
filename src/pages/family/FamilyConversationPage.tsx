@@ -38,6 +38,7 @@ import VoiceCall from '../../components/chat/VoiceCall'
 import VideoCall from '../../components/chat/VideoCall'
 import { MessageAuxArea } from '../../components/chat/MessageAuxArea'
 import { buildPreSendSuggestion } from '../../domain/content/preSendSuggestions'
+import { useVideoCallEmotionSummary } from '../../utils/hooks/useVideoCallEmotionSummary'
 
 const STATIC_EMOJIS = ['😀', '😁', '😂', '😃', '😉', '😏', '😝', '🙂', '😊', '😶', '😨', '👍', '🙏', '❤️', '🎉']
 
@@ -109,6 +110,13 @@ export function FamilyConversationPage() {
 
   const currentUserId = conversation?.familyMemberId ?? null
   const otherUserId = conversation?.elderMemberId ?? null
+  const { finishSummary: finishVideoEmotionSummary } = useVideoCallEmotionSummary({
+    enabled: isCallActive && callState === 'connected' && callType === 'video',
+    conversationId: conversation?.id ?? null,
+    familySpaceId,
+    targetVideoStream: callType === 'video' ? remoteCallStream : null,
+    shouldSubmit: isCallerRef.current,
+  })
 
   const syncConversation = async () => {
     if (!targetId) return
@@ -237,7 +245,13 @@ export function FamilyConversationPage() {
 
       if (isCallerRef.current && isCallEndedPayload(data) && typeof data.duration === 'number' && callState === 'connected') {
         const durationSecs = Math.round(data.duration / 1000)
-        void logCallSystemMessage(`Voice call ended, duration: ${durationSecs}s`)
+        if (callType === 'video') {
+          void finishVideoEmotionSummary(data.duration).then(() => {
+            void syncConversation()
+          })
+        } else {
+          void logCallSystemMessage(`Voice call ended, duration: ${durationSecs}s`)
+        }
       }
     })
 
@@ -247,7 +261,7 @@ export function FamilyConversationPage() {
       chatApi.setConversationUpdateHandler(null)
       chatApi.setWebrtcSignalHandler(null)
     }
-  }, [callState, conversation, currentUserId, otherUserId])
+  }, [callState, callType, conversation, currentUserId, finishVideoEmotionSummary, otherUserId])
 
   const handleAcceptCall = async () => {
     if (!currentUserId || !otherUserId) return

@@ -35,6 +35,7 @@ import { webrtcManager } from '../../services/webrtc/WebRTCManager'
 import * as chatApi from '../../services/api/chatApi'
 import VoiceCall from '../../components/chat/VoiceCall'
 import VideoCall from '../../components/chat/VideoCall'
+import { useVideoCallEmotionSummary } from '../../utils/hooks/useVideoCallEmotionSummary'
 
 const STATIC_EMOJIS = ['😀', '😁', '😂', '😃', '😉', '😏', '😝', '🙂', '😊', '😶', '😨', '👍', '🙏', '❤️', '🎉']
 
@@ -108,6 +109,13 @@ export function ElderConversationPage() {
   const currentUserId = conversation?.elderMemberId ?? null
   const otherUserId = conversation?.familyMemberId ?? null
   const isAiAssistantConversation = conversation?.conversationType === 'AI_ASSISTANT'
+  const { finishSummary: finishVideoEmotionSummary } = useVideoCallEmotionSummary({
+    enabled: isCallActive && callState === 'connected' && callType === 'video',
+    conversationId: conversation?.id ?? null,
+    familySpaceId,
+    targetVideoStream: callType === 'video' ? localCallStream : null,
+    shouldSubmit: isCallerRef.current,
+  })
 
   const speakActionNotice = (text: string) => {
     if (typeof window === 'undefined') return
@@ -272,7 +280,13 @@ export function ElderConversationPage() {
 
       if (isCallerRef.current && isCallEndedPayload(data) && typeof data.duration === 'number' && callState === 'connected') {
         const durationSecs = Math.round(data.duration / 1000)
-        void logCallSystemMessage(`Voice call ended, duration: ${durationSecs}s`)
+        if (callType === 'video') {
+          void finishVideoEmotionSummary(data.duration).then(() => {
+            void syncConversation()
+          })
+        } else {
+          void logCallSystemMessage(`Voice call ended, duration: ${durationSecs}s`)
+        }
       }
     })
 
@@ -282,7 +296,7 @@ export function ElderConversationPage() {
       chatApi.setConversationUpdateHandler(null)
       chatApi.setWebrtcSignalHandler(null)
     }
-  }, [callState, conversation, currentUserId, otherUserId])
+  }, [callState, callType, conversation, currentUserId, finishVideoEmotionSummary, otherUserId])
 
   useEffect(() => {
     if (prefillDraft) {
