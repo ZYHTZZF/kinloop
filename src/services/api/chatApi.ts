@@ -1,5 +1,6 @@
 import type { IConversation, IMessage, ICallSignal, MessageType } from './types'
 import { messageStore } from '../../utils/storage'
+import { getWebSocketUrl } from './realtime'
 
 interface SendMessageParams {
   conversationId: string
@@ -35,7 +36,8 @@ export function initWebSocket(serverUrl: string, userId?: string): Promise<void>
 
   return new Promise((resolve, reject) => {
     try {
-      wsClient = new WebSocket(serverUrl)
+      const resolvedServerUrl = serverUrl || getWebSocketUrl()
+      wsClient = new WebSocket(resolvedServerUrl)
       registeredUserId = userId ?? null
 
       wsClient.onopen = () => {

@@ -11,6 +11,12 @@ import {
   sendMessage,
 } from '../../services/api'
 import type { ConversationCard, Member } from '../../services/api'
+import { ensureSpeechRecognitionPermission } from '../../platform/permissions'
+import {
+  isSpeechRecognitionSupported,
+  startSpeechRecognition,
+  type SpeechSession,
+} from '../../platform/speech'
 
 const examplePrompts = [
   '我想和女儿说句话',
@@ -21,41 +27,6 @@ const examplePrompts = [
 
 type AssistantStage = 'idle' | 'recording' | 'transcribing' | 'classifying' | 'result' | 'acting'
 const AUTO_EXECUTE_CONFIDENCE = 0.78
-
-type SpeechRecognitionResultLike = {
-  0: { transcript: string }
-  isFinal: boolean
-  length: number
-}
-
-type SpeechRecognitionEventLike = Event & {
-  resultIndex: number
-  results: ArrayLike<SpeechRecognitionResultLike>
-}
-
-type SpeechRecognitionLike = EventTarget & {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null
-  onerror: ((event: Event & { error?: string }) => void) | null
-  onend: (() => void) | null
-  start: () => void
-  stop: () => void
-}
-
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike
-
-function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
-  if (typeof window === 'undefined') return null
-
-  const win = window as Window & {
-    SpeechRecognition?: SpeechRecognitionCtor
-    webkitSpeechRecognition?: SpeechRecognitionCtor
-  }
-
-  return win.SpeechRecognition ?? win.webkitSpeechRecognition ?? null
-}
 
 export function ElderVoiceAssistant() {
   const navigate = useNavigate()
@@ -74,14 +45,8 @@ export function ElderVoiceAssistant() {
   const [assistantNotice, setAssistantNotice] = useState('')
   const [isRecording, setIsRecording] = useState(false)
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const mediaStreamRef = useRef<MediaStream | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
-  const shouldTranscribeOnStopRef = useRef(false)
   const micReadyRef = useRef(false)
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
-  const finalTranscriptRef = useRef('')
-  const liveTranscriptRef = useRef('')
+  const speechSessionRef = useRef<SpeechSession | null>(null)
 
   useEffect(() => {
     void loadDirectory()
@@ -222,7 +187,7 @@ export function ElderVoiceAssistant() {
     if (stage === 'classifying' || stage === 'acting') return
 
     if (isRecording) {
-      stopRecording(true)
+      await stopRecording(true)
       setIsRecording(false)
       setStage('transcribing')
       return
@@ -379,7 +344,7 @@ export function ElderVoiceAssistant() {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel()
     }
-    stopRecording(false)
+    void stopRecording(false)
     setOpen(false)
     setStage('idle')
     setSpokenText('')
@@ -388,196 +353,67 @@ export function ElderVoiceAssistant() {
     setError('')
     setAssistantNotice('')
     setIsRecording(false)
-    finalTranscriptRef.current = ''
-    liveTranscriptRef.current = ''
   }
 
   async function startRecording() {
-    const speechRecognitionCtor = getSpeechRecognitionCtor()
-    const supportsMediaRecorder = typeof MediaRecorder !== 'undefined'
+    const supportsSpeechRecognition = await isSpeechRecognitionSupported()
 
-    if (!supportsMediaRecorder && !speechRecognitionCtor) {
-      setError('当前浏览器不支持录音或语音识别，请使用最新版 Chrome 或 Edge')
+    if (!supportsSpeechRecognition) {
+      setError('当前环境不支持语音识别，请安装语音服务或改用支持的浏览器/系统')
       return false
     }
 
     try {
-      finalTranscriptRef.current = ''
-      liveTranscriptRef.current = ''
-      audioChunksRef.current = []
-      shouldTranscribeOnStopRef.current = true
-
-      if (speechRecognitionCtor) {
-        const recognition = new speechRecognitionCtor()
-        recognition.lang = 'zh-CN'
-        recognition.continuous = true
-        recognition.interimResults = true
-        recognition.onresult = (event) => {
-          let finalText = finalTranscriptRef.current
-          let interimText = ''
-
-          for (let index = event.resultIndex; index < event.results.length; index += 1) {
-            const result = event.results[index]
-            const transcript = result?.[0]?.transcript ?? ''
-            if (result?.isFinal) {
-              finalText += transcript
-            } else {
-              interimText += transcript
-            }
+      speechSessionRef.current = await startSpeechRecognition({
+        language: 'zh-CN',
+        onPartialResult: (text) => {
+          if (text.trim()) {
+            setSpokenText(text.trim())
           }
+        },
+        onFinalResult: (text) => {
+          if (text.trim()) {
+            setSpokenText(text.trim())
+          }
+        },
+        onError: (message) => {
+          setAssistantNotice(`语音识别暂时不可用：${message}`)
+        },
+        onListeningStateChange: (listening) => {
+          if (!listening) {
+            setIsRecording(false)
+          }
+        },
+      })
 
-          finalTranscriptRef.current = finalText
-          liveTranscriptRef.current = `${finalText}${interimText}`.trim()
-          if (liveTranscriptRef.current) {
-            setSpokenText(liveTranscriptRef.current)
-          }
-        }
-        recognition.onerror = (event) => {
-          const errorCode = event.error ?? ''
-          if (errorCode && errorCode !== 'no-speech') {
-            setAssistantNotice(`浏览器语音识别暂时不可用：${errorCode}`)
-          }
-        }
-        recognition.onend = () => {
-          recognitionRef.current = null
-        }
-        recognition.start()
-        recognitionRef.current = recognition
+      if (!speechSessionRef.current) {
+        setError('语音识别启动失败，请检查系统语音服务和权限设置')
+        return false
       }
 
-      if (supportsMediaRecorder) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        mediaStreamRef.current = stream
-
-        const preferredMimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
-          ? 'audio/ogg;codecs=opus'
-          : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-            ? 'audio/webm;codecs=opus'
-            : 'audio/webm'
-
-        let recorder: MediaRecorder
-        try {
-          recorder = new MediaRecorder(stream, { mimeType: preferredMimeType })
-        } catch {
-          recorder = new MediaRecorder(stream)
-        }
-
-        recorder.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) {
-            audioChunksRef.current.push(event.data)
-          }
-        }
-        recorder.onerror = () => {
-          setError('录音失败，请检查麦克风权限和输入设备')
-        }
-        recorder.onstop = () => {
-          const shouldTranscribe = shouldTranscribeOnStopRef.current
-          stopStreamTracks()
-          setIsRecording(false)
-          setStage((prev) => (prev === 'recording' ? 'transcribing' : prev))
-          if (shouldTranscribe) {
-            void transcribeRecordedAudio(recorder.mimeType)
-          } else {
-            audioChunksRef.current = []
-          }
-        }
-        recorder.start(250)
-        mediaRecorderRef.current = recorder
-      }
-
-      setAssistantNotice(
-        speechRecognitionCtor
-          ? '已开启麦克风，正在边录音边识别语音。'
-          : '已开启麦克风录音，结束后会走服务端转写。'
-      )
+      setAssistantNotice('已开启语音识别，请直接说出你想表达的内容。')
       setError('')
       return true
     } catch (recordError) {
-      recognitionRef.current?.stop()
-      recognitionRef.current = null
       setError(recordError instanceof Error ? recordError.message : '录音启动失败')
       return false
     }
   }
 
-  function stopRecording(shouldTranscribe: boolean) {
-    shouldTranscribeOnStopRef.current = shouldTranscribe
-    recognitionRef.current?.stop()
-
+  async function stopRecording(shouldTranscribe: boolean) {
     try {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.requestData()
-        mediaRecorderRef.current.stop()
-      } else {
-        stopStreamTracks()
-        setIsRecording(false)
-        if (shouldTranscribe) {
-          void transcribeRecordedAudio('')
+      await speechSessionRef.current?.stop()
+    } finally {
+      speechSessionRef.current = null
+      setIsRecording(false)
+      if (shouldTranscribe) {
+        if (spokenText.trim()) {
+          setAssistantNotice('已完成语音识别，请确认文字是否正确。')
+          setError('')
+        } else {
+          setError('没有识别到有效语音，请再说一次')
         }
       }
-    } catch {
-      stopStreamTracks()
-    }
-
-    mediaRecorderRef.current = null
-  }
-
-  function stopStreamTracks() {
-    if (!mediaStreamRef.current) return
-    mediaStreamRef.current.getTracks().forEach((track) => track.stop())
-    mediaStreamRef.current = null
-  }
-
-  async function transcribeRecordedAudio(mimeType: string) {
-    try {
-      const browserTranscript = finalTranscriptRef.current.trim() || liveTranscriptRef.current.trim()
-      if (browserTranscript) {
-        setSpokenText(browserTranscript)
-        setAssistantNotice('已使用浏览器语音识别完成转写。')
-        setError('')
-        return
-      }
-
-      // Browser-only mode: skip server ASR to avoid provider credential/runtime errors.
-      setAssistantNotice('Browser transcription mode is active. Edit text manually if needed.')
-      setError('No browser transcript captured. Please try again and speak clearly.')
-      audioChunksRef.current = []
-      return
-
-      const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' })
-      audioChunksRef.current = []
-      if (audioBlob.size <= 0) {
-        setError('没有采集到有效声音，请靠近麦克风后再试一次')
-        return
-      }
-
-      const audioBase64 = await blobToBase64(audioBlob)
-      const response = await fetch('/api/asr/transcribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audioBase64,
-          mimeType: audioBlob.type || 'audio/webm',
-        }),
-      })
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({ error: '转写服务不可用' }))
-        throw new Error(String(payload?.error ?? '转写失败'))
-      }
-
-      const payload = await response.json() as { text?: string }
-      const text = String(payload.text ?? '').trim()
-      if (!text) {
-        setError('没有识别到有效语音，请再说一次')
-        return
-      }
-
-      setSpokenText(text)
-      setAssistantNotice('已使用服务端语音转写完成识别。')
-      setError('')
-    } catch (transcribeError) {
-      setError(transcribeError instanceof Error ? transcribeError.message : '语音转写失败')
     }
   }
 
@@ -634,28 +470,10 @@ export function ElderVoiceAssistant() {
   async function ensureMicrophoneReady() {
     if (micReadyRef.current) return true
 
-    const host = window.location.hostname
-    if (!window.isSecureContext && host !== 'localhost' && host !== '127.0.0.1') {
-      setError('需要 HTTPS 或 localhost 才能使用麦克风')
+    const ready = await ensureSpeechRecognitionPermission()
+    if (!ready) {
+      setError('语音权限未开启，请在系统或浏览器设置里允许麦克风/语音识别')
       return false
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('当前浏览器不支持麦克风能力')
-      return false
-    }
-
-    try {
-      const permissionApi = navigator.permissions as Permissions | undefined
-      if (permissionApi?.query) {
-        const status = await permissionApi.query({ name: 'microphone' as PermissionName })
-        if (status.state === 'denied') {
-          setError('麦克风权限已被阻止，请在地址栏设置里改成允许')
-          return false
-        }
-      }
-    } catch {
-      // ignore
     }
 
     micReadyRef.current = true
@@ -694,20 +512,4 @@ function toUrgencyLabel(level: ElderVoiceIntentResult['urgencyLevel']) {
 
 function delay(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
-
-async function blobToBase64(blob: Blob) {
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      if (typeof reader.result !== 'string') {
-        reject(new Error('无法读取录音内容'))
-        return
-      }
-      const commaIndex = reader.result.indexOf(',')
-      resolve(commaIndex >= 0 ? reader.result.slice(commaIndex + 1) : reader.result)
-    }
-    reader.onerror = () => reject(new Error('录音编码失败'))
-    reader.readAsDataURL(blob)
-  })
 }

@@ -1,6 +1,5 @@
 import { mockApiGet, mockApiPatch, mockApiPost } from './mockApi'
-
-const API_BASE = '/api'
+import { buildApiUrl } from '../../platform/apiConfig'
 
 async function parseJson(response: Response) {
   if (!response.ok) {
@@ -13,7 +12,7 @@ async function parseJson(response: Response) {
 
 export async function apiGet<T>(path: string): Promise<T> {
   try {
-    const response = await fetch(`${API_BASE}${path}`)
+    const response = await fetch(buildApiUrl(path))
     return (await parseJson(response)) as T
   } catch (error) {
     return handleMockFallback('GET', path, error)
@@ -22,7 +21,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   try {
-    const response = await fetch(`${API_BASE}${path}`, {
+    const response = await fetch(buildApiUrl(path), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -38,7 +37,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   try {
-    const response = await fetch(`${API_BASE}${path}`, {
+    const response = await fetch(buildApiUrl(path), {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

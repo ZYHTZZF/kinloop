@@ -4,6 +4,8 @@
  * 用于语音、视频处理等服务
  */
 
+import { buildApiUrl } from '../../platform/apiConfig'
+
 const VOLCANO_API_KEY = import.meta.env.VITE_VOLCANO_API_KEY
 const VOLCANO_ACCOUNT = import.meta.env.VITE_VOLCANO_ACCOUNT
 
@@ -29,7 +31,7 @@ async function callVolcanoAPI(config: VolcanoRequestConfig): Promise<any> {
   }
 
   // 通过后端代理调用（不直接调用，避免暴露 API Key）
-  const response = await fetch(`/api/volcano${config.path}`, {
+  const response = await fetch(buildApiUrl(`/volcano${config.path}`), {
     method: config.method,
     headers: {
       'Content-Type': 'application/json',
@@ -59,7 +61,7 @@ export async function uploadAudioForProcessing(
   url: string
   status: 'processing' | 'completed' | 'failed'
 }> {
-  const response = await fetch('/api/volcano/upload/audio', {
+  const response = await fetch(buildApiUrl('/volcano/upload/audio'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -92,7 +94,7 @@ export async function uploadVideoForProcessing(
   url: string
   status: 'processing' | 'completed' | 'failed'
 }> {
-  const response = await fetch('/api/volcano/upload/video', {
+  const response = await fetch(buildApiUrl('/volcano/upload/video'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -119,7 +121,7 @@ export async function getProcessingStatus(taskId: string): Promise<{
   result?: any
   error?: string
 }> {
-  const response = await fetch(`/api/volcano/status/${taskId}`, {
+  const response = await fetch(buildApiUrl(`/volcano/status/${taskId}`), {
     method: 'GET',
   })
 

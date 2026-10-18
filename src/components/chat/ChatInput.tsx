@@ -1,5 +1,12 @@
-import React, { useState, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import styles from './ChatInput.module.css'
+import {
+  cancelVoiceRecording,
+  startVoiceRecording,
+  stopVoiceRecording,
+  type VoiceRecordingSession,
+} from '../../utils/chatVoice'
+import { ensureMicrophoneCapturePermission } from '../../platform/permissions'
 
 interface ChatInputProps {
   onSendMessage: (text: string) => void
@@ -16,29 +23,35 @@ const ChatInput: React.FC<ChatInputProps> = ({
   onSendImage,
   isFamilyStyle = false,
   presetMessages = [],
-  disabled = false
+  disabled = false,
 }) => {
   const [message, setMessage] = useState('')
   const [isVoiceRecording, setIsVoiceRecording] = useState(false)
   const [voiceDuration, setVoiceDuration] = useState(0)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
+  const recordingSessionRef = useRef<VoiceRecordingSession | null>(null)
   const recordingStartTimeRef = useRef<number>(0)
   const recordingTimerRef = useRef<number>(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // 处理文本输入
+  useEffect(() => {
+    return () => {
+      clearRecordingTimer()
+      if (recordingSessionRef.current) {
+        cancelVoiceRecording(recordingSessionRef.current)
+        recordingSessionRef.current = null
+      }
+    }
+  }, [])
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value)
   }
 
-  // 处理发送消息
   const handleSendMessage = () => {
     if (message.trim()) {
       onSendMessage(message.trim())
       setMessage('')
 
-      // 重置高度
       if (document.activeElement instanceof HTMLTextAreaElement) {
         const textarea = document.activeElement as HTMLTextAreaElement
         textarea.style.height = 'auto'
@@ -46,7 +59,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     }
   }
 
-  // 处理按 Enter 键发送
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -54,73 +66,69 @@ const ChatInput: React.FC<ChatInputProps> = ({
     }
   }
 
-  // 自动调整 textarea 高度
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     handleTextChange(e)
     e.target.style.height = 'auto'
     e.target.style.height = `${Math.min(e.target.scrollHeight, 100)}px`
   }
 
-  // 开始语音录制
   const handleStartVoiceRecording = async () => {
+    if (disabled || isVoiceRecording) return
+
+    const allowed = await ensureMicrophoneCapturePermission()
+    if (!allowed) {
+      console.error('Microphone permission is not available')
+      return
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream)
+      const session = await startVoiceRecording()
+      recordingSessionRef.current = session
+      recordingStartTimeRef.current = session.startedAt
 
-      mediaRecorder.ondataavailable = (e) => {
-        audioChunksRef.current.push(e.data)
-      }
-
-      mediaRecorder.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop())
-      }
-
-      mediaRecorderRef.current = mediaRecorder
-      audioChunksRef.current = []
-      recordingStartTimeRef.current = Date.now()
-
-      mediaRecorder.start()
       setIsVoiceRecording(true)
-
-      // 更新录制时长
+      setVoiceDuration(0)
+      clearRecordingTimer()
       recordingTimerRef.current = window.setInterval(() => {
-        const duration = Date.now() - recordingStartTimeRef.current
-        setVoiceDuration(duration)
+        setVoiceDuration(Date.now() - recordingStartTimeRef.current)
       }, 100)
     } catch (error) {
       console.error('Failed to start voice recording:', error)
     }
   }
 
-  // 停止语音录制
-  const handleStopVoiceRecording = () => {
-    if (mediaRecorderRef.current && isVoiceRecording) {
-      mediaRecorderRef.current.stop()
-      clearInterval(recordingTimerRef.current)
+  const handleStopVoiceRecording = async () => {
+    if (!recordingSessionRef.current || !isVoiceRecording) return
 
-      const blob = new Blob(audioChunksRef.current, { type: 'audio/mp3' })
-      const duration = Date.now() - recordingStartTimeRef.current
+    const session = recordingSessionRef.current
+    recordingSessionRef.current = null
+    clearRecordingTimer()
 
+    try {
+      const { blob, durationMs } = await stopVoiceRecording(session)
       setIsVoiceRecording(false)
       setVoiceDuration(0)
 
       if (onSendVoice) {
-        onSendVoice(blob, duration)
+        onSendVoice(blob, durationMs)
       }
-    }
-  }
-
-  // 取消语音录制
-  const handleCancelVoiceRecording = () => {
-    if (mediaRecorderRef.current && isVoiceRecording) {
-      mediaRecorderRef.current.stop()
-      clearInterval(recordingTimerRef.current)
+    } catch (error) {
+      console.error('Failed to stop voice recording:', error)
       setIsVoiceRecording(false)
       setVoiceDuration(0)
     }
   }
 
-  // 处理图片选择
+  const handleCancelVoiceRecording = () => {
+    if (!recordingSessionRef.current || !isVoiceRecording) return
+
+    cancelVoiceRecording(recordingSessionRef.current)
+    recordingSessionRef.current = null
+    clearRecordingTimer()
+    setIsVoiceRecording(false)
+    setVoiceDuration(0)
+  }
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file && onSendImage) {
@@ -128,27 +136,39 @@ const ChatInput: React.FC<ChatInputProps> = ({
     }
   }
 
-  // 处理预设消息点击
   const handlePresetMessageClick = (msg: string) => {
     onSendMessage(msg)
   }
 
   const formatRecordingTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000)
-    return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(
-      seconds % 60
-    ).padStart(2, '0')}`
+    return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+  }
+
+  const clearRecordingTimer = () => {
+    if (recordingTimerRef.current) {
+      window.clearInterval(recordingTimerRef.current)
+      recordingTimerRef.current = 0
+    }
+  }
+
+  const bindHoldToRecord = {
+    onMouseDown: () => void handleStartVoiceRecording(),
+    onMouseUp: () => void handleStopVoiceRecording(),
+    onMouseLeave: handleCancelVoiceRecording,
+    onTouchStart: () => void handleStartVoiceRecording(),
+    onTouchEnd: () => void handleStopVoiceRecording(),
+    onTouchCancel: handleCancelVoiceRecording,
   }
 
   const containerClasses = [
     styles.container,
     isFamilyStyle ? styles.familyStyle : styles.normalStyle,
-    disabled ? styles.disabled : ''
+    disabled ? styles.disabled : '',
   ]
     .filter(Boolean)
     .join(' ')
 
-  // 老人端：显示语音按钮和预设消息
   if (isFamilyStyle && presetMessages.length > 0) {
     return (
       <div className={containerClasses}>
@@ -170,12 +190,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
         <div className={styles.inputRow}>
           <div className={styles.voiceButtonLarge}>
             <button
-              className={`${styles.voiceButton} ${
-                isVoiceRecording ? styles.recording : ''
-              }`}
-              onMouseDown={handleStartVoiceRecording}
-              onMouseUp={handleStopVoiceRecording}
-              onMouseLeave={handleCancelVoiceRecording}
+              className={`${styles.voiceButton} ${isVoiceRecording ? styles.recording : ''}`}
+              {...bindHoldToRecord}
               disabled={disabled}
             >
               🔊 {isVoiceRecording ? formatRecordingTime(voiceDuration) : '按住说话'}
@@ -204,7 +220,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
     )
   }
 
-  // 子女端：标准输入框
   return (
     <div className={containerClasses}>
       <div className={styles.toolbarRow}>
@@ -219,20 +234,14 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
         <button
           className={`${styles.toolButton} ${isVoiceRecording ? styles.recording : ''}`}
-          onMouseDown={handleStartVoiceRecording}
-          onMouseUp={handleStopVoiceRecording}
-          onMouseLeave={handleCancelVoiceRecording}
           title="按住说话"
+          {...bindHoldToRecord}
           disabled={disabled}
         >
           🔊
         </button>
 
-        <button
-          className={styles.toolButton}
-          title="更多选项"
-          disabled={disabled}
-        >
+        <button className={styles.toolButton} title="更多选项" disabled={disabled}>
           😊
         </button>
       </div>

@@ -27,6 +27,7 @@ import { registerAiIntentRoutes } from './routes/aiIntentRoutes.mjs'
 import { registerGenerationBridgeRoutes } from './routes/generationBridgeRoutes.mjs'
 import { registerPreSendSuggestionRoutes } from './routes/preSendSuggestionRoutes.mjs'
 import { registerUnreadSummaryRoutes } from './routes/unreadSummaryRoutes.mjs'
+import { registerVolcanoRoutes } from './routes/volcanoRoutes.mjs'
 import memoryTriggerRoutes from './routes/memoryTriggerRoutes.mjs'
 
 getDatabase()
@@ -260,6 +261,8 @@ registerGenerationBridgeRoutes(app)
 registerPreSendSuggestionRoutes(app)
 
 registerUnreadSummaryRoutes(app)
+
+registerVolcanoRoutes(app)
 
 app.get('/api/members', (_, response) => {
   response.json(listMembers())

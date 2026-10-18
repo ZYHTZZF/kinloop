@@ -32,6 +32,7 @@ import {
   stopVoiceRecording,
   type VoiceRecordingSession,
 } from '../../utils/chatVoice'
+import { ensureMicrophoneCapturePermission } from '../../platform/permissions'
 import { webrtcManager } from '../../services/webrtc/WebRTCManager'
 import * as chatApi from '../../services/api/chatApi'
 import VoiceCall from '../../components/chat/VoiceCall'
@@ -107,6 +108,13 @@ export function FamilyConversationPage() {
   const voiceTimerRef = useRef<number>(0)
   const preSendRequestRef = useRef(0)
   const messageElementMapRef = useRef(new Map<string, HTMLDivElement>())
+
+  const clearVoiceTimer = () => {
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current)
+      voiceTimerRef.current = 0
+    }
+  }
 
   const currentUserId = conversation?.familyMemberId ?? null
   const otherUserId = conversation?.elderMemberId ?? null
@@ -443,9 +451,7 @@ export function FamilyConversationPage() {
 
   useEffect(() => {
     return () => {
-      if (voiceTimerRef.current) {
-        clearInterval(voiceTimerRef.current)
-      }
+      clearVoiceTimer()
 
       if (voiceSessionRef.current) {
         cancelVoiceRecording(voiceSessionRef.current)
@@ -1012,11 +1018,22 @@ export function FamilyConversationPage() {
     }
 
     try {
+      if (sending || voiceSessionRef.current) {
+        return
+      }
+
       setError('')
+      const allowed = await ensureMicrophoneCapturePermission()
+      if (!allowed) {
+        setError('麦克风权限未开启，请在系统或浏览器设置里允许录音')
+        return
+      }
+
       const session = await startVoiceRecording()
       voiceSessionRef.current = session
       setIsRecordingVoice(true)
       setVoiceDurationMs(0)
+      clearVoiceTimer()
       voiceTimerRef.current = window.setInterval(() => {
         setVoiceDurationMs(Date.now() - session.startedAt)
       }, 200)
@@ -1055,9 +1072,7 @@ export function FamilyConversationPage() {
       voiceSessionRef.current = null
       setIsRecordingVoice(false)
       setVoiceDurationMs(0)
-      if (voiceTimerRef.current) {
-        clearInterval(voiceTimerRef.current)
-      }
+      clearVoiceTimer()
       setSending(false)
     }
   }

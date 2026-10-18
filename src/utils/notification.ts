@@ -1,43 +1,26 @@
-import { INotificationOptions } from '../services/api/types'
+import type { INotificationOptions } from '../services/api/types'
+import {
+  closePlatformNotifications,
+  showPlatformNotification,
+  type NotificationLike,
+} from '../platform/notifications'
+import {
+  ensureNotificationPermission,
+  getNotificationPermissionStatus as getPlatformNotificationPermissionStatus,
+} from '../platform/permissions'
 
 export async function requestNotificationPermission(): Promise<boolean> {
-  if (!('Notification' in window)) {
-    console.warn('Browser does not support notifications')
-    return false
-  }
-
-  if (Notification.permission === 'granted') return true
-
-  if (Notification.permission !== 'denied') {
-    const permission = await Notification.requestPermission()
-    return permission === 'granted'
-  }
-
-  return false
+  return ensureNotificationPermission()
 }
 
-export function showNotification(
+export async function showNotification(
   title: string,
   options?: INotificationOptions,
-): Notification | null {
-  if (!('Notification' in window)) {
-    console.warn('Notifications not supported')
-    return null
-  }
-
-  if (Notification.permission !== 'granted') {
-    console.warn('Notification permission not granted')
-    return null
-  }
-
+): Promise<NotificationLike | null> {
   try {
-    const notification = new Notification(title, {
-      icon: '/icons/logo.png',
-      badge: '/icons/badge.png',
-      ...options,
-    })
+    const notification = await showPlatformNotification(title, options)
 
-    if (!options?.requireInteraction) {
+    if (notification && !options?.requireInteraction) {
       setTimeout(() => notification.close(), 5000)
     }
 
@@ -49,20 +32,13 @@ export function showNotification(
 }
 
 export function closeNotification(tag?: string): void {
-  if (!('Notification' in window)) return
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.controller?.postMessage({
-      type: 'CLOSE_NOTIFICATION',
-      tag,
-    })
-  }
+  void closePlatformNotifications(tag)
 }
 
-export function notifyNewMessage(
+export async function notifyNewMessage(
   senderName: string,
   messagePreview: string,
-): Notification | null {
+): Promise<NotificationLike | null> {
   return showNotification(`消息来自 ${senderName}`, {
     body: messagePreview,
     tag: 'new-message',
@@ -70,10 +46,10 @@ export function notifyNewMessage(
   })
 }
 
-export function notifyIncomingCall(
+export async function notifyIncomingCall(
   callerName: string,
   callType: 'voice' | 'video',
-): Notification | null {
+): Promise<NotificationLike | null> {
   const title = callType === 'video' ? `${callerName} 来视频通话` : `${callerName} 来电`
 
   return showNotification(title, {
@@ -83,7 +59,7 @@ export function notifyIncomingCall(
   })
 }
 
-export function notifyUnreadMessages(count: number): Notification | null {
+export async function notifyUnreadMessages(count: number): Promise<NotificationLike | null> {
   return showNotification('未读消息', {
     body: `你有 ${count} 条未读消息`,
     tag: 'unread-count',
@@ -92,13 +68,13 @@ export function notifyUnreadMessages(count: number): Notification | null {
 }
 
 export function onNotificationClick(
-  callback: (notification: Notification) => void,
+  callback: (notification: NotificationLike) => void,
 ): () => void {
-  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return () => {}
   }
 
-  const messageHandler = (event: MessageEvent<{ type?: string; notification?: Notification }>) => {
+  const messageHandler = (event: MessageEvent<{ type?: string; notification?: NotificationLike }>) => {
     if (event.data?.type === 'NOTIFICATION_CLICK' && event.data.notification) {
       callback(event.data.notification)
     }
@@ -140,19 +116,13 @@ export async function playNotificationSound(_soundFile?: string): Promise<void> 
 }
 
 export function isNotificationSupported(): boolean {
-  return 'Notification' in window
+  return typeof window !== 'undefined' && 'Notification' in window
 }
 
-export function getNotificationPermissionStatus(): 'granted' | 'denied' | 'default' {
-  if (!('Notification' in window)) return 'denied'
-  return Notification.permission as 'granted' | 'denied' | 'default'
+export async function getNotificationPermissionStatus(): Promise<'granted' | 'denied' | 'default'> {
+  return getPlatformNotificationPermissionStatus()
 }
 
 export function closeAllNotifications(tag?: string): void {
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: 'CLOSE_ALL_NOTIFICATIONS',
-      tag,
-    })
-  }
+  void closePlatformNotifications(tag)
 }
