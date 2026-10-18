@@ -93,6 +93,8 @@ export function ElderHomePage() {
   const filmCards = usingMockCards ? mockFilmCards : familyCards.slice(0, 5).map(mapConversationToFilmCard)
   const [activeFilmIndex, setActiveFilmIndex] = useState(0)
   const activeMockCard = mockFilmCards.find((card) => card.id === activeMockCardId) ?? mockFilmCards[0]
+  const activeFilmCard = filmCards[activeFilmIndex] ?? filmCards[0]
+  const filmHeadline = loading ? '家人刚刚给你发来了新消息' : getFilmHeadline(activeFilmCard)
 
   useEffect(() => {
     setActiveFilmIndex(0)
@@ -104,8 +106,8 @@ export function ElderHomePage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">最近消息</p>
-            <h2>左右划一划，看看家人刚刚发来的内容。</h2>
-            <p className="elder-home__film-hint">点开任意一张，就能继续聊天。</p>
+            <h2>{filmHeadline}</h2>
+            <p className="elder-home__film-hint">点开就能接着看。</p>
           </div>
           <Link className="ghost-action ghost-action--link" to="/elder/inbox">
             查看全部
@@ -185,7 +187,9 @@ export function ElderHomePage() {
 
                   <footer className="elder-film-card__footer">
                     <span>{card.footer}</span>
-                    <strong>{card.isMock ? '这是示例' : relativeOffset === 0 ? '点开继续看' : '点一下放大'}</strong>
+                    <strong className={card.isMock ? 'elder-film-card__cta elder-film-card__cta--mock' : 'elder-film-card__cta'}>
+                      {card.isMock ? '这是示例' : relativeOffset === 0 ? '点开继续看' : '点一下放大'}
+                    </strong>
                   </footer>
                   </>
                 )
@@ -271,6 +275,23 @@ function mapConversationToFilmCard(card: ConversationCard): FilmCardItem {
     detail: card.primaryMessage?.preview ?? card.unreadSummary,
     footer: card.unreadSummary,
     to: `/elder/conversations/${card.id}`,
+  }
+}
+
+function getFilmHeadline(card?: FilmCardItem) {
+  if (!card) {
+    return '家人刚刚给你发来了新消息'
+  }
+
+  switch (card.previewType) {
+    case 'image':
+      return `${card.name}给你发了新照片`
+    case 'voice':
+      return `${card.name}给你发来一段语音`
+    case 'video':
+      return `${card.name}给你发来一段视频`
+    default:
+      return `${card.name}刚刚给你发来消息`
   }
 }
 

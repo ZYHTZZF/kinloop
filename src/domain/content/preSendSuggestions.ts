@@ -1,4 +1,9 @@
-import type { Message, PreSendSuggestion } from '../../services/api'
+import type {
+  Message,
+  PreSendSuggestion,
+  PreSendSuggestionFramework,
+  PreSendSuggestionScenario,
+} from '../../services/api'
 
 type BuildPreSendSuggestionParams = {
   draft: string
@@ -16,16 +21,52 @@ const LOW_INFO_EXACT_REPLIES = new Set([
   '不错',
   '好',
   '挺好',
+  '挺好的',
   '还好',
   '行',
   '行吧',
   '嗯',
   '嗯嗯',
+  '嗯好',
   '好的',
+  '好的呢',
   '收到',
   '知道了',
+  '知道啦',
   '是的',
   '不是',
+  '没事',
+  '还可以',
+  '一般',
+  'ok',
+  'yes',
+  'received',
+  'gotit',
+])
+
+const ACK_ONLY_REPLIES = new Set([
+  '嗯',
+  '嗯嗯',
+  '好的',
+  '好的呢',
+  '收到',
+  '知道了',
+  '知道啦',
+  'ok',
+  'yes',
+  'received',
+  'gotit',
+])
+
+const STATUS_SHORT_REPLIES = new Set([
+  '还行',
+  '不错',
+  '好',
+  '挺好',
+  '挺好的',
+  '还好',
+  '行',
+  '行吧',
   '没事',
   '还可以',
   '一般',
@@ -135,6 +176,40 @@ const SHORT_NEGATIVE_TOKENS = [
   '离谱',
 ]
 
+const EMOTION_KEYWORDS = [
+  '难受',
+  '不舒服',
+  '不开心',
+  '心里堵',
+  '委屈',
+  '孤单',
+  '想你',
+  '想你们',
+  '担心',
+  '害怕',
+  '睡不着',
+  '累',
+  '没劲',
+  '不想动',
+  '烦',
+  '伤心',
+  '难过',
+  '失眠',
+]
+
+const EXPECTATION_KEYWORDS = [
+  '你什么时候',
+  '什么时候回来',
+  '有空吗',
+  '能不能',
+  '要不要',
+  '回我',
+  '打电话',
+  '陪我',
+  '来看看',
+  '想跟你说',
+]
+
 export function buildPreSendSuggestion({
   draft,
   messages,
@@ -155,15 +230,19 @@ export function buildPreSendSuggestion({
     }
   }
 
-  const followupSuggestion = buildFollowupSuggestion(trimmedDraft, normalizedDraft, context)
-  if (followupSuggestion) {
-    return {
-      ...followupSuggestion,
-      triggerKey: buildFollowupTriggerKey(normalizedDraft, context.latestPeerMessage),
-    }
+  const followupSuggestion = buildFrameworkFollowupSuggestion(trimmedDraft, normalizedDraft, context)
+  if (!followupSuggestion) {
+    return null
   }
 
-  return null
+  return {
+    ...followupSuggestion,
+    triggerKey: buildFollowupTriggerKey(
+      normalizedDraft,
+      context.latestPeerMessage,
+      followupSuggestion.scenario ?? 'ack_only',
+    ),
+  }
 }
 
 function buildSoftenSuggestion(draft: string, normalizedDraft: string): PreSendSuggestion | null {
@@ -219,89 +298,153 @@ function buildSoftenSuggestion(draft: string, normalizedDraft: string): PreSendS
   return null
 }
 
-function buildFollowupSuggestion(draft: string, normalizedDraft: string, context: MessageContext): PreSendSuggestion | null {
+function buildFrameworkFollowupSuggestion(
+  draft: string,
+  normalizedDraft: string,
+  context: MessageContext,
+): PreSendSuggestion | null {
   if (!isLikelyLowInformationReply(draft, normalizedDraft)) {
     return null
   }
 
-  const latestPeerMessage = context.latestPeerMessage
-  if (!latestPeerMessage) {
-    return followupResult(
-      '可以顺手再接一句',
-      '这条回复比较短，补半句近况或一个小问题，会更容易把聊天接下去。',
-      [
-        `${draft}，今天整体还算顺利。`,
-        `${draft}，您那边今天怎么样？`,
-      ],
-    )
-  }
+  const scenario = classifyFollowupScenario(normalizedDraft, context)
+  const framework = mapScenarioToFramework(scenario)
+  const latestPeerText = getMessageText(context.latestPeerMessage)
 
-  const peerText = `${latestPeerMessage.textContent ?? latestPeerMessage.transcript ?? ''}`.trim()
-  const normalizedPeerText = normalizeText(peerText)
-
-  if (latestPeerMessage.messageType === 'Image') {
-    return followupResult(
-      '可以顺手把话题接下去',
-      '对方发来的是照片，补一句具体感受或追问细节，会比单独评价更容易继续聊。',
-      [
-        `${draft}，这张拍得真温馨，是今天拍的吗？`,
-        `${draft}，我一眼就注意到里面的细节了，这是在哪儿拍的？`,
-      ],
-    )
-  }
-
-  if (isQuestionLike(normalizedPeerText)) {
-    if (normalizedPeerText.includes('吃')) {
-      return followupResult(
-        '可以顺手多回半句',
-        '对方在关心你的日常，补一点具体信息，再反问一句，聊天更容易延续。',
-        [
-          `${draft}，今天吃得还挺简单的，您晚上吃了什么？`,
-          `${draft}，刚刚随便吃了点，您今天胃口怎么样？`,
+  switch (scenario) {
+    case 'emotion_missed':
+      return followupResult({
+        title: '这句回复有点短，先接住长辈情绪会更好',
+        reason: '长辈刚才像是在表达感受或期待，先回应心情，再接一句安排，会更让人安心。',
+        suggestions: [
+          `${draft}，听起来您这会儿心里不太轻松，我晚点给您打个电话，好好听您说。`,
+          `${draft}，我听出来您挺挂心这件事的，我忙完就来和您多聊几句。`,
         ],
-      )
-    }
+        scenario,
+        framework,
+      })
+    case 'question_dropped':
+      return followupResult({
+        title: '这句回复有点短，顺手把问题接住会更自然',
+        reason: '长辈刚才是在等你回应，补一句具体情况或后续安排，聊天更容易继续。',
+        suggestions: buildQuestionDroppedSuggestions(draft, latestPeerText),
+        scenario,
+        framework,
+      })
+    case 'status_short':
+      return followupResult({
+        title: '这句回复有点短，补一句近况会更容易接住',
+        reason: '这类状态回复信息量偏少，顺手补一点事实和下一步，会更像在认真回应。',
+        suggestions: buildStatusShortSuggestions(draft, latestPeerText),
+        scenario,
+        framework,
+      })
+    case 'ack_only':
+    default:
+      return followupResult({
+        title: '可以顺手多回半句，让长辈更容易接住',
+        reason: '这句回复已经表达收到，但再补一句理解或安排，会更有陪伴感。',
+        suggestions: buildAckOnlySuggestions(draft, latestPeerText),
+        scenario: 'ack_only',
+        framework: mapScenarioToFramework('ack_only'),
+      })
+  }
+}
 
-    if (normalizedPeerText.includes('忙')) {
-      return followupResult(
-        '可以顺手多回半句',
-        '对方在问你的状态，补一句近况会更自然，也更方便把话题接住。',
-        [
-          `${draft}，今天事情有点多，不过还算顺利，您今天过得怎么样？`,
-          `${draft}，刚忙完一阵，您这会儿在做什么呢？`,
-        ],
-      )
-    }
+function classifyFollowupScenario(normalizedDraft: string, context: MessageContext): PreSendSuggestionScenario {
+  const latestPeerText = normalizeText(getMessageText(context.latestPeerMessage))
+  const recentPeerText = context.recentPeerMessages.map((message) => normalizeText(getMessageText(message))).join(' ')
 
-    return followupResult(
-      '可以顺手多回半句',
-      '对方是在发问，补一点具体信息，再反问一句，会更容易把聊天接下去。',
-      [
-        `${draft}，我这边还好，您那边怎么样？`,
-        `${draft}，晚点我再和您细说，您今天还顺利吗？`,
-      ],
-    )
+  if (looksEmotionalOrExpectant(latestPeerText) || looksEmotionalOrExpectant(recentPeerText)) {
+    return 'emotion_missed'
   }
 
-  if (looksLikeDailyLifeContext(context.recentPeerMessages)) {
-    return followupResult(
-      '可以顺手再接一句',
-      '这条回复比较短，补一句具体感受或近况，会更容易让聊天不断掉。',
-      [
-        `${draft}，今天整体还挺平稳的。`,
-        `${draft}，我也想听听您那边的情况。`,
-      ],
-    )
+  if (isQuestionLike(latestPeerText)) {
+    return 'question_dropped'
   }
 
-  return followupResult(
-    '可以顺手再接一句',
-    '这条回复信息量有点少，顺手补半句内容或一个问题，会更容易继续聊。',
-    [
-      `${draft}，我刚刚想到您了。`,
-      `${draft}，您那边最近还好吗？`,
-    ],
-  )
+  if (STATUS_SHORT_REPLIES.has(normalizedDraft) || looksLikeStatusReply(normalizedDraft)) {
+    return 'status_short'
+  }
+
+  return 'ack_only'
+}
+
+function mapScenarioToFramework(scenario: PreSendSuggestionScenario): PreSendSuggestionFramework {
+  switch (scenario) {
+    case 'emotion_missed':
+      return 'nvc'
+    case 'question_dropped':
+      return 'deso'
+    case 'status_short':
+      return 'fic'
+    case 'ack_only':
+    default:
+      return 'xyz'
+  }
+}
+
+function buildAckOnlySuggestions(draft: string, latestPeerText: string) {
+  if (looksLikePhotoContext(latestPeerText)) {
+    return [
+      `${draft}，我看到了，这张照片拍得真好，您今天是特意拍给我看的吗？`,
+      `${draft}，我注意到了，照片里这个细节我一眼就看见了，您今天过得怎么样？`,
+    ]
+  }
+
+  if (latestPeerText.includes('吃')) {
+    return [
+      `${draft}，我刚吃过了，您晚上吃得怎么样？`,
+      `${draft}，我这边已经安排好了，您今天胃口还好吗？`,
+    ]
+  }
+
+  return [
+    `${draft}，我知道您刚才在说这件事了，我晚点再和您多聊几句。`,
+    `${draft}，我看到了，等我忙完这阵就来跟您接着说。`,
+  ]
+}
+
+function buildStatusShortSuggestions(draft: string, latestPeerText: string) {
+  if (latestPeerText.includes('身体') || latestPeerText.includes('舒服') || latestPeerText.includes('怎么样')) {
+    return [
+      `${draft}，今天还算稳当，就是有点累，晚点我再跟您细说。`,
+      `${draft}，目前都还好，我先把手头事情忙完，等会儿再和您多说两句。`,
+    ]
+  }
+
+  return [
+    `${draft}，今天整体还算顺利，晚一点我再跟您多说点。`,
+    `${draft}，这会儿情况还算平稳，等我忙完再认真回您。`,
+  ]
+}
+
+function buildQuestionDroppedSuggestions(draft: string, latestPeerText: string) {
+  if (latestPeerText.includes('吃')) {
+    return [
+      `${draft}，我刚刚简单吃了点，您今天晚上吃了什么？`,
+      `${draft}，我这边已经吃过了，您今天胃口怎么样？`,
+    ]
+  }
+
+  if (latestPeerText.includes('忙')) {
+    return [
+      `${draft}，刚才确实有点忙，现在缓下来了，您这会儿在做什么呢？`,
+      `${draft}，我刚忙完一阵，等下就能多聊会儿，您今天还顺利吗？`,
+    ]
+  }
+
+  if (latestPeerText.includes('什么时候') || latestPeerText.includes('有空')) {
+    return [
+      `${draft}，我今天晚一点会空下来，到时候我给您回过去。`,
+      `${draft}，我记着这件事了，等我忙完就和您确认时间。`,
+    ]
+  }
+
+  return [
+    `${draft}，我刚看到了，等我处理完这边就和您细说。`,
+    `${draft}，我知道您是在问这件事，我晚点给您一个更完整的回复。`,
+  ]
 }
 
 function softenResult(suggestions: string[]): PreSendSuggestion {
@@ -315,7 +458,19 @@ function softenResult(suggestions: string[]): PreSendSuggestion {
   }
 }
 
-function followupResult(title: string, reason: string, suggestions: string[]): PreSendSuggestion {
+function followupResult({
+  title,
+  reason,
+  suggestions,
+  scenario,
+  framework,
+}: {
+  title: string
+  reason: string
+  suggestions: string[]
+  scenario: PreSendSuggestionScenario
+  framework: PreSendSuggestionFramework
+}): PreSendSuggestion {
   return {
     shouldSuggest: true,
     type: 'followup',
@@ -323,6 +478,10 @@ function followupResult(title: string, reason: string, suggestions: string[]): P
     reason,
     suggestions: uniqueSuggestions(suggestions),
     triggerKey: '',
+    scenario,
+    framework,
+    sourceModel: 'fallback-local',
+    confidence: 0.68,
   }
 }
 
@@ -332,6 +491,10 @@ function buildMessageContext(messages: Message[]): MessageContext {
     latestPeerMessage: peerMessages.at(-1) ?? null,
     recentPeerMessages: peerMessages.slice(-3),
   }
+}
+
+function getMessageText(message: Message | null) {
+  return `${message?.textContent ?? message?.transcript ?? ''}`.trim()
 }
 
 function normalizeText(value: string) {
@@ -347,7 +510,6 @@ function matchesShortNegativeTone(normalizedText: string) {
     return false
   }
 
-  // Exclude polite "麻烦..." usage, which often contains "烦" but is not hostile.
   if (normalizedText.includes('麻烦')) {
     return false
   }
@@ -367,6 +529,10 @@ function isLikelyLowInformationReply(draft: string, normalizedDraft: string) {
   return draft.trim().length <= 4
 }
 
+function looksLikeStatusReply(normalizedDraft: string) {
+  return normalizedDraft.endsWith('吧') || normalizedDraft.endsWith('呢') || normalizedDraft.endsWith('呀')
+}
+
 function isQuestionLike(normalizedText: string) {
   return (
     normalizedText.includes('？') ||
@@ -376,15 +542,18 @@ function isQuestionLike(normalizedText: string) {
     normalizedText.includes('啥') ||
     normalizedText.includes('什么') ||
     normalizedText.includes('怎么') ||
-    normalizedText.includes('忙不忙')
+    normalizedText.includes('忙不忙') ||
+    normalizedText.includes('有没有') ||
+    normalizedText.includes('什么时候')
   )
 }
 
-function looksLikeDailyLifeContext(messages: Message[]) {
-  return messages.some((message) => {
-    const normalized = normalizeText(`${message.textContent ?? message.transcript ?? ''}`)
-    return ['今天', '刚刚', '回家', '吃饭', '照片', '最近', '身体'].some((keyword) => normalized.includes(keyword))
-  })
+function looksEmotionalOrExpectant(normalizedText: string) {
+  return containsAny(normalizedText, EMOTION_KEYWORDS) || containsAny(normalizedText, EXPECTATION_KEYWORDS)
+}
+
+function looksLikePhotoContext(text: string) {
+  return ['照片', '图片', '拍给你', '给你看', '拍的'].some((keyword) => text.includes(keyword))
 }
 
 function uniqueSuggestions(values: string[]) {
@@ -408,6 +577,10 @@ function softenCommandDraft(draft: string) {
   return draft.replace(/赶紧|立刻|马上|现在就|赶快|立马|快点/g, '方便的话尽快')
 }
 
-function buildFollowupTriggerKey(normalizedDraft: string, latestPeerMessage: Message | null) {
-  return `followup:${normalizedDraft}:${latestPeerMessage?.id ?? 'none'}`
+function buildFollowupTriggerKey(
+  normalizedDraft: string,
+  latestPeerMessage: Message | null,
+  scenario: PreSendSuggestionScenario,
+) {
+  return `followup:${scenario}:${normalizedDraft}:${latestPeerMessage?.id ?? 'none'}`
 }

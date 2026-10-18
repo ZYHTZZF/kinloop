@@ -275,6 +275,14 @@ export type GenerationBridgeExplainResponse = {
 
 export type PreSendSuggestionType = 'followup' | 'soften'
 
+export type PreSendSuggestionScenario =
+  | 'ack_only'
+  | 'status_short'
+  | 'question_dropped'
+  | 'emotion_missed'
+
+export type PreSendSuggestionFramework = 'nvc' | 'xyz' | 'fic' | 'deso'
+
 export type PreSendSuggestion = {
   shouldSuggest: boolean
   type: PreSendSuggestionType
@@ -282,6 +290,10 @@ export type PreSendSuggestion = {
   reason: string
   suggestions: string[]
   triggerKey: string
+  scenario?: PreSendSuggestionScenario
+  framework?: PreSendSuggestionFramework
+  sourceModel?: string
+  confidence?: number
 }
 
 export type PreSendSuggestionRequest = {

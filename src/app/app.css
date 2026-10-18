@@ -963,8 +963,16 @@
   font-size: 0.98rem;
 }
 
-.elder-film-card__footer strong {
-  color: var(--app-accent-strong);
+.elder-film-card__cta {
+  color: var(--app-secondary);
+  font-size: 1.14rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.elder-film-card__cta--mock {
+  color: var(--app-soft);
   font-size: 1rem;
 }
 

@@ -744,6 +744,7 @@ export function FamilyConversationPage() {
                   {preSendSuggestion.type === 'soften' ? '情绪缓冲' : '接话续聊'}
                 </p>
                 <h3>{preSendSuggestion.title}</h3>
+                {renderSuggestionDebugTag(preSendSuggestion)}
               </div>
               <button
                 className="text-action"
@@ -793,6 +794,7 @@ export function FamilyConversationPage() {
               <div>
                 <p className="surface-card__eyebrow">发送后续聊</p>
                 <h3>{postSendFollowupSuggestion.title}</h3>
+                {renderSuggestionDebugTag(postSendFollowupSuggestion)}
               </div>
               <button
                 className="text-action"
@@ -1434,6 +1436,15 @@ export function FamilyConversationPage() {
       }
 
       const nextSuggestion = response.result?.type === 'followup' ? response.result : localSuggestion
+      if (response.result?.type === 'followup') {
+        console.info('[pre-send-suggestion] using server suggestion', {
+          scenario: response.result.scenario,
+          framework: response.result.framework,
+          sourceModel: response.result.sourceModel,
+          confidence: response.result.confidence,
+        })
+      }
+
       if (!nextSuggestion || nextSuggestion.triggerKey === dismissedSuggestionKey) {
         setPostSendFollowupSuggestion(null)
         return
@@ -1454,6 +1465,12 @@ export function FamilyConversationPage() {
       return
     }
 
+    console.info('[pre-send-suggestion] using local fallback', {
+      scenario: localSuggestion.scenario,
+      framework: localSuggestion.framework,
+      sourceModel: localSuggestion.sourceModel,
+      confidence: localSuggestion.confidence,
+    })
     setPostSendFollowupSuggestion(localSuggestion)
   }
 }
@@ -1496,9 +1513,54 @@ function getSenderLabel(message: Message, conversation: ConversationDetail | nul
   return conversation?.elderDisplayName ?? 'Elder'
 }
 
+function renderSuggestionDebugTag(suggestion: PreSendSuggestion) {
+  const sourceModel = suggestion.sourceModel?.trim()
+  if (!sourceModel) {
+    return null
+  }
+
+  const sourceLabel = sourceModel === 'fallback-local' ? 'fallback-local' : `llm:${sourceModel}`
+  const parts = [sourceLabel]
+  if (suggestion.scenario) {
+    parts.push(suggestion.scenario)
+  }
+  if (suggestion.framework) {
+    parts.push(suggestion.framework)
+  }
+
+  return (
+    <p className="state-note" style={{ marginTop: '6px', fontSize: '0.82rem' }}>
+      调试标记：{parts.join(' · ')}
+    </p>
+  )
+}
+
 function isLowInformation(input: string) {
-  const normalized = input.trim().toLowerCase()
-  return ['ok', 'yes', 'received', 'got it'].includes(normalized)
+  const normalized = input.replace(/\s+/g, '').trim().toLowerCase()
+  return [
+    '嗯',
+    '嗯嗯',
+    '好的',
+    '好的呢',
+    '收到',
+    '知道了',
+    '知道啦',
+    '还行',
+    '不错',
+    '好',
+    '挺好',
+    '挺好的',
+    '还好',
+    '行',
+    '行吧',
+    '没事',
+    '还可以',
+    '一般',
+    'ok',
+    'yes',
+    'received',
+    'gotit',
+  ].includes(normalized)
 }
 
 function toMemoryType(messageType: string) {
