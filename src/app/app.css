@@ -178,6 +178,14 @@
   color: #9b4333;
 }
 
+.welcome-success {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(237, 247, 239, 0.92);
+  border: 1px solid rgba(76, 118, 88, 0.14);
+  color: #356446;
+}
+
 .welcome-panel {
   display: grid;
   gap: 22px;
@@ -331,6 +339,13 @@
   border: 1px solid rgba(88, 72, 56, 0.1);
   background: rgba(255, 255, 255, 0.9);
   color: #3f352e;
+}
+
+.welcome-inline {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
 }
 
 .family-board__head,

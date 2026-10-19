@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { listConversationCards } from '../../services/api'
+import { listConversationCards, readCachedConversationCards } from '../../services/api'
 import type { ConversationCard } from '../../services/api'
 import { formatClock } from '../../utils/dateTime'
 
@@ -55,13 +55,19 @@ const mockFilmCards: FilmCardItem[] = [
 ]
 
 export function ElderHomePage() {
-  const [cards, setCards] = useState<ConversationCard[]>([])
-  const [loading, setLoading] = useState(true)
+  const [cards, setCards] = useState<ConversationCard[]>(() => readCachedConversationCards('elder'))
+  const [loading, setLoading] = useState(() => readCachedConversationCards('elder').length === 0)
   const [error, setError] = useState('')
   const [activeMockCardId, setActiveMockCardId] = useState(mockFilmCards[0]?.id ?? '')
 
   useEffect(() => {
     let cancelled = false
+
+    const cachedCards = readCachedConversationCards('elder')
+    if (cachedCards.length > 0) {
+      setCards(cachedCards)
+      setLoading(false)
+    }
 
     async function load() {
       try {

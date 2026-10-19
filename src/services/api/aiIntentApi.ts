@@ -1,6 +1,7 @@
 import type { ConversationCard, Member } from './types'
 import type { ElderVoiceIntentResult } from '../../domain/elderVoice'
 import { buildApiUrl } from '../../platform/apiConfig'
+import { createApiHeaders } from './client'
 
 type AiIntentResponse = {
   ok: boolean
@@ -14,9 +15,9 @@ export async function inferElderIntent(
 ): Promise<ElderVoiceIntentResult> {
   const response = await fetch(buildApiUrl('/ai/elder-intent'), {
     method: 'POST',
-    headers: {
+    headers: createApiHeaders({
       'Content-Type': 'application/json',
-    },
+    }),
     body: JSON.stringify({
       spokenText,
       members,

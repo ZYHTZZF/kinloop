@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link, Outlet } from 'react-router-dom'
+import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { ElderVoiceAssistant } from '../../components/elder/ElderVoiceAssistant'
 import { getCurrentWeather } from '../../services/api'
 import { getElderGreeting, getFallbackElderGreetingSummary } from '../../utils/elderHeader'
-import { getOnboardingState } from '../onboardingStorage'
+import { clearOnboardingState, getOnboardingState } from '../onboardingStorage'
 
 export function ElderAppLayout() {
+  const navigate = useNavigate()
   const [headerSummary, setHeaderSummary] = useState(() => getFallbackElderGreetingSummary())
   const onboarding = getOnboardingState()
 
@@ -33,7 +34,6 @@ export function ElderAppLayout() {
     }
 
     void loadWeather()
-
     const timer = window.setInterval(() => {
       void loadWeather()
     }, 30 * 60 * 1000)
@@ -59,14 +59,21 @@ export function ElderAppLayout() {
         </div>
         <div className="app-shell__header-actions">
           <Link className="ghost-action ghost-action--link" to="/welcome">
-            调整进入信息
+            账号设置
           </Link>
           <Link className="ghost-action ghost-action--link" to="/elder/home">
             回到首页
           </Link>
-          <Link className="app-shell__switch-link" to="/family/today">
-            切换到家人端
-          </Link>
+          <button
+            className="ghost-action ghost-action--link"
+            type="button"
+            onClick={() => {
+              clearOnboardingState()
+              navigate('/welcome', { replace: true })
+            }}
+          >
+            退出登录
+          </button>
         </div>
       </header>
 

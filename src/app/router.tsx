@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { ElderAppLayout } from './layouts/ElderAppLayout'
 import { FamilyAppLayout } from './layouts/FamilyAppLayout'
-import { LandingRedirect, RequireOnboarding } from './RouteGuards'
+import { LandingRedirect, RequireOnboarding, RequireRole } from './RouteGuards'
 import { ElderHomePage } from '../pages/elder/ElderHomePage'
 import { ElderContactsPage } from '../pages/elder/ElderContactsPage'
 import { ElderConversationPage } from '../pages/elder/ElderConversationPage'
@@ -27,29 +27,39 @@ export const router = createBrowserRouter([
     element: <RequireOnboarding />,
     children: [
       {
-        path: '/elder',
-        element: <ElderAppLayout />,
+        element: <RequireRole allowed={['elder']} />,
         children: [
-          { index: true, element: <Navigate to="/elder/home" replace /> },
-          { path: 'home', element: <ElderHomePage /> },
-          { path: 'inbox', element: <ElderContactsPage /> },
-          { path: 'contacts', element: <Navigate to="/elder/inbox" replace /> },
-          { path: 'conversations/:conversationId', element: <ElderConversationPage /> },
-          { path: 'memories', element: <Navigate to="/elder/home" replace /> },
-          { path: 'help', element: <ElderHelpPage /> },
+          {
+            path: '/elder',
+            element: <ElderAppLayout />,
+            children: [
+              { index: true, element: <Navigate to="/elder/home" replace /> },
+              { path: 'home', element: <ElderHomePage /> },
+              { path: 'inbox', element: <ElderContactsPage /> },
+              { path: 'contacts', element: <Navigate to="/elder/inbox" replace /> },
+              { path: 'conversations/:conversationId', element: <ElderConversationPage /> },
+              { path: 'memories', element: <Navigate to="/elder/home" replace /> },
+              { path: 'help', element: <ElderHelpPage /> },
+            ],
+          },
         ],
       },
       {
-        path: '/family',
-        element: <FamilyAppLayout />,
+        element: <RequireRole allowed={['family', 'caregiver']} />,
         children: [
-          { index: true, element: <Navigate to="/family/today" replace /> },
-          { path: 'today', element: <FamilyTodayPage /> },
-          { path: 'status', element: <FamilyStatusPage /> },
-          { path: 'chats', element: <FamilyChatsPage /> },
-          { path: 'chats/:conversationId', element: <FamilyConversationPage /> },
-          { path: 'memories', element: <FamilyMemoriesPage /> },
-          { path: 'collaboration', element: <FamilyCollaborationPage /> },
+          {
+            path: '/family',
+            element: <FamilyAppLayout />,
+            children: [
+              { index: true, element: <Navigate to="/family/today" replace /> },
+              { path: 'today', element: <FamilyTodayPage /> },
+              { path: 'status', element: <FamilyStatusPage /> },
+              { path: 'chats', element: <FamilyChatsPage /> },
+              { path: 'chats/:conversationId', element: <FamilyConversationPage /> },
+              { path: 'memories', element: <FamilyMemoriesPage /> },
+              { path: 'collaboration', element: <FamilyCollaborationPage /> },
+            ],
+          },
         ],
       },
     ],

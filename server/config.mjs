@@ -35,3 +35,13 @@ export const VOLC_ASR_ACCESS_TOKEN = process.env.KINLOOP_VOLC_ASR_ACCESS_TOKEN ?
 export const VOLC_ASR_API_KEY = process.env.KINLOOP_VOLC_ASR_API_KEY ?? ''
 export const VOLC_ASR_CLUSTER = process.env.KINLOOP_VOLC_ASR_CLUSTER ?? ''
 export const VOLC_ASR_RESOURCE_ID = process.env.KINLOOP_VOLC_ASR_RESOURCE_ID ?? 'volc.bigasr.auc_turbo'
+export const AUTH_SESSION_TTL_MS = Number(process.env.KINLOOP_AUTH_SESSION_TTL_MS ?? 30 * 24 * 60 * 60 * 1000)
+export const AUTH_CODE_TTL_MS = Number(process.env.KINLOOP_AUTH_CODE_TTL_MS ?? 10 * 60 * 1000)
+export const AUTH_DEV_EXPOSE_CODES = `${process.env.KINLOOP_AUTH_DEV_EXPOSE_CODES ?? 'false'}`.toLowerCase() === 'true'
+export const SMTP_HOST = process.env.KINLOOP_SMTP_HOST ?? ''
+export const SMTP_PORT = Number(process.env.KINLOOP_SMTP_PORT ?? 465)
+export const SMTP_SECURE = `${process.env.KINLOOP_SMTP_SECURE ?? 'true'}`.toLowerCase() !== 'false'
+export const SMTP_REQUIRE_TLS = `${process.env.KINLOOP_SMTP_REQUIRE_TLS ?? 'true'}`.toLowerCase() !== 'false'
+export const SMTP_USER = process.env.KINLOOP_SMTP_USER ?? ''
+export const SMTP_PASS = process.env.KINLOOP_SMTP_PASS ?? ''
+export const SMTP_FROM = process.env.KINLOOP_SMTP_FROM ?? SMTP_USER

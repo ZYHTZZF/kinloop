@@ -5,6 +5,7 @@
  */
 
 import { buildApiUrl } from '../../platform/apiConfig'
+import { createApiHeaders } from './client'
 
 const VOLCANO_API_KEY = import.meta.env.VITE_VOLCANO_API_KEY
 const VOLCANO_ACCOUNT = import.meta.env.VITE_VOLCANO_ACCOUNT
@@ -33,10 +34,10 @@ async function callVolcanoAPI(config: VolcanoRequestConfig): Promise<any> {
   // 通过后端代理调用（不直接调用，避免暴露 API Key）
   const response = await fetch(buildApiUrl(`/volcano${config.path}`), {
     method: config.method,
-    headers: {
+    headers: createApiHeaders({
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${VOLCANO_API_KEY}`,
-    },
+    }),
     body: config.data ? JSON.stringify(config.data) : undefined,
   })
 
@@ -63,9 +64,9 @@ export async function uploadAudioForProcessing(
 }> {
   const response = await fetch(buildApiUrl('/volcano/upload/audio'), {
     method: 'POST',
-    headers: {
+    headers: createApiHeaders({
       'Content-Type': 'application/json',
-    },
+    }),
     body: JSON.stringify({
       base64Data: await blobToBase64(audioBlob),
       format,
@@ -96,9 +97,9 @@ export async function uploadVideoForProcessing(
 }> {
   const response = await fetch(buildApiUrl('/volcano/upload/video'), {
     method: 'POST',
-    headers: {
+    headers: createApiHeaders({
       'Content-Type': 'application/json',
-    },
+    }),
     body: JSON.stringify({
       base64Data: await blobToBase64(videoBlob),
       format,
@@ -123,6 +124,7 @@ export async function getProcessingStatus(taskId: string): Promise<{
 }> {
   const response = await fetch(buildApiUrl(`/volcano/status/${taskId}`), {
     method: 'GET',
+    headers: createApiHeaders(),
   })
 
   if (!response.ok) {

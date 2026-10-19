@@ -1,10 +1,39 @@
 export type FamilySpace = {
   id: string
   name: string
+  joinCode?: string
   elderDisplayName: string
   primaryMemberId: string
   createdAt: number
   updatedAt: number
+}
+
+export type AuthUser = {
+  id: string
+  email: string
+  emailVerifiedAt: number | null
+  createdAt: number
+  updatedAt: number
+}
+
+export type AuthMembership = {
+  memberId: string
+  familySpaceId: string
+  familyName: string
+  familyJoinCode: string
+  familyElderDisplayName: string
+  role: 'elder' | 'family' | 'caregiver'
+  memberRole: string
+  memberDisplayName: string
+  relationLabel: string | null
+  primaryMemberId: string
+}
+
+export type AuthSession = {
+  token: string
+  user: AuthUser
+  membership: AuthMembership
+  homePath: string
 }
 
 export type CurrentWeatherSummary = {

@@ -1,8 +1,10 @@
+import type { AuthMembership, AuthSession } from '../services/api/types'
+
 export type OnboardingRole = 'elder' | 'family' | 'caregiver'
 
-export type OnboardingAuthMode = 'login' | 'register'
+export type OnboardingAuthMode = 'login' | 'register' | 'forgot'
 
-export type OnboardingFamilyMode = 'idle' | 'create' | 'join' | 'skip'
+export type OnboardingFamilyMode = 'idle' | 'create' | 'join'
 
 export type BoundFamilyMember = {
   id: string
@@ -12,60 +14,88 @@ export type BoundFamilyMember = {
   note: string
 }
 
-export type OnboardingState = {
-  isAuthenticated: boolean
-  authMode: OnboardingAuthMode
-  account: string
+export type StoredAuthState = {
+  token: string
+  userId: string
+  email: string
   role: OnboardingRole | null
-  familyMode: OnboardingFamilyMode
+  memberId: string
   familyId: string
   familyName: string
-  members: BoundFamilyMember[]
+  familyCode: string
+  memberDisplayName: string
+  relationLabel: string
   completedAt: number | null
 }
 
-const STORAGE_KEY = 'kinloop-onboarding-state-v1'
+const STORAGE_KEY = 'kinloop-auth-session-v1'
 
-const DEFAULT_STATE: OnboardingState = {
-  isAuthenticated: false,
-  authMode: 'login',
-  account: '',
+const DEFAULT_STATE: StoredAuthState = {
+  token: '',
+  userId: '',
+  email: '',
   role: null,
-  familyMode: 'idle',
+  memberId: '',
   familyId: '',
-  familyName: '未绑定家庭',
-  members: [],
+  familyName: '',
+  familyCode: '',
+  memberDisplayName: '',
+  relationLabel: '',
   completedAt: null,
 }
 
-export function getOnboardingState(): OnboardingState {
+function mapMembership(membership: AuthMembership | null | undefined): StoredAuthState {
+  return {
+    token: '',
+    userId: '',
+    email: '',
+    role: membership?.role ?? null,
+    memberId: membership?.memberId ?? '',
+    familyId: membership?.familySpaceId ?? '',
+    familyName: membership?.familyName ?? '',
+    familyCode: membership?.familyJoinCode ?? '',
+    memberDisplayName: membership?.memberDisplayName ?? '',
+    relationLabel: membership?.relationLabel ?? '',
+    completedAt: membership ? Date.now() : null,
+  }
+}
+
+export function getStoredAuthToken() {
+  return getOnboardingState().token
+}
+
+export function getOnboardingState(): StoredAuthState {
   if (typeof window === 'undefined') {
     return DEFAULT_STATE
   }
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      return DEFAULT_STATE
-    }
-
-    const parsed = JSON.parse(raw) as Partial<OnboardingState>
+    if (!raw) return DEFAULT_STATE
     return {
       ...DEFAULT_STATE,
-      ...parsed,
-      members: Array.isArray(parsed.members) ? parsed.members : [],
+      ...(JSON.parse(raw) as Partial<StoredAuthState>),
     }
   } catch {
     return DEFAULT_STATE
   }
 }
 
-export function saveOnboardingState(state: OnboardingState) {
+export function saveAuthSession(session: AuthSession) {
   if (typeof window === 'undefined') {
     return
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  const membershipState = mapMembership(session.membership)
+  const nextState: StoredAuthState = {
+    ...membershipState,
+    token: session.token,
+    userId: session.user.id,
+    email: session.user.email,
+    completedAt: Date.now(),
+  }
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState))
   window.dispatchEvent(new CustomEvent('kinloop:onboarding-updated'))
 }
 
@@ -80,12 +110,11 @@ export function clearOnboardingState() {
 
 export function isOnboardingComplete() {
   const state = getOnboardingState()
-  return state.isAuthenticated && Boolean(state.role) && state.familyMode !== 'idle' && Boolean(state.completedAt)
+  return Boolean(state.token && state.role && state.familyId && state.completedAt)
 }
 
 export function getPreferredHomePath() {
   const state = getOnboardingState()
-
   if (state.role === 'elder') return '/elder/home'
   if (state.role === 'caregiver') return '/family/collaboration'
   return '/family/today'

@@ -2,25 +2,22 @@ import { useEffect, useMemo, useState } from 'react'
 import { PageState } from '../../components/common/PageState'
 import {
   acknowledgeAlert,
-  approveInviteCode,
-  createInviteCode,
+  getCurrentFamilySpace,
   listActiveAlerts,
-  listInviteCodes,
   listMembers,
   resolveAlert,
 } from '../../services/api'
-import type { Alert, InviteCode, Member } from '../../services/api'
+import type { Alert, FamilySpace, Member } from '../../services/api'
 import { formatShortDateTime } from '../../utils/dateTime'
 
 export function FamilyCollaborationPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
-  const [invites, setInvites] = useState<InviteCode[]>([])
+  const [familySpace, setFamilySpace] = useState<FamilySpace | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [inviteFeedback, setInviteFeedback] = useState('')
-  const [creatingInvite, setCreatingInvite] = useState(false)
-  const [approvingInviteId, setApprovingInviteId] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState('')
+  const [copiedJoinCode, setCopiedJoinCode] = useState(false)
   const [handlingAlertId, setHandlingAlertId] = useState<string | null>(null)
   const [resolvingAlertId, setResolvingAlertId] = useState<string | null>(null)
 
@@ -29,16 +26,16 @@ export function FamilyCollaborationPage() {
 
     async function load() {
       try {
-        const [nextMembers, nextAlerts, nextInvites] = await Promise.all([
+        const [nextMembers, nextAlerts, nextFamilySpace] = await Promise.all([
           listMembers(),
           listActiveAlerts(),
-          listInviteCodes(),
+          getCurrentFamilySpace(),
         ])
 
         if (!cancelled) {
           setMembers(nextMembers)
           setAlerts(nextAlerts)
-          setInvites(nextInvites)
+          setFamilySpace(nextFamilySpace)
           setError('')
         }
       } catch (loadError) {
@@ -88,16 +85,47 @@ export function FamilyCollaborationPage() {
       .join('  ')
   }, [members])
 
-  const pendingInvites = useMemo(
-    () => invites.filter((invite) => invite.status === 'PENDING'),
-    [invites],
-  )
+  async function handleCopyJoinCode() {
+    const joinCode = familySpace?.joinCode
+    if (!joinCode) return
 
-  const activeInvite = useMemo(
-    () => invites.find((invite) => invite.status === 'ACTIVE'),
-    [invites],
-  )
-  const activeAlertCount = alerts.length
+    try {
+      await navigator.clipboard.writeText(joinCode)
+      setCopiedJoinCode(true)
+      setFeedback(`已复制家庭码：${joinCode}`)
+      window.setTimeout(() => setCopiedJoinCode(false), 2000)
+    } catch (copyError) {
+      setError(copyError instanceof Error ? copyError.message : '复制家庭码失败')
+    }
+  }
+
+  async function handleAcknowledgeAlert(alertId: string) {
+    try {
+      setHandlingAlertId(alertId)
+      await acknowledgeAlert(alertId, members.find((member) => member.role === 'Primary')?.id ?? '')
+      setAlerts(await listActiveAlerts())
+      setFeedback('已接手一条求助任务。')
+      setError('')
+    } catch (ackError) {
+      setError(ackError instanceof Error ? ackError.message : '接单失败')
+    } finally {
+      setHandlingAlertId(null)
+    }
+  }
+
+  async function handleResolveAlert(alertId: string) {
+    try {
+      setResolvingAlertId(alertId)
+      await resolveAlert(alertId, '已联系家人并完成当前处理。')
+      setAlerts(await listActiveAlerts())
+      setFeedback('已关闭一条求助任务。')
+      setError('')
+    } catch (resolveError) {
+      setError(resolveError instanceof Error ? resolveError.message : '关闭任务失败')
+    } finally {
+      setResolvingAlertId(null)
+    }
+  }
 
   return (
     <section className="screen screen--family-collaboration">
@@ -105,7 +133,7 @@ export function FamilyCollaborationPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">协作</p>
-            <h2>把家人的关心接成一条线，让今天该谁接力更清楚。</h2>
+            <h2>把家人的关心接成一条线，让今天谁来接力更清楚。</h2>
           </div>
         </div>
 
@@ -116,11 +144,11 @@ export function FamilyCollaborationPage() {
           </div>
           <div className="today-overview-chip">
             <span>待处理任务</span>
-            <strong>{activeAlertCount}</strong>
+            <strong>{alerts.length}</strong>
           </div>
           <div className="today-overview-chip">
-            <span>待审批加入</span>
-            <strong>{pendingInvites.length}</strong>
+            <span>家庭加入码</span>
+            <strong>{familySpace?.joinCode ?? '未生成'}</strong>
           </div>
         </div>
 
@@ -138,32 +166,23 @@ export function FamilyCollaborationPage() {
 
         <div className="collaboration-stack">
           {loading ? (
-            <PageState
-              title="正在整理这一轮家庭协作"
-              description="稍等一下，我把成员、待办任务和邀请码状态整合出来。"
-            />
+            <PageState title="正在整理这一轮家庭协作" description="稍等一下，我把成员、待办任务和家庭加入码整理出来。" />
           ) : null}
+
           {error ? (
-            <PageState
-              variant="error"
-              title="协作页暂时没连上本地服务"
-              description={error}
-            />
+            <PageState variant="error" title="协作页暂时没有连上本地服务" description={error} />
           ) : null}
-          {inviteFeedback ? <p className="state-note">{inviteFeedback}</p> : null}
+
+          {feedback ? <p className="state-note">{feedback}</p> : null}
 
           <article className="relay-card">
             <p className="surface-card__eyebrow">家庭接力建议</p>
             <span className="status-pill">这一轮更适合谁来接</span>
             <strong>
               最近联系：
-              {recentContact
-                ? ` ${recentContact.displayName} · ${formatShortDateTime(recentContact.lastActivityAt)}`
-                : ' 暂无记录'}
+              {recentContact ? ` ${recentContact.displayName} · ${formatShortDateTime(recentContact.lastActivityAt)}` : ' 暂无记录'}
             </strong>
-            <p>
-              建议接力人：<strong>{suggestedRelay?.displayName ?? '暂无'}</strong>
-            </p>
+            <p>建议接力人：<strong>{suggestedRelay?.displayName ?? '暂无'}</strong></p>
             <p>
               {suggestedRelay
                 ? `${suggestedRelay.displayName} 最近较久没有和长辈产生有效互动，适合这次先接一句。`
@@ -234,118 +253,24 @@ export function FamilyCollaborationPage() {
               ))}
             </div>
             <p className="members-card__meta">紧急通知顺序：{alertOrder || '暂无'}</p>
-            <div className="inline-actions">
-              <button
-                className="primary-action"
-                type="button"
-                disabled={creatingInvite}
-                onClick={() => void handleCreateInvite()}
-              >
-                {creatingInvite ? '生成中…' : '生成家庭邀请码'}
-              </button>
-            </div>
-            {activeInvite ? (
-              <p className="members-card__meta">
-                当前可用邀请码：<strong>{activeInvite.code}</strong>
-              </p>
-            ) : null}
           </article>
 
           <article className="members-card">
-            <p className="surface-card__eyebrow">待审批加入</p>
-            {pendingInvites.length === 0 ? (
-              <p className="state-note">当前没有待审批的家庭码申请。</p>
-            ) : (
-              <div className="list-stack">
-                {pendingInvites.map((invite) => (
-                  <div className="list-row" key={invite.id}>
-                    <div className="list-row__main">
-                      <div>
-                        <strong>{invite.code}</strong>
-                        <p>申请角色：{invite.requestedRole}</p>
-                      </div>
-                    </div>
-                    <button
-                      className="ghost-action"
-                      type="button"
-                      disabled={approvingInviteId === invite.id}
-                      onClick={() => void handleApproveInvite(invite.id)}
-                    >
-                      {approvingInviteId === invite.id ? '审批中…' : '批准'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <p className="surface-card__eyebrow">家庭加入码</p>
+            <strong>{familySpace?.joinCode ?? '未生成'}</strong>
+            <p className="members-card__meta">
+              新成员注册时选择“加入家庭”，输入这个家庭码就能绑定到同一个家庭。
+            </p>
+            <div className="inline-actions">
+              <button className="primary-action" type="button" onClick={() => void handleCopyJoinCode()} disabled={!familySpace?.joinCode}>
+                {copiedJoinCode ? '已复制' : '复制家庭码'}
+              </button>
+            </div>
           </article>
         </div>
       </section>
     </section>
   )
-
-  async function handleCreateInvite() {
-    try {
-      setCreatingInvite(true)
-      const invite = await createInviteCode({
-        familySpaceId: 'fs_demo',
-        requestedRole: 'Family',
-        createdByMemberId: 'member_daughter',
-      })
-      const nextInvites = await listInviteCodes()
-      setInvites(nextInvites)
-      setInviteFeedback(`已生成新的家庭邀请码：${invite.code}`)
-      setError('')
-    } catch (inviteError) {
-      setError(inviteError instanceof Error ? inviteError.message : '生成邀请码失败')
-    } finally {
-      setCreatingInvite(false)
-    }
-  }
-
-  async function handleApproveInvite(inviteId: string) {
-    try {
-      setApprovingInviteId(inviteId)
-      await approveInviteCode(inviteId, 'member_daughter')
-      const nextInvites = await listInviteCodes()
-      setInvites(nextInvites)
-      setInviteFeedback('已批准一个家庭码申请。')
-      setError('')
-    } catch (approveError) {
-      setError(approveError instanceof Error ? approveError.message : '审批邀请码失败')
-    } finally {
-      setApprovingInviteId(null)
-    }
-  }
-
-  async function handleAcknowledgeAlert(alertId: string) {
-    try {
-      setHandlingAlertId(alertId)
-      await acknowledgeAlert(alertId, 'member_daughter')
-      const nextAlerts = await listActiveAlerts()
-      setAlerts(nextAlerts)
-      setInviteFeedback('已接手一条求助任务。')
-      setError('')
-    } catch (ackError) {
-      setError(ackError instanceof Error ? ackError.message : '接单失败')
-    } finally {
-      setHandlingAlertId(null)
-    }
-  }
-
-  async function handleResolveAlert(alertId: string) {
-    try {
-      setResolvingAlertId(alertId)
-      await resolveAlert(alertId, '已联系家人并完成当前处理。')
-      const nextAlerts = await listActiveAlerts()
-      setAlerts(nextAlerts)
-      setInviteFeedback('已关闭一条求助任务。')
-      setError('')
-    } catch (resolveError) {
-      setError(resolveError instanceof Error ? resolveError.message : '关闭任务失败')
-    } finally {
-      setResolvingAlertId(null)
-    }
-  }
 }
 
 function toAlertSummary(alert: Alert) {

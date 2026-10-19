@@ -1,6 +1,6 @@
 import { getDatabase } from '../db/index.mjs'
 
-export function listActiveAlerts() {
+export function listActiveAlerts(familySpaceId) {
   const db = getDatabase()
   return db.prepare(`
     select
@@ -16,12 +16,13 @@ export function listActiveAlerts() {
       resolved_at as resolvedAt,
       resolution_note as resolutionNote
     from alerts
-    where status != 'RESOLVED'
+    where family_space_id = ?
+      and status != 'RESOLVED'
     order by triggered_at desc
-  `).all()
+  `).all(familySpaceId)
 }
 
-export function createAlert(payload) {
+export function createAlert(payload, familySpaceId) {
   const db = getDatabase()
   const now = Date.now()
   const id = `alert_${now}`
@@ -38,7 +39,7 @@ export function createAlert(payload) {
     )
   `).run({
     id,
-    familySpaceId: payload.familySpaceId,
+    familySpaceId,
     alertType: payload.alertType,
     triggerSource: payload.triggerSource,
     status: payload.status ?? 'TRIGGERED',
@@ -68,13 +69,14 @@ export function createAlert(payload) {
   `).get(id)
 }
 
-export function acknowledgeAlert(alertId, memberId) {
+export function acknowledgeAlert(alertId, memberId, familySpaceId) {
   const db = getDatabase()
   db.prepare(`
     update alerts
     set status = 'HANDLING', acknowledged_by = ?
     where id = ?
-  `).run(memberId, alertId)
+      and family_space_id = ?
+  `).run(memberId, alertId, familySpaceId)
 
   return db.prepare(`
     select
@@ -94,7 +96,7 @@ export function acknowledgeAlert(alertId, memberId) {
   `).get(alertId)
 }
 
-export function resolveAlert(alertId, payload) {
+export function resolveAlert(alertId, payload, familySpaceId) {
   const db = getDatabase()
   const now = Date.now()
 
@@ -102,7 +104,8 @@ export function resolveAlert(alertId, payload) {
     update alerts
     set status = 'RESOLVED', resolved_at = ?, resolution_note = ?
     where id = ?
-  `).run(now, payload.resolutionNote ?? null, alertId)
+      and family_space_id = ?
+  `).run(now, payload.resolutionNote ?? null, alertId, familySpaceId)
 
   return db.prepare(`
     select

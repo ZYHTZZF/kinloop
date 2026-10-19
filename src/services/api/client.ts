@@ -1,18 +1,50 @@
 import { mockApiGet, mockApiPatch, mockApiPost } from './mockApi'
 import { buildApiUrl } from '../../platform/apiConfig'
+import { getStoredAuthToken } from '../../app/onboardingStorage'
 
 async function parseJson(response: Response) {
   if (!response.ok) {
+    const contentType = response.headers.get('content-type') ?? ''
+
+    if (contentType.includes('application/json')) {
+      const payload = await response.json()
+      const message =
+        typeof payload?.error === 'string'
+          ? payload.error
+          : typeof payload?.message === 'string'
+            ? payload.message
+            : `Request failed: ${response.status}`
+      throw new Error(message)
+    }
+
     const text = await response.text()
-    throw new Error(text || `Request failed: ${response.status}`)
+    const safeText = /<html|<body|<pre/i.test(text)
+      ? `Request failed: ${response.status}`
+      : text
+
+    throw new Error(safeText || `Request failed: ${response.status}`)
+  }
+
+  if (response.status === 204) {
+    return null
   }
 
   return response.json()
 }
 
+export function createApiHeaders(extraHeaders: Record<string, string> = {}) {
+  const token = getStoredAuthToken()
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extraHeaders,
+  }
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   try {
-    const response = await fetch(buildApiUrl(path))
+    const response = await fetch(buildApiUrl(path), {
+      headers: createApiHeaders(),
+    })
     return (await parseJson(response)) as T
   } catch (error) {
     return handleMockFallback('GET', path, error)
@@ -23,9 +55,9 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   try {
     const response = await fetch(buildApiUrl(path), {
       method: 'POST',
-      headers: {
+      headers: createApiHeaders({
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify(body),
     })
 
@@ -39,9 +71,9 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   try {
     const response = await fetch(buildApiUrl(path), {
       method: 'PATCH',
-      headers: {
+      headers: createApiHeaders({
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify(body),
     })
 

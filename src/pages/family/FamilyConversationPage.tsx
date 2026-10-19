@@ -11,6 +11,7 @@ import {
   getPreSendSuggestion,
   getUnreadSummary,
   getWebSocketUrl,
+  readCachedConversationDetail,
   sendMessage,
 } from '../../services/api'
 import type { ConversationDetail, GenerationBridgeExplainResponse, Message, PreSendSuggestion, UnreadSummaryResponse } from '../../services/api'
@@ -61,9 +62,9 @@ export function FamilyConversationPage() {
   const { conversationId, userId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const targetId = userId || conversationId || ''
-  const [conversation, setConversation] = useState<ConversationDetail | null>(null)
+  const [conversation, setConversation] = useState<ConversationDetail | null>(() => (targetId ? readCachedConversationDetail(targetId) : null))
   const [familySpaceId, setFamilySpaceId] = useState('fs_demo')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !(targetId && readCachedConversationDetail(targetId)))
   const [error, setError] = useState('')
   const [composerText, setComposerText] = useState('')
   const [showEmojiPanel, setShowEmojiPanel] = useState(false)
@@ -135,6 +136,15 @@ export function FamilyConversationPage() {
       console.error('Failed to sync conversation', err)
     }
   }
+
+  useEffect(() => {
+    if (!targetId) return
+    const cachedConversation = readCachedConversationDetail(targetId)
+    if (cachedConversation) {
+      setConversation(cachedConversation)
+      setLoading(false)
+    }
+  }, [targetId])
 
   const sendOutgoingCallMessage = async (type: 'voice' | 'video') => {
     if (!conversation) return

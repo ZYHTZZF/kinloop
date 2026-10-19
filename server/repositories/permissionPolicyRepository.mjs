@@ -1,6 +1,6 @@
 import { getDatabase } from '../db/index.mjs'
 
-export function listPermissionPolicies() {
+export function listPermissionPolicies(familySpaceId) {
   const db = getDatabase()
   return db.prepare(`
     select
@@ -15,6 +15,7 @@ export function listPermissionPolicies() {
       can_manage_members as canManageMembers,
       can_manage_alert_order as canManageAlertOrder
     from permission_policies
+    where family_space_id = ?
     order by role asc
-  `).all()
+  `).all(familySpaceId)
 }

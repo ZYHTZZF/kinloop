@@ -25,7 +25,7 @@ function mapPulse(row) {
   }
 }
 
-export function listTodayPulses() {
+export function listTodayPulses(familySpaceId) {
   const db = getDatabase()
   return db.prepare(`
     select
@@ -47,16 +47,17 @@ export function listTodayPulses() {
       pulses.resolved_at as resolvedAt
     from pulses
     left join messages on messages.id = pulses.source_message_id
+    where pulses.family_space_id = ?
     order by pulses.created_at desc
-  `).all().map(mapPulse)
+  `).all(familySpaceId).map(mapPulse)
 }
 
-export function listPulseHistory() {
-  return listTodayPulses()
+export function listPulseHistory(familySpaceId) {
+  return listTodayPulses(familySpaceId)
 }
 
-export function getTodayEmotionSummary() {
-  const emotionPulses = listPulseHistory().filter((pulse) => pulse.pulseType === 'Emotion')
+export function getTodayEmotionSummary(familySpaceId) {
+  const emotionPulses = listPulseHistory(familySpaceId).filter((pulse) => pulse.pulseType === 'Emotion')
   const now = Date.now()
   const threshold = now - EMOTION_WINDOW_MS
   const weeklyEmotionPulses = emotionPulses.filter((pulse) => Number(pulse.createdAt ?? 0) >= threshold)

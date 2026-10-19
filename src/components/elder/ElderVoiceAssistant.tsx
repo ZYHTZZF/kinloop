@@ -256,13 +256,38 @@ export function ElderVoiceAssistant() {
       setStage('acting')
       setError('')
       if (nextResult.nextAction === 'open_conversation' && nextResult.targetConversationId) {
+        const shouldSendNow = Boolean(nextResult.autoSendMessage)
+        const messageText = nextResult.draftText.trim()
+
+        if (shouldSendNow && messageText) {
+          await sendMessage(nextResult.targetConversationId, {
+            senderType: 'Elder',
+            senderMemberId: elderMemberId,
+            messageType: 'Text',
+            textContent: messageText,
+            aiDrafted: true,
+            isLowInformation: false,
+          })
+          await loadDirectory()
+          setFeedback(`已经帮你把“${messageText}”发给${nextResult.targetMemberLabel ?? '家人'}了。`)
+          await delay(280)
+          navigate(`/elder/conversations/${nextResult.targetConversationId}`, {
+            state: {
+              elderVoiceResult: nextResult,
+              prefillDraft: '',
+              autoSendMessage: false,
+            },
+          })
+          return
+        }
+
         setFeedback(`我这就带你去找${nextResult.targetMemberLabel ?? '家人'}。`)
         await delay(280)
         navigate(`/elder/conversations/${nextResult.targetConversationId}`, {
           state: {
             elderVoiceResult: nextResult,
             prefillDraft: nextResult.draftText,
-            autoSendMessage: Boolean(nextResult.autoSendMessage) || shouldAutoExecute(nextResult),
+            autoSendMessage: false,
           },
         })
         return

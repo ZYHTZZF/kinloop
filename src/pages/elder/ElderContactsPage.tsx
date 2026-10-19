@@ -1,17 +1,23 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
-import { listConversationCards } from '../../services/api'
+import { listConversationCards, readCachedConversationCards } from '../../services/api'
 import type { ConversationCard } from '../../services/api'
 import { formatClock } from '../../utils/dateTime'
 
 export function ElderContactsPage() {
-  const [cards, setCards] = useState<ConversationCard[]>([])
-  const [loading, setLoading] = useState(true)
+  const [cards, setCards] = useState<ConversationCard[]>(() => sortElderContacts(readCachedConversationCards('elder')))
+  const [loading, setLoading] = useState(() => readCachedConversationCards('elder').length === 0)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelled = false
+
+    const cachedCards = readCachedConversationCards('elder')
+    if (cachedCards.length > 0) {
+      setCards(sortElderContacts(cachedCards))
+      setLoading(false)
+    }
 
     async function load() {
       try {

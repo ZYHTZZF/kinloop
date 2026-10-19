@@ -8,6 +8,7 @@ import {
   getConversationDetail,
   getCurrentFamilySpace,
   markConversationRead,
+  readCachedConversationDetail,
   getUnreadSummary,
   getWebSocketUrl,
   sendMessage,
@@ -63,9 +64,9 @@ export function ElderConversationPage() {
   const prefillDraft = (location.state?.prefillDraft as string | undefined) ?? ''
   const autoSendMessage = Boolean(location.state?.autoSendMessage)
 
-  const [conversation, setConversation] = useState<ConversationDetail | null>(null)
+  const [conversation, setConversation] = useState<ConversationDetail | null>(() => (conversationId ? readCachedConversationDetail(conversationId) : null))
   const [familySpaceId, setFamilySpaceId] = useState('fs_demo')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !(conversationId && readCachedConversationDetail(conversationId)))
   const [error, setError] = useState('')
   const [draftText, setDraftText] = useState(prefillDraft || '')
   const [showEmojiPanel, setShowEmojiPanel] = useState(false)
@@ -170,6 +171,15 @@ export function ElderConversationPage() {
       console.error('Failed to sync conversation', err)
     }
   }
+
+  useEffect(() => {
+    if (!conversationId) return
+    const cachedConversation = readCachedConversationDetail(conversationId)
+    if (cachedConversation) {
+      setConversation(cachedConversation)
+      setLoading(false)
+    }
+  }, [conversationId])
 
   const sendOutgoingCallMessage = async (type: 'voice' | 'video') => {
     if (!conversation) return
