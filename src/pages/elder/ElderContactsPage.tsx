@@ -26,9 +26,9 @@ export function ElderContactsPage() {
           setCards(sortElderContacts(nextCards))
           setError('')
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载来信列表失败')
+          setError('来信列表暂时还没刷新出来，请稍后再试。')
         }
       } finally {
         if (!cancelled) {
@@ -50,7 +50,7 @@ export function ElderContactsPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">家人来信</p>
-            <h2>家人最近捎来的内容，都在这里。</h2>
+            <h2>家人最近发来的内容，都在这里。</h2>
           </div>
           <Link className="ghost-action ghost-action--link" to="/elder/home">
             回到首页
@@ -60,20 +60,14 @@ export function ElderContactsPage() {
         <div className="list-stack">
           {loading ? (
             <PageState
-              title="正在整理最近的家人来信"
-              description="稍等一下，我把今天适合先看的会话排在前面。"
+              title="正在整理最近来信"
+              description="稍等一下，我把今天适合先看的内容排在前面。"
             />
           ) : null}
-          {error ? (
-            <PageState
-              variant="error"
-              title="来信列表暂时没有连上本地服务"
-              description={error}
-            />
-          ) : null}
+          {error ? <PageState variant="error" title="暂时无法查看来信" description={error} /> : null}
           {!loading && !error && cards.length === 0 ? (
             <PageState
-              title="现在还没有家人会话"
+              title="现在还没有来信"
               description="等家人发来第一条问候后，这里就会慢慢有内容了。"
             />
           ) : null}
@@ -90,10 +84,10 @@ export function ElderContactsPage() {
                   <strong>
                     {card.name}
                     {card.conversationType === 'AI_ASSISTANT' ? (
-                      <span className="status-pill status-pill--ai">AI助手</span>
+                      <span className="status-pill status-pill--ai">语音助手</span>
                     ) : null}
                   </strong>
-                  <p>{card.primaryMessage?.preview ?? '暂无内容'}</p>
+                  <p>{card.primaryMessage?.preview ?? '暂时还没有新内容'}</p>
                 </div>
               </div>
               <div className="list-row__meta">

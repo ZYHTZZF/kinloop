@@ -11,15 +11,41 @@ import {
 } from '../../app/onboardingStorage'
 
 const roleCards: Array<{ id: OnboardingRole; title: string; tags: string[] }> = [
-  { id: 'elder', title: '我是长辈', tags: ['语音优先', '大字操作', '陪伴视角'] },
-  { id: 'family', title: '我是家人', tags: ['状态关注', '消息协作', '日常跟进'] },
+  { id: 'elder', title: '我是长辈', tags: ['语音优先', '大字更清楚', '陪伴更简单'] },
+  { id: 'family', title: '我是家人', tags: ['关注状态', '随时聊天', '日常跟进'] },
   { id: 'caregiver', title: '我是照护者', tags: ['协同照护', '任务分工', '成员协作'] },
 ]
 
 const familyModeCards: Array<{ id: OnboardingFamilyMode; title: string; description: string }> = [
-  { id: 'create', title: '创建家庭', description: '我是第一个成员，先创建一个新的家庭空间。' },
-  { id: 'join', title: '加入家庭', description: '我已经拿到邀请码，直接加入现有家庭。' },
+  { id: 'create', title: '创建家庭', description: '我是第一个加入的人，先创建一个新的家庭空间。' },
+  { id: 'join', title: '加入家庭', description: '我已经拿到家庭加入码，直接加入现有家庭。' },
 ]
+
+function toFriendlyError(error: unknown, fallback: string) {
+  if (!(error instanceof Error) || !error.message.trim()) {
+    return fallback
+  }
+
+  const message = error.message
+
+  if (/network|fetch|failed to fetch|timeout|ws|socket/i.test(message)) {
+    return '网络有点不稳定，请稍后再试。'
+  }
+
+  if (/code|验证码/i.test(message)) {
+    return '验证码有误或已过期，请重新获取。'
+  }
+
+  if (/password|密码/i.test(message)) {
+    return '密码不正确，请重新输入。'
+  }
+
+  if (/email|邮箱/i.test(message)) {
+    return '邮箱格式或状态有误，请检查后重试。'
+  }
+
+  return fallback
+}
 
 export function OnboardingPage() {
   const navigate = useNavigate()
@@ -74,12 +100,10 @@ export function OnboardingPage() {
       const result = await sendAuthCode(email.trim(), mode === 'forgot' ? 'reset_password' : 'register')
       if (result.devCode) {
         setCode(result.devCode)
-        setNotice(`开发模式验证码：${result.devCode}`, '')
-      } else {
-        setNotice('验证码已发送，请查收邮箱。', '')
       }
+      setNotice('验证码已发送，请查看邮箱并填写。', '')
     } catch (sendError) {
-      setNotice('', sendError instanceof Error ? sendError.message : '验证码发送失败。')
+      setNotice('', toFriendlyError(sendError, '验证码发送失败，请稍后再试。'))
     } finally {
       setLoading(false)
     }
@@ -98,7 +122,7 @@ export function OnboardingPage() {
       saveAuthSession(session)
       navigate(nextPath || session.homePath || getPreferredHomePath(), { replace: true })
     } catch (loginError) {
-      setNotice('', loginError instanceof Error ? loginError.message : '登录失败。')
+      setNotice('', toFriendlyError(loginError, '登录失败，请检查后重试。'))
     } finally {
       setLoading(false)
     }
@@ -106,7 +130,7 @@ export function OnboardingPage() {
 
   async function handleRegister() {
     if (!displayName.trim()) {
-      setNotice('', '请填写昵称。')
+      setNotice('', '请填写称呼。')
       return
     }
     if (!email.trim() || !code.trim()) {
@@ -122,11 +146,11 @@ export function OnboardingPage() {
       return
     }
     if (familyMode === 'create' && !familyName.trim()) {
-      setNotice('', '创建家庭时请填写家庭名称。')
+      setNotice('', '请填写家庭名称。')
       return
     }
     if (familyMode === 'join' && !familyCode.trim()) {
-      setNotice('', '加入家庭时请输入家庭邀请码。')
+      setNotice('', '请输入家庭加入码。')
       return
     }
 
@@ -147,7 +171,7 @@ export function OnboardingPage() {
       saveAuthSession(session)
       navigate(nextPath || session.homePath || getPreferredHomePath(), { replace: true })
     } catch (registerError) {
-      setNotice('', registerError instanceof Error ? registerError.message : '注册失败。')
+      setNotice('', toFriendlyError(registerError, '注册失败，请稍后再试。'))
     } finally {
       setLoading(false)
     }
@@ -178,7 +202,7 @@ export function OnboardingPage() {
       saveAuthSession(session)
       navigate(nextPath || session.homePath || getPreferredHomePath(), { replace: true })
     } catch (resetError) {
-      setNotice('', resetError instanceof Error ? resetError.message : '重置密码失败。')
+      setNotice('', toFriendlyError(resetError, '重置密码失败，请稍后再试。'))
     } finally {
       setLoading(false)
     }
@@ -191,13 +215,14 @@ export function OnboardingPage() {
         <div className="welcome-card__intro">
           <span className="welcome-kicker">Kinloop</span>
           <h1>欢迎来到 Kinloop</h1>
+          <p>把家人的问候、回忆和照应，都放进一个更容易使用的空间里。</p>
         </div>
 
         <section className="welcome-panel">
           <div className="welcome-panel__header">
             <div>
               <span className="welcome-kicker">账号</span>
-              <h2>{mode === 'login' ? '登录 Kinloop' : mode === 'register' ? '创建账号并绑定家庭' : '找回密码'}</h2>
+              <h2>{mode === 'login' ? '登录账号' : mode === 'register' ? '创建账号并加入家庭' : '找回密码'}</h2>
             </div>
             <div className="welcome-tabs">
               <button className={mode === 'login' ? 'is-active' : ''} type="button" onClick={() => setMode('login')}>
@@ -231,7 +256,7 @@ export function OnboardingPage() {
               <label className="welcome-field">
                 <span>邮箱验证码</span>
                 <div className="welcome-inline">
-                  <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码" />
+                  <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="输入验证码" />
                   <button className="welcome-secondary" type="button" onClick={handleSendCode} disabled={loading}>
                     发送验证码
                   </button>
@@ -248,7 +273,7 @@ export function OnboardingPage() {
             <>
               <div className="welcome-form-grid">
                 <label className="welcome-field">
-                  <span>昵称</span>
+                  <span>称呼</span>
                   <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="例如 王阿姨 / 大女儿" />
                 </label>
                 <label className="welcome-field">
@@ -292,7 +317,7 @@ export function OnboardingPage() {
 
               <div className="family-binding-grid">
                 <article className="family-binding-card">
-                  <strong>{familyMode === 'create' ? '创建新的家庭空间' : '输入现有家庭邀请码'}</strong>
+                  <strong>{familyMode === 'create' ? '创建新的家庭空间' : '输入家庭加入码'}</strong>
                   <p>{familyModeCards.find((item) => item.id === familyMode)?.description}</p>
                   {familyMode === 'create' ? (
                     <label className="welcome-field">
@@ -301,7 +326,7 @@ export function OnboardingPage() {
                     </label>
                   ) : (
                     <label className="welcome-field">
-                      <span>家庭邀请码</span>
+                      <span>家庭加入码</span>
                       <input value={familyCode} onChange={(event) => setFamilyCode(event.target.value)} placeholder="例如 KIN8A3P2" />
                     </label>
                   )}
@@ -309,9 +334,9 @@ export function OnboardingPage() {
 
                 <article className="family-binding-card family-binding-card--directory">
                   <span className="welcome-kicker">说明</span>
-                  <strong>注册成功后会自动进入你所属的端侧。</strong>
-                  <p>长辈账号只能进入长辈端，家人和照护者账号只能进入家属端，不能再随意切换。</p>
-                  <p>开发环境下如果邮件发送失败，系统会直接返回验证码，方便你们先联调整体流程。</p>
+                  <strong>注册完成后，会自动进入适合你的首页。</strong>
+                  <p>长辈账号会进入长辈端，家人和照护者会进入家属端。</p>
+                  <p>如果一时没收到验证码，可以稍等片刻后重新发送。</p>
                 </article>
               </div>
             </>

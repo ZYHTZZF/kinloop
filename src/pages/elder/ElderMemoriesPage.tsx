@@ -19,18 +19,15 @@ export function ElderMemoriesPage() {
 
     async function load() {
       try {
-        const [nextMemories, nextMembers] = await Promise.all([
-          listMemories(),
-          listMembers(),
-        ])
+        const [nextMemories, nextMembers] = await Promise.all([listMemories(), listMembers()])
         if (!cancelled) {
           setMemories(nextMemories)
           setMembers(nextMembers)
           setError('')
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载回忆失败')
+          setError('回忆内容暂时没有刷新出来，请稍后再试。')
         }
       } finally {
         if (!cancelled) {
@@ -62,23 +59,12 @@ export function ElderMemoriesPage() {
         {voiceResult ? <p className="state-note">{voiceResult.promptTitle}</p> : null}
 
         <div className="memory-timeline">
-          {loading ? (
-            <PageState
-              title="正在翻出已经记下来的片段"
-              description="稍等一下，我把最近被留住的照片、语音和一句话慢慢铺开。"
-            />
-          ) : null}
-          {error ? (
-            <PageState
-              variant="error"
-              title="回忆时间线暂时没有连上本地服务"
-              description={error}
-            />
-          ) : null}
+          {loading ? <PageState title="正在翻看回忆" description="稍等一下，我把最近留下来的内容慢慢铺开。" /> : null}
+          {error ? <PageState variant="error" title="暂时无法查看回忆" description={error} /> : null}
           {!loading && !error && memories.length === 0 ? (
             <PageState
               title="回忆现在还是空的"
-              description="等你和家人把某一句话、某张照片记下来，这里就会慢慢长出来。"
+              description="等你和家人把想留住的话或照片记下来，这里就会慢慢长出来。"
             />
           ) : null}
 
@@ -89,10 +75,10 @@ export function ElderMemoriesPage() {
                 <span>由 {resolveMemberName(memory.addedByMemberId, members)} 加入</span>
               </div>
               <h3>{memory.title ?? '未命名回忆'}</h3>
-              <p>{memory.description ?? '暂无描述'}</p>
+              <p>{memory.description ?? '暂时还没有说明'}</p>
               {memory.mediaUrl ? <div className="memory-card__media">{memory.mediaUrl}</div> : null}
               <div className="inline-actions">
-                <span className="status-pill">{memory.sourceMsgId ? '来自聊天' : '来自 AI 帮忙记下'}</span>
+                <span className="status-pill">{memory.sourceMsgId ? '来自聊天' : '后来补充'}</span>
               </div>
             </article>
           ))}

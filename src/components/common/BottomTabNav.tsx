@@ -14,9 +14,7 @@ export function BottomTabNav({ items }: BottomTabNavProps) {
         <NavLink
           key={item.to}
           to={item.to}
-          className={({ isActive }) =>
-            `bottom-tab-nav__item${isActive ? ' is-active' : ''}`
-          }
+          className={({ isActive }) => `bottom-tab-nav__item${isActive ? ' is-active' : ''}`}
         >
           {item.label}
         </NavLink>

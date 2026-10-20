@@ -24,9 +24,9 @@ export function ElderHelpPage() {
           setAlerts(nextAlerts)
           setError('')
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载求助链路失败')
+          setError('暂时还没有更新到最新求助状态，请稍后再试。')
         }
       }
     }
@@ -43,8 +43,8 @@ export function ElderHelpPage() {
       <section className="surface-card surface-card--help">
         <div className="section-heading">
           <div>
-            <p className="surface-card__eyebrow">紧急求助</p>
-            <h2>如果你现在需要人，先点这里。</h2>
+            <p className="surface-card__eyebrow">求助</p>
+            <h2>如果你现在需要人帮忙，先点这里。</h2>
           </div>
           <Link className="ghost-action ghost-action--link" to="/elder/home">
             回到首页
@@ -79,37 +79,37 @@ export function ElderHelpPage() {
             onClick={() => void handleCreateUnwell()}
           >
             <strong>我现在不舒服</strong>
-            <span>会提醒家人尽快关注，但不会直接升级成 SOS。</span>
+            <span>会提醒家人尽快关注你。</span>
           </button>
         </div>
 
-        {error ? <p className="state-note state-note--error">本地 API 未连接：{error}</p> : null}
+        {error ? <p className="state-note state-note--error">{error}</p> : null}
         {feedback ? <p className="state-note">{feedback}</p> : null}
 
         <div className="split-grid">
           <article className="support-card">
-            <p className="surface-card__eyebrow">当前帮助链路</p>
+            <p className="surface-card__eyebrow">当前进展</p>
             <div className="list-stack">
               {alerts.length > 0
                 ? alerts.map((alert) => (
                     <div className="signal-row" key={alert.id}>
-                      <strong>{alert.alertType === 'SOS' ? 'SOS 紧急求助' : '身体不适 / 需要联系'}</strong>
+                      <strong>{alert.alertType === 'SOS' ? '紧急求助' : '需要尽快联系'}</strong>
                       <p>{toAlertDescription(alert)}</p>
                       <small>{formatShortDateTime(alert.triggeredAt)}</small>
                     </div>
                   ))
                 : helpRequests.slice(0, 3).map((request) => (
-                <div className="signal-row" key={request.id}>
-                  <strong>{request.title}</strong>
-                  <p>{request.summary}</p>
-                  <small>{request.lastUpdate}</small>
-                </div>
-              ))}
+                    <div className="signal-row" key={request.id}>
+                      <strong>{request.title}</strong>
+                      <p>{request.summary}</p>
+                      <small>{request.lastUpdate}</small>
+                    </div>
+                  ))}
             </div>
           </article>
 
           <article className="support-card">
-            <p className="surface-card__eyebrow">升级原则</p>
+            <p className="surface-card__eyebrow">处理方式</p>
             <div className="list-stack">
               {escalationSteps.map((step) => (
                 <div className="signal-row" key={step.label}>
@@ -126,15 +126,15 @@ export function ElderHelpPage() {
 
   async function handleCreateFromAction(label: string) {
     if (label === '紧急升级') {
-      await createAlertForType('SOS', 'Button', '已触发 SOS 求助，家人端会立即收到高优先级任务。')
+      await createAlertForType('SOS', 'Button', '已经通知家人，会优先处理这次求助。')
       return
     }
 
-    await createAlertForType('UNWELL', 'Button', `已记录“${label}”请求，家人端会尽快接手。`)
+    await createAlertForType('UNWELL', 'Button', `已经记下“${label}”，家人会尽快联系你。`)
   }
 
   async function handleCreateUnwell() {
-    await createAlertForType('UNWELL', 'Button', '已记录“我现在不舒服”，家人端会尽快接手。')
+    await createAlertForType('UNWELL', 'Button', '已经提醒家人，请他们尽快联系你。')
   }
 
   async function createAlertForType(alertType: 'SOS' | 'UNWELL', triggerSource: 'Button' | 'Voice', successText: string) {
@@ -150,8 +150,8 @@ export function ElderHelpPage() {
       setAlerts(nextAlerts)
       setFeedback(successText)
       setError('')
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : '触发求助失败')
+    } catch {
+      setError('这次求助暂时没有发出去，请再试一次。')
     } finally {
       setCreatingType(null)
     }
@@ -160,12 +160,12 @@ export function ElderHelpPage() {
 
 function toAlertDescription(alert: Alert) {
   if (alert.status === 'HANDLING') {
-    return '已经有人接手处理。'
+    return '已经有人在跟进了。'
   }
 
   if (alert.status === 'TRIGGERED') {
-    return '刚刚触发，等待家人接单。'
+    return '刚刚发出，正在等家人查看。'
   }
 
-  return alert.status
+  return '家人已收到提醒。'
 }

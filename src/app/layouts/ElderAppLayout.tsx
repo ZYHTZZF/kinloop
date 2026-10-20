@@ -58,11 +58,11 @@ export function ElderAppLayout() {
           <p className="elder-header__advice">{headerSummary.advice}</p>
         </div>
         <div className="app-shell__header-actions">
-          <Link className="ghost-action ghost-action--link" to="/welcome">
-            账号设置
-          </Link>
           <Link className="ghost-action ghost-action--link" to="/elder/home">
             回到首页
+          </Link>
+          <Link className="ghost-action ghost-action--link" to="/welcome">
+            账号设置
           </Link>
           <button
             className="ghost-action ghost-action--link"
@@ -83,7 +83,7 @@ export function ElderAppLayout() {
 
       <ElderVoiceAssistant />
       <Link className="manual-help-link" to="/elder/help">
-        紧急求助
+        需要帮助
       </Link>
     </div>
   )

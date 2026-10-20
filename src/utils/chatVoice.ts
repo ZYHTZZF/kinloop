@@ -20,7 +20,7 @@ const AUDIO_MIME_TYPES = [
 
 export async function startVoiceRecording(): Promise<VoiceRecordingSession> {
   if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error('当前浏览器不支持录音')
+    throw new Error('当前设备暂时无法录音，请稍后再试。')
   }
 
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -58,7 +58,7 @@ export async function startVoiceRecording(): Promise<VoiceRecordingSession> {
 
   if (typeof MediaRecorder === 'undefined') {
     stream.getTracks().forEach((track) => track.stop())
-    throw new Error('当前浏览器不支持录音')
+    throw new Error('当前设备暂时无法录音，请稍后再试。')
   }
 
   const mimeType = AUDIO_MIME_TYPES.find((item) => MediaRecorder.isTypeSupported(item)) ?? ''

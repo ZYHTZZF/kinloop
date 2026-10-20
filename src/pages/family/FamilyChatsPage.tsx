@@ -26,9 +26,9 @@ export function FamilyChatsPage() {
           setCards(nextCards)
           setError('')
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载聊天列表失败')
+          setError('聊天列表暂时没有更新出来，请稍后再试。')
         }
       } finally {
         if (!cancelled) {
@@ -50,19 +50,15 @@ export function FamilyChatsPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">聊天</p>
-            <h2>这里展示家人视角的真实会话列表。</h2>
+            <h2>最近的对话都在这里，先从最需要回复的开始。</h2>
           </div>
         </div>
 
         <div className="list-stack">
-          {loading ? (
-            <PageState title="正在同步会话" description="我先把长辈最近的消息整理出来。" />
-          ) : null}
-          {error ? (
-            <PageState variant="error" title="聊天列表暂时没连上本地服务" description={error} />
-          ) : null}
+          {loading ? <PageState title="正在同步聊天列表" description="稍等一下，我把最近的消息整理出来。" /> : null}
+          {error ? <PageState variant="error" title="暂时无法查看聊天列表" description={error} /> : null}
           {!loading && !error && cards.length === 0 ? (
-            <PageState title="现在还没有对话" description="等第一条消息发出之后，这里就会出现会话记录。" />
+            <PageState title="现在还没有对话" description="等第一条消息发出后，这里就会出现聊天记录。" />
           ) : null}
 
           {cards.map((card) => (
@@ -71,12 +67,12 @@ export function FamilyChatsPage() {
                 <span className="avatar-badge">{card.avatar}</span>
                 <div>
                   <strong>{card.elderDisplayName}</strong>
-                  <p>{card.primaryMessage?.preview ?? '暂无消息'}</p>
+                  <p>{card.primaryMessage?.preview ?? '暂时还没有新内容'}</p>
                 </div>
               </div>
               <div className="list-row__meta">
                 <span>{formatClock(card.lastActivityAt)}</span>
-                <span className="status-pill">{card.unreadCount > 0 ? `未读 ${card.unreadCount}` : '已同步'}</span>
+                <span className="status-pill">{card.unreadCount > 0 ? `未读 ${card.unreadCount}` : '已看过'}</span>
               </div>
             </Link>
           ))}

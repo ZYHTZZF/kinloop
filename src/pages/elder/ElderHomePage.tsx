@@ -15,12 +15,11 @@ type FilmCardItem = {
   detail: string
   footer: string
   to?: string
-  isMock?: boolean
 }
 
-const mockFilmCards: FilmCardItem[] = [
+const fallbackCards: FilmCardItem[] = [
   {
-    id: 'mock_daughter',
+    id: 'fallback_daughter',
     avatar: '女',
     name: '大女儿',
     timeLabel: '刚刚',
@@ -31,7 +30,7 @@ const mockFilmCards: FilmCardItem[] = [
     footer: '点开继续看照片和语音',
   },
   {
-    id: 'mock_son',
+    id: 'fallback_son',
     avatar: '子',
     name: '小儿子',
     timeLabel: '15:20',
@@ -42,15 +41,15 @@ const mockFilmCards: FilmCardItem[] = [
     footer: '点开继续听这段语音',
   },
   {
-    id: 'mock_neighbor',
-    avatar: '王',
+    id: 'fallback_neighbor',
+    avatar: '友',
     name: '王阿姨',
     timeLabel: '昨天',
-    unreadLabel: '刚刚看过',
+    unreadLabel: '刚看过',
     previewType: 'text',
     title: '晚上一起散步吗',
     detail: '如果天不下雨，晚上我们一起下楼走一走。',
-    footer: '点开继续聊聊',
+    footer: '点开继续聊聊天',
   },
 ]
 
@@ -58,7 +57,7 @@ export function ElderHomePage() {
   const [cards, setCards] = useState<ConversationCard[]>(() => readCachedConversationCards('elder'))
   const [loading, setLoading] = useState(() => readCachedConversationCards('elder').length === 0)
   const [error, setError] = useState('')
-  const [activeMockCardId, setActiveMockCardId] = useState(mockFilmCards[0]?.id ?? '')
+  const [activeFilmIndex, setActiveFilmIndex] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -76,9 +75,9 @@ export function ElderHomePage() {
           setCards(nextCards)
           setError('')
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载会话带失败')
+          setError('暂时无法同步最新消息，请稍后再试。')
         }
       } finally {
         if (!cancelled) {
@@ -94,26 +93,24 @@ export function ElderHomePage() {
     }
   }, [])
 
-  const usingMockCards = !loading && Boolean(error)
+  const usingFallbackCards = !loading && Boolean(error)
   const familyCards = cards.filter((card) => card.conversationType !== 'AI_ASSISTANT')
-  const filmCards = usingMockCards ? mockFilmCards : familyCards.slice(0, 5).map(mapConversationToFilmCard)
-  const [activeFilmIndex, setActiveFilmIndex] = useState(0)
-  const activeMockCard = mockFilmCards.find((card) => card.id === activeMockCardId) ?? mockFilmCards[0]
+  const filmCards = usingFallbackCards ? fallbackCards : familyCards.slice(0, 5).map(mapConversationToFilmCard)
   const activeFilmCard = filmCards[activeFilmIndex] ?? filmCards[0]
   const filmHeadline = loading ? '家人刚刚给你发来了新消息' : getFilmHeadline(activeFilmCard)
 
   useEffect(() => {
     setActiveFilmIndex(0)
-  }, [usingMockCards, cards.length])
+  }, [usingFallbackCards, cards.length])
 
   return (
     <section className="screen screen--elder-home">
       <section className="surface-card surface-card--film-strip">
         <div className="section-heading">
           <div>
-            <p className="surface-card__eyebrow">最近消息</p>
+            <p className="surface-card__eyebrow">最近来信</p>
             <h2>{filmHeadline}</h2>
-            <p className="elder-home__film-hint">点开就能接着看。</p>
+            <p className="elder-home__film-hint">轻轻点开，就能继续看和继续聊。</p>
           </div>
           <Link className="ghost-action ghost-action--link" to="/elder/inbox">
             查看全部
@@ -124,123 +121,119 @@ export function ElderHomePage() {
           <button
             className="elder-film-control elder-film-control--prev"
             type="button"
-            aria-label="上一张消息"
+            aria-label="上一条消息"
             disabled={filmCards.length <= 1}
             onClick={() => shiftActiveFilm(-1, filmCards.length, setActiveFilmIndex)}
           >
             ‹
           </button>
 
-          <div className="elder-film-strip" role="list" aria-label="家人来信胶片">
-          {loading ? <p className="state-note">正在加载家人的来信…</p> : null}
+          <div className="elder-film-strip" role="list" aria-label="家人来信卡片">
+            {loading ? <p className="state-note">正在整理家人最近发来的内容…</p> : null}
 
-          {!loading || usingMockCards
-            ? filmCards.map((card, index) => {
-                const relativeOffset = getRelativeOffset(index, activeFilmIndex, filmCards.length)
+            {!loading || usingFallbackCards
+              ? filmCards.map((card, index) => {
+                  const relativeOffset = getRelativeOffset(index, activeFilmIndex, filmCards.length)
 
-                if (Math.abs(relativeOffset) > 2) {
-                  return null
-                }
+                  if (Math.abs(relativeOffset) > 2) {
+                    return null
+                  }
 
-                const className = [
-                  'elder-film-card',
-                  card.isMock ? 'elder-film-card--mock' : '',
-                  relativeOffset === 0 ? 'is-active' : '',
-                  relativeOffset === -1 ? 'is-left' : '',
-                  relativeOffset === 1 ? 'is-right' : '',
-                  relativeOffset === -2 ? 'is-far-left' : '',
-                  relativeOffset === 2 ? 'is-far-right' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')
+                  const className = [
+                    'elder-film-card',
+                    relativeOffset === 0 ? 'is-active' : '',
+                    relativeOffset === -1 ? 'is-left' : '',
+                    relativeOffset === 1 ? 'is-right' : '',
+                    relativeOffset === -2 ? 'is-far-left' : '',
+                    relativeOffset === 2 ? 'is-far-right' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
 
-                const inner = (
-                  <>
-                  <div className="elder-film-card__sprocket elder-film-card__sprocket--left" aria-hidden="true" />
-                  <div className="elder-film-card__sprocket elder-film-card__sprocket--right" aria-hidden="true" />
+                  const inner = (
+                    <>
+                      <div className="elder-film-card__sprocket elder-film-card__sprocket--left" aria-hidden="true" />
+                      <div className="elder-film-card__sprocket elder-film-card__sprocket--right" aria-hidden="true" />
 
-                  <div className="elder-film-card__header">
-                    <div className="avatar-link">
-                      <span className="avatar-badge">{card.avatar}</span>
-                      <span>
-                        <strong>{card.name}</strong>
-                        <small>{card.timeLabel}</small>
-                      </span>
-                    </div>
-                    <span className="status-pill">{card.unreadLabel}</span>
-                  </div>
-
-                  <div className="elder-film-card__body">
-                    {card.previewType === 'image' ? (
-                      <div className="content-preview content-preview--image">
-                        <span>{card.title}</span>
+                      <div className="elder-film-card__header">
+                        <div className="avatar-link">
+                          <span className="avatar-badge">{card.avatar}</span>
+                          <span>
+                            <strong>{card.name}</strong>
+                            <small>{card.timeLabel}</small>
+                          </span>
+                        </div>
+                        <span className="status-pill">{card.unreadLabel}</span>
                       </div>
-                    ) : null}
 
-                    {card.previewType === 'voice' ? (
-                      <div className="content-preview content-preview--voice">
-                        <span>▶</span>
-                        <p>{card.detail}</p>
+                      <div className="elder-film-card__body">
+                        {card.previewType === 'image' ? (
+                          <div className="content-preview content-preview--image">
+                            <span>{card.title}</span>
+                          </div>
+                        ) : null}
+
+                        {card.previewType === 'voice' ? (
+                          <div className="content-preview content-preview--voice">
+                            <span>▶</span>
+                            <p>{card.detail}</p>
+                          </div>
+                        ) : null}
+
+                        {card.previewType === 'text' ? (
+                          <div className="content-preview content-preview--text">
+                            <p>{card.detail}</p>
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
 
-                    {card.previewType === 'text' ? (
-                      <div className="content-preview content-preview--text">
-                        <p>{card.detail}</p>
-                      </div>
-                    ) : null}
-                  </div>
+                      <footer className="elder-film-card__footer">
+                        <span>{card.footer}</span>
+                        <strong className="elder-film-card__cta">
+                          {relativeOffset === 0 ? '点开继续看' : '点一下放大'}
+                        </strong>
+                      </footer>
+                    </>
+                  )
 
-                  <footer className="elder-film-card__footer">
-                    <span>{card.footer}</span>
-                    <strong className={card.isMock ? 'elder-film-card__cta elder-film-card__cta--mock' : 'elder-film-card__cta'}>
-                      {card.isMock ? '这是示例' : relativeOffset === 0 ? '点开继续看' : '点一下放大'}
-                    </strong>
-                  </footer>
-                  </>
-                )
+                  if (card.to) {
+                    return (
+                      <Link
+                        key={card.id}
+                        className={className}
+                        to={card.to}
+                        role="listitem"
+                        onClick={(event) => {
+                          if (relativeOffset !== 0) {
+                            event.preventDefault()
+                            setActiveFilmIndex(index)
+                          }
+                        }}
+                      >
+                        {inner}
+                      </Link>
+                    )
+                  }
 
-                if (card.to) {
                   return (
-                    <Link
+                    <button
                       key={card.id}
                       className={className}
-                      to={card.to}
+                      type="button"
                       role="listitem"
-                      onClick={(event) => {
-                        if (relativeOffset !== 0) {
-                          event.preventDefault()
-                          setActiveFilmIndex(index)
-                        }
-                      }}
+                      onClick={() => setActiveFilmIndex(index)}
                     >
                       {inner}
-                    </Link>
+                    </button>
                   )
-                }
-
-                return (
-                  <button
-                    key={card.id}
-                    className={className}
-                    type="button"
-                    role="listitem"
-                    onClick={() => {
-                      setActiveFilmIndex(index)
-                      setActiveMockCardId(card.id)
-                    }}
-                  >
-                    {inner}
-                  </button>
-                )
-              })
-            : null}
+                })
+              : null}
           </div>
 
           <button
             className="elder-film-control elder-film-control--next"
             type="button"
-            aria-label="下一张消息"
+            aria-label="下一条消息"
             disabled={filmCards.length <= 1}
             onClick={() => shiftActiveFilm(1, filmCards.length, setActiveFilmIndex)}
           >
@@ -248,22 +241,7 @@ export function ElderHomePage() {
           </button>
         </div>
 
-        {usingMockCards ? (
-          <div className="elder-film-preview">
-            <p className="state-note">
-              本地 API 暂时没有连上，现在先用示例胶片演示交互。
-            </p>
-            {activeMockCard ? (
-              <article className="elder-film-preview__card">
-                <div>
-                  <p className="surface-card__eyebrow">当前示例</p>
-                  <strong>{activeMockCard.name}</strong>
-                </div>
-                <p>{activeMockCard.detail}</p>
-              </article>
-            ) : null}
-          </div>
-        ) : null}
+        {usingFallbackCards ? <p className="state-note">现在先看看最近联系人，稍后再回来更新最新内容。</p> : null}
       </section>
     </section>
   )
@@ -275,7 +253,7 @@ function mapConversationToFilmCard(card: ConversationCard): FilmCardItem {
     avatar: card.avatar,
     name: card.name,
     timeLabel: formatClock(card.lastActivityAt),
-    unreadLabel: card.unreadCount > 0 ? `新消息 ${card.unreadCount}` : '刚刚看过',
+    unreadLabel: card.unreadCount > 0 ? `新消息 ${card.unreadCount}` : '刚看过',
     previewType: card.primaryMessage?.type ?? 'text',
     title: card.primaryMessage?.mediaLabel ?? card.primaryMessage?.preview ?? '家人刚刚发来一条消息',
     detail: card.primaryMessage?.preview ?? card.unreadSummary,
@@ -291,11 +269,11 @@ function getFilmHeadline(card?: FilmCardItem) {
 
   switch (card.previewType) {
     case 'image':
-      return `${card.name}给你发了新照片`
+      return `${card.name}给你发来了新照片`
     case 'voice':
-      return `${card.name}给你发来一段语音`
+      return `${card.name}给你发来了一段语音`
     case 'video':
-      return `${card.name}给你发来一段视频`
+      return `${card.name}给你发来了一段视频`
     default:
       return `${card.name}刚刚给你发来消息`
   }

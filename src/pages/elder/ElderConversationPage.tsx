@@ -259,7 +259,7 @@ export function ElderConversationPage() {
         await webrtcManager.handleIceCandidate(candidate)
       } else if (signal.type === 'reject') {
         if (isCallerRef.current) {
-          void logCallSystemMessage('Voice call rejected by remote user')
+          void logCallSystemMessage('对方暂时没有接听这次通话。')
         }
         setIsCallActive(false)
         setCallState('idle')
@@ -303,7 +303,7 @@ export function ElderConversationPage() {
             void syncConversation()
           })
         } else {
-          void logCallSystemMessage(`Voice call ended, duration: ${durationSecs}s`)
+          void logCallSystemMessage(`本次通话已结束，通话时长约 ${durationSecs} 秒。`)
         }
       }
     })
@@ -371,7 +371,7 @@ export function ElderConversationPage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load conversation')
+          setError(loadError instanceof Error ? loadError.message : '这段聊天暂时没有加载出来，请稍后再试。')
         }
       } finally {
         if (!cancelled) {
@@ -392,7 +392,7 @@ export function ElderConversationPage() {
     try {
       const allowed = await ensureCallMediaPermission(callType)
       if (!allowed) {
-        setError(callType === 'video' ? '请允许摄像头和麦克风权限后再接听视频通话' : '请允许麦克风权限后再接听语音通话')
+        setError(callType === 'video' ? '请先打开摄像头和麦克风权限，再接听视频通话。' : '请先打开麦克风权限，再接听语音通话。')
         setIsCallActive(false)
         setIsIncomingCall(false)
         setCallState('idle')
@@ -453,7 +453,7 @@ export function ElderConversationPage() {
     try {
       const allowed = await ensureCallMediaPermission('voice')
       if (!allowed) {
-        setError('请允许麦克风权限后再发起语音通话')
+        setError('请先打开麦克风权限，再发起语音通话。')
         return
       }
 
@@ -480,7 +480,7 @@ export function ElderConversationPage() {
     try {
       const allowed = await ensureCallMediaPermission('video')
       if (!allowed) {
-        setError('请允许摄像头和麦克风权限后再发起视频通话')
+        setError('请先打开摄像头和麦克风权限，再发起视频通话。')
         return
       }
 
@@ -542,14 +542,14 @@ export function ElderConversationPage() {
       <section className="surface-card">
         <header className="detail-header">
           <Link className="back-link" to="/elder/inbox">
-            Back
+            返回
           </Link>
           {conversation ? (
             <div className="detail-header__identity" style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span className="avatar-badge">{conversation.avatar}</span>
                 <div>
-                  <p className="surface-card__eyebrow">Chatting with</p>
+                  <p className="surface-card__eyebrow">正在聊天</p>
                   <h2>{conversation.name}</h2>
                 </div>
               </div>
@@ -563,8 +563,8 @@ export function ElderConversationPage() {
                   >
                     {markingRead ? '处理中...' : '一键已读'}
                   </button>
-                  <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Voice call">{'\u{1F4DE}'}</button>
-                  <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Video call">{'\u{1F4F9}'}</button>
+                  <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="语音通话">{'\u{1F4DE}'}</button>
+                  <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="视频通话">{'\u{1F4F9}'}</button>
                 </div>
               ) : null}
             </div>
@@ -573,7 +573,7 @@ export function ElderConversationPage() {
 
         {isCallActive && callType === 'voice' && (
           <VoiceCall
-            remoteUser={{ id: otherUserId ?? '', name: conversation?.name || 'Family', avatar: conversation?.avatar }}
+            remoteUser={{ id: otherUserId ?? '', name: conversation?.name || '家人', avatar: conversation?.avatar }}
             callState={callState}
             duration={callDuration}
             isIncoming={isIncomingCall}
@@ -590,7 +590,7 @@ export function ElderConversationPage() {
 
         {isCallActive && callType === 'video' && (
           <VideoCall
-            remoteUser={{ id: otherUserId ?? '', name: conversation?.name || 'Family', avatar: conversation?.avatar }}
+            remoteUser={{ id: otherUserId ?? '', name: conversation?.name || '家人', avatar: conversation?.avatar }}
             remoteStream={remoteCallStream}
             localStream={localCallStream}
             callState={callState}
@@ -609,15 +609,15 @@ export function ElderConversationPage() {
           />
         )}
 
-        {loading ? <PageState title="Loading conversation" description="Please wait..." /> : null}
-        {error ? <PageState variant="error" title="Conversation unavailable" description={error} /> : null}
+        {loading ? <PageState title="正在打开聊天" description="稍等一下，正在准备这段对话。" /> : null}
+        {error ? <PageState variant="error" title="暂时无法查看这段聊天" description={error} /> : null}
         {voiceResult ? <p className="state-note">{voiceResult.promptTitle}</p> : null}
         {memoryFeedback ? <p className="state-note">{memoryFeedback}</p> : null}
         {readFeedback ? <p className="state-note">{readFeedback}</p> : null}
 
         <div ref={messageListRef} className="message-list">
           {!loading && !error && messages.length === 0 ? (
-            <PageState title="No messages yet" description="Start with a short message." />
+            <PageState title="现在还没有聊天内容" description="先发一句问候，这里就会出现对话记录。" />
           ) : null}
 
           {messages.map((message) => {
@@ -627,7 +627,7 @@ export function ElderConversationPage() {
             const aiLogKind = null
             const messageText =
               (displayMessage.messageType !== 'Image' && displayMessage.messageType !== 'Voice' && displayMessage.messageType !== 'Video') || displayMessage.textContent
-                ? (displayMessage.textContent ?? displayMessage.transcript ?? 'Voice message')
+                ? (displayMessage.textContent ?? displayMessage.transcript ?? '语音消息')
                 : null
             const explainImageUrl = displayMessage.messageType === 'Image' ? displayMessage.mediaUrl ?? null : null
             const isIncomingMessage = displayMessage.senderType === 'Family'
@@ -646,7 +646,7 @@ export function ElderConversationPage() {
                 className={`message-bubble message-bubble--${isActionLog ? 'ai-log' : displayMessage.senderType === 'Elder' ? 'elder' : 'family'}${isActionLog && aiLogKind ? ` message-bubble--ai-log-${aiLogKind}` : ''}`}
               >
                 <span className="message-bubble__sender">
-                  {getSenderLabel(displayMessage, conversation?.name ?? 'Family', isAiAssistantConversation)}
+                  {getSenderLabel(displayMessage, conversation?.name ?? '家人', isAiAssistantConversation)}
                   {isActionLog && aiLogKind ? (
                     <span className={`status-pill status-pill--ai-log status-pill--ai-log-${aiLogKind}`}>
                       {getAiLogKindLabel(aiLogKind)}
@@ -708,10 +708,10 @@ export function ElderConversationPage() {
                       disabled={savingMemoryId === displayMessage.id}
                       onClick={() => void handleAddMemory(displayMessage)}
                     >
-                      {savingMemoryId === displayMessage.id ? 'Saving...' : 'Add to memories'}
+                      {savingMemoryId === displayMessage.id ? '保存中...' : '加入回忆'}
                     </button>
                   ) : null}
-                  {displayMessage.aiDrafted && !isAiAssistantConversation ? <span className="status-pill">AI drafted</span> : null}
+                  {displayMessage.aiDrafted && !isAiAssistantConversation ? <span className="status-pill">已帮你整理</span> : null}
                 </footer>
               </article>
               <MessageAuxArea message={displayMessage} isMine={displayMessage.senderType === 'Elder'} />
@@ -777,12 +777,12 @@ export function ElderConversationPage() {
             onDragLeave={handleComposerDragLeave}
             onDrop={handleComposerDrop}
           >
-            <p className="surface-card__eyebrow">AI draft confirm</p>
-            <strong>Send to {conversation.name}:</strong>
+            <p className="surface-card__eyebrow">发送前确认</p>
+            <strong>发给 {conversation.name}：</strong>
             <div className="composer-input-row">
               <input
                 ref={draftInputRef}
-                aria-label="AI draft"
+                aria-label="待发送内容"
                 value={draftText}
                 onChange={(event) => setDraftText(event.target.value)}
               />
@@ -923,10 +923,10 @@ export function ElderConversationPage() {
                 disabled={savingAiMemory || !draftText.trim()}
                 onClick={() => void handleAddAiMemory()}
               >
-                {savingAiMemory ? 'Saving...' : 'Save as memory'}
+                  {savingAiMemory ? '保存中...' : '加入回忆'}
               </button>
               <button className="primary-action" type="submit" disabled={sending || isRecordingVoice || !draftText.trim()}>
-                {sending ? 'Sending...' : 'Send'}
+                {sending ? '发送中...' : '发送'}
               </button>
               <button
                 className={`ghost-action voice-action ${isRecordingVoice ? 'voice-action--recording' : ''}`}
@@ -940,8 +940,8 @@ export function ElderConversationPage() {
           </form>
         ) : conversation ? (
           <section className="state-note">
-            <strong>AI助手会话</strong>
-            <p>请使用底部语音按钮与 AI 互动，这里会自动记录“理解-执行-结果”的完整轨迹。</p>
+            <strong>语音助手对话</strong>
+            <p>请使用底部语音按钮继续说话，我会帮你把过程记下来。</p>
           </section>
         ) : null}
       </section>
@@ -974,7 +974,7 @@ export function ElderConversationPage() {
         speakActionNotice(`已发送给${conversation.name}：${sentText}`)
         setError('')
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Failed to send AI draft')
+      setError(submitError instanceof Error ? submitError.message : '这条消息暂时没有发出去，请稍后再试。')
     } finally {
       setSending(false)
     }
@@ -994,7 +994,7 @@ export function ElderConversationPage() {
       setError('')
       const allowed = await ensureMicrophoneCapturePermission()
       if (!allowed) {
-        setError('麦克风权限未开启，请在系统或浏览器设置里允许录音')
+        setError('请先打开麦克风权限，再试一次。')
         return
       }
 
@@ -1175,10 +1175,10 @@ export function ElderConversationPage() {
         description: message.textContent ?? message.transcript ?? 'A meaningful message',
         mediaUrl: message.mediaUrl,
       })
-      setMemoryFeedback('Saved to memories')
+      setMemoryFeedback('已经加入回忆。')
       setError('')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Failed to save memory')
+      setError(saveError instanceof Error ? saveError.message : '暂时没有加入回忆，请稍后再试。')
     } finally {
       setSavingMemoryId(null)
     }
@@ -1197,14 +1197,14 @@ export function ElderConversationPage() {
         sourceMsgId: null,
         addedByMemberId: currentUserId ?? conversation?.elderMemberId ?? 'member_elder',
         memoryType: 'Text',
-        title: 'AI draft memory',
+        title: '想留住的一句话',
         description: draftText.trim(),
         mediaUrl: null,
       })
-      setMemoryFeedback('AI draft saved to memories')
+      setMemoryFeedback('已经加入回忆。')
       setError('')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Failed to save AI memory')
+      setError(saveError instanceof Error ? saveError.message : '暂时没有加入回忆，请稍后再试。')
     } finally {
       setSavingAiMemory(false)
     }
@@ -1356,7 +1356,7 @@ export function ElderConversationPage() {
 
   async function handleMarkConversationRead() {
     if (!conversation || unreadCount === 0) {
-      setReadFeedback('现在没有新的未读消息')
+      setReadFeedback('现在没有新的未读消息。')
       return
     }
 
@@ -1386,10 +1386,10 @@ export function ElderConversationPage() {
             }
           : prev
       ))
-      setReadFeedback(result.updatedCount > 0 ? '已全部标为已读' : '现在没有新的未读消息')
+      setReadFeedback(result.updatedCount > 0 ? '已经帮你标为已读。' : '现在没有新的未读消息。')
       setError('')
     } catch (readError) {
-      setError(readError instanceof Error ? readError.message : '一键已读失败')
+      setError(readError instanceof Error ? readError.message : '暂时没能完成已读处理，请稍后再试。')
     } finally {
       setMarkingRead(false)
     }
@@ -1436,7 +1436,7 @@ function isCallEndedPayload(data: unknown): data is { duration?: number } {
 
 function getSenderLabel(message: Message, familyName: string, isAiAssistantConversation?: boolean) {
   if (isAiAssistantConversation && message.senderType === 'System') {
-    return 'AI Assistant'
+    return '语音助手'
   }
 
   if (message.senderType === 'Family') {
@@ -1504,12 +1504,12 @@ function toMemoryType(messageType: string) {
 
 function buildFamilyMemoryTitle(familyName: string, message: Message) {
   if (message.messageType === 'Image') {
-    return `${familyName} image message`
+    return `${familyName} 发来的照片`
   }
 
   if (message.messageType === 'Voice') {
-    return `${familyName} voice message`
+    return `${familyName} 发来的语音`
   }
 
-  return `${familyName} text message`
+  return `${familyName} 发来的话`
 }

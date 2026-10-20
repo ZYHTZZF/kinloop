@@ -179,7 +179,7 @@ export function ElderVoiceAssistant() {
       setAiConversationId(nextConversations.find((conversation) => conversation.conversationType === 'AI_ASSISTANT')?.id ?? null)
       setError('')
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '暂时没连上本地服务')
+      setError(loadError instanceof Error ? loadError.message : '暂时无法准备语音助手，请稍后再试。')
     }
   }
 
@@ -384,7 +384,7 @@ export function ElderVoiceAssistant() {
     const supportsSpeechRecognition = await isSpeechRecognitionSupported()
 
     if (!supportsSpeechRecognition) {
-      setError('当前环境不支持语音识别，请安装语音服务或改用支持的浏览器/系统')
+      setError('当前暂时无法使用语音功能，请稍后再试。')
       return false
     }
 
@@ -402,7 +402,7 @@ export function ElderVoiceAssistant() {
           }
         },
         onError: (message) => {
-          setAssistantNotice(`语音识别暂时不可用：${message}`)
+          setAssistantNotice(`这次没有听清：${message}`)
         },
         onListeningStateChange: (listening) => {
           if (!listening) {
@@ -412,11 +412,11 @@ export function ElderVoiceAssistant() {
       })
 
       if (!speechSessionRef.current) {
-        setError('语音识别启动失败，请检查系统语音服务和权限设置')
+        setError('语音功能暂时没能打开，请稍后再试。')
         return false
       }
 
-      setAssistantNotice('已开启语音识别，请直接说出你想表达的内容。')
+      setAssistantNotice('已经准备好了，你可以直接说。')
       setError('')
       return true
     } catch (recordError) {
@@ -433,7 +433,7 @@ export function ElderVoiceAssistant() {
       setIsRecording(false)
       if (shouldTranscribe) {
         if (spokenText.trim()) {
-          setAssistantNotice('已完成语音识别，请确认文字是否正确。')
+          setAssistantNotice('已经帮你记下来了，看看这句话对不对。')
           setError('')
         } else {
           setError('没有识别到有效语音，请再说一次')
@@ -449,7 +449,7 @@ export function ElderVoiceAssistant() {
       return inferred
     } catch (intentError) {
       console.warn('[Voice Assistant] AI intent fallback to local rules:', intentError)
-      setAssistantNotice('服务端 AI 暂时不可用，已切换到本地规则继续处理。')
+      setAssistantNotice('我先用当前内容继续帮你处理。')
       return classifyElderSpeech(input, members, conversations)
     }
   }
@@ -497,7 +497,7 @@ export function ElderVoiceAssistant() {
 
     const ready = await ensureSpeechRecognitionPermission()
     if (!ready) {
-      setError('语音权限未开启，请在系统或浏览器设置里允许麦克风/语音识别')
+      setError('请先打开麦克风权限，再试一次。')
       return false
     }
 

@@ -45,7 +45,7 @@ export const MESSAGE_TYPES = {
 export const ERROR_MESSAGES = {
   NO_CAMERA_PERMISSION: '摄像头权限被拒绝，请在设置中允许',
   NO_MICROPHONE_PERMISSION: '麦克风权限被拒绝，请在设置中允许',
-  WEBRTC_NOT_SUPPORTED: '浏览器不支持 WebRTC，请升级浏览器',
+  WEBRTC_NOT_SUPPORTED: '当前设备暂时无法使用通话功能，请稍后再试',
   CONNECTION_FAILED: '连接失败，请检查网络',
   CALL_ENDED_ABNORMALLY: '通话异常断开',
   MESSAGE_SEND_FAILED: '消息发送失败，请重试',

@@ -20,19 +20,16 @@ export function FamilyStatusPage() {
 
     async function loadStatus() {
       try {
-        const [nextPulses, nextFollowups] = await Promise.all([
-          listPulseHistory(),
-          listFollowups(),
-        ])
+        const [nextPulses, nextFollowups] = await Promise.all([listPulseHistory(), listFollowups()])
 
         if (!cancelled) {
           setPulses(nextPulses)
           setFollowups(nextFollowups)
           setError('')
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载状态历史失败。')
+          setError('状态记录暂时没有更新出来，请稍后再试。')
         }
       } finally {
         if (!cancelled) {
@@ -73,39 +70,37 @@ export function FamilyStatusPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">状态与跟进</p>
-            <h2>把已经看到的变化转成一次具体回应，并把结果留在家庭协作里。</h2>
+            <h2>把已经看到的变化，变成一次具体回应。</h2>
           </div>
           <Link className="primary-action" to="/family/chats">
-            去聊天窗口
+            去聊天
           </Link>
         </div>
 
         <div className="trend-card">
-          <strong>先看异常，再补记录</strong>
-          <p>如果你是从今日状态跳转过来的，这里会优先把那条需要跟进的事件放到最前面。</p>
+          <strong>先看需要处理的提醒，再补上跟进记录。</strong>
+          <p>完成联系后，可以顺手记下一次处理结果，方便家人继续接力。</p>
         </div>
 
         {focusPulseId ? (
           <div className="family-status-focus-note">
-            <strong>已为你定位到本次建议跟进的情绪事件。</strong>
-            <p>完成一次联系后，可以直接点“快速记录”，让家人知道这条变化已经有人接住。</p>
+            <strong>已经帮你定位到这次需要跟进的提醒。</strong>
+            <p>联系之后，点“快速记录”就能把处理结果留在这里。</p>
           </div>
         ) : null}
 
         <div className="timeline-stack">
           {loading ? (
             <PageState
-              title="正在整理最近的状态与跟进"
-              description="我会把近几次需要回应的状态变化和已经完成的处理结果串成一条时间线。"
+              title="正在整理最近的状态记录"
+              description="稍等一下，我把最近需要跟进的内容排好顺序。"
             />
           ) : null}
-          {error ? (
-            <PageState variant="error" title="状态历史暂时没有连上本地服务" description={error} />
-          ) : null}
+          {error ? <PageState variant="error" title="暂时无法查看状态记录" description={error} /> : null}
           {!loading && !error && orderedPulses.length === 0 ? (
             <PageState
-              title="现在还没有可回看的状态记录"
-              description="等第一条状态脉冲和跟进结果产生后，这里会形成完整的协作时间线。"
+              title="现在还没有可回看的记录"
+              description="等第一条提醒和跟进结果出现后，这里会形成完整时间线。"
             />
           ) : null}
 
@@ -114,10 +109,7 @@ export function FamilyStatusPage() {
             const isFocused = pulse.id === focusPulseId
 
             return (
-              <article
-                className={`timeline-card${isFocused ? ' timeline-card--focused' : ''}`}
-                key={pulse.id}
-              >
+              <article className={`timeline-card${isFocused ? ' timeline-card--focused' : ''}`} key={pulse.id}>
                 <div className="timeline-card__pulse">
                   <span className={`severity-dot severity-dot--${toSeverityTone(pulse.severity)}`} />
                   <div>
@@ -129,12 +121,12 @@ export function FamilyStatusPage() {
                 {followup ? (
                   <div className="timeline-card__followup">
                     {followup.resultTag ? <span className="status-pill">{followup.resultTag}</span> : null}
-                    <p>{followup.resultNote ?? '已完成一次跟进记录。'}</p>
+                    <p>{followup.resultNote ?? '这条提醒已经有跟进记录了。'}</p>
                     <small>处理人：{followup.handlerMemberId}</small>
                   </div>
                 ) : pulse.status !== 'RESOLVED' ? (
                   <div className="timeline-card__followup">
-                    <p>这条状态还没有形成跟进记录，可以先联系，再把本次结果补进来。</p>
+                    <p>这条提醒还没有跟进记录，可以先联系，再把结果补进来。</p>
                     <div className="inline-actions">
                       <button
                         className="ghost-action"
@@ -145,10 +137,7 @@ export function FamilyStatusPage() {
                         {closingPulseId === pulse.id ? '提交中...' : '快速记录'}
                       </button>
                       {pulse.sourceConversationId ? (
-                        <Link
-                          className="ghost-action ghost-action--link"
-                          to={`/family/chats/${pulse.sourceConversationId}`}
-                        >
+                        <Link className="ghost-action ghost-action--link" to={`/family/chats/${pulse.sourceConversationId}`}>
                           去聊天
                         </Link>
                       ) : (
@@ -166,7 +155,7 @@ export function FamilyStatusPage() {
 
         <div className="split-grid">
           <article className="support-card">
-            <p className="surface-card__eyebrow">轻量跟进动作</p>
+            <p className="surface-card__eyebrow">轻量跟进</p>
             <div className="list-stack">
               {followupTasks.map((task) => (
                 <div className="signal-row" key={task.label}>
@@ -202,18 +191,15 @@ export function FamilyStatusPage() {
         handlerMemberId: 'member_daughter',
         actionType: 'Chat',
         resultTag: '已记录',
-        resultNote: '已完成一次轻量跟进，并把结果补进状态闭环。',
+        resultNote: '已完成一次轻量跟进，并补上了这次处理结果。',
       })
 
-      const [nextPulses, nextFollowups] = await Promise.all([
-        listPulseHistory(),
-        listFollowups(),
-      ])
+      const [nextPulses, nextFollowups] = await Promise.all([listPulseHistory(), listFollowups()])
       setPulses(nextPulses)
       setFollowups(nextFollowups)
       setError('')
-    } catch (closeError) {
-      setError(closeError instanceof Error ? closeError.message : '跟进记录失败。')
+    } catch {
+      setError('这次跟进暂时没有保存成功，请稍后再试。')
     } finally {
       setClosingPulseId(null)
     }

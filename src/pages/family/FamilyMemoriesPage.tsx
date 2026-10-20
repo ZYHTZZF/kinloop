@@ -15,18 +15,15 @@ export function FamilyMemoriesPage() {
 
     async function load() {
       try {
-        const [nextMemories, nextMembers] = await Promise.all([
-          listMemories(),
-          listMembers(),
-        ])
+        const [nextMemories, nextMembers] = await Promise.all([listMemories(), listMembers()])
         if (!cancelled) {
           setMemories(nextMemories)
           setMembers(nextMembers)
           setError('')
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载回忆失败')
+          setError('回忆内容暂时没有刷新出来，请稍后再试。')
         }
       } finally {
         if (!cancelled) {
@@ -48,28 +45,17 @@ export function FamilyMemoriesPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">回忆</p>
-            <h2>双端共享的时间线，先验证“显式加入”是否真正有价值。</h2>
+            <h2>把一家人一起留下来的内容，慢慢攒成一条时间线。</h2>
           </div>
         </div>
 
         <div className="memory-timeline">
-          {loading ? (
-            <PageState
-              title="正在读取家庭回忆时间线"
-              description="稍等一下，我把家人共同留住的内容排成一条可回看的时间线。"
-            />
-          ) : null}
-          {error ? (
-            <PageState
-              variant="error"
-              title="回忆时间线暂时没有连上本地服务"
-              description={error}
-            />
-          ) : null}
+          {loading ? <PageState title="正在整理家庭回忆" description="稍等一下，我把最近留下来的内容排好。" /> : null}
+          {error ? <PageState variant="error" title="暂时无法查看回忆" description={error} /> : null}
           {!loading && !error && memories.length === 0 ? (
             <PageState
-              title="还没有被加入回忆的内容"
-              description="从聊天里点一次“加入回忆”，这里就会开始形成真正的家庭资产。"
+              title="还没有加入回忆的内容"
+              description="从聊天里点一次“加入回忆”，这里就会慢慢充实起来。"
             />
           ) : null}
 
@@ -77,13 +63,13 @@ export function FamilyMemoriesPage() {
             <article className="memory-card" key={memory.id}>
               <div className="memory-card__meta">
                 <span>{formatShortDate(memory.addedAt)}</span>
-                <span>✨ 由 {resolveMemberName(memory.addedByMemberId, members)} 珍藏</span>
+                <span>由 {resolveMemberName(memory.addedByMemberId, members)} 留下</span>
               </div>
               <h3>{memory.title ?? '未命名回忆'}</h3>
-              <p>{memory.description ?? '暂无描述'}</p>
+              <p>{memory.description ?? '暂时还没有说明'}</p>
               {memory.mediaUrl ? <div className="memory-card__media">{memory.mediaUrl}</div> : null}
               <div className="inline-actions">
-                <span className="status-pill">{memory.sourceMsgId ? '来自当时聊天' : '来自 AI 协助记录'}</span>
+                <span className="status-pill">{memory.sourceMsgId ? '来自当时聊天' : '来自稍后整理'}</span>
                 <button className="ghost-action" type="button">
                   回看来源 · {formatShortDateTime(memory.addedAt)}
                 </button>

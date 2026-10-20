@@ -38,7 +38,6 @@ import { webrtcManager } from '../../services/webrtc/WebRTCManager'
 import * as chatApi from '../../services/api/chatApi'
 import VoiceCall from '../../components/chat/VoiceCall'
 import VideoCall from '../../components/chat/VideoCall'
-import { MessageAuxArea } from '../../components/chat/MessageAuxArea'
 import { buildPreSendSuggestion } from '../../domain/content/preSendSuggestions'
 import { useVideoCallEmotionSummary } from '../../utils/hooks/useVideoCallEmotionSummary'
 
@@ -224,7 +223,7 @@ export function FamilyConversationPage() {
         await webrtcManager.handleIceCandidate(candidate)
       } else if (signal.type === 'reject') {
         if (isCallerRef.current) {
-          void logCallSystemMessage('Voice call rejected by remote user')
+          void logCallSystemMessage('对方暂时没有接听这次通话。')
         }
         setIsCallActive(false)
         setCallState('idle')
@@ -268,7 +267,7 @@ export function FamilyConversationPage() {
             void syncConversation()
           })
         } else {
-          void logCallSystemMessage(`Voice call ended, duration: ${durationSecs}s`)
+          void logCallSystemMessage(`本次通话已结束，通话时长约 ${durationSecs} 秒。`)
         }
       }
     })
@@ -286,7 +285,7 @@ export function FamilyConversationPage() {
     try {
       const allowed = await ensureCallMediaPermission(callType)
       if (!allowed) {
-        setError(callType === 'video' ? '请允许摄像头和麦克风权限后再接听视频通话' : '请允许麦克风权限后再接听语音通话')
+        setError(callType === 'video' ? '请先打开摄像头和麦克风权限，再接听视频通话。' : '请先打开麦克风权限，再接听语音通话。')
         setIsCallActive(false)
         setIsIncomingCall(false)
         setCallState('idle')
@@ -311,7 +310,7 @@ export function FamilyConversationPage() {
       }
     } catch (e) {
       console.error(e)
-      setError(e instanceof Error ? e.message : '接听通话失败')
+      setError(e instanceof Error ? e.message : '接听失败，请稍后再试。')
       setIsCallActive(false)
       setCallState('idle')
     }
@@ -347,7 +346,7 @@ export function FamilyConversationPage() {
     try {
       const allowed = await ensureCallMediaPermission('voice')
       if (!allowed) {
-        setError('请允许麦克风权限后再发起语音通话')
+        setError('请先打开麦克风权限，再发起语音通话。')
         return
       }
 
@@ -363,7 +362,7 @@ export function FamilyConversationPage() {
       setError('')
     } catch (e) {
       console.error(e)
-      setError(e instanceof Error ? e.message : '发起语音通话失败')
+      setError(e instanceof Error ? e.message : '语音通话暂时无法发起，请稍后再试。')
       setIsCallActive(false)
       setCallState('idle')
     }
@@ -374,7 +373,7 @@ export function FamilyConversationPage() {
     try {
       const allowed = await ensureCallMediaPermission('video')
       if (!allowed) {
-        setError('请允许摄像头和麦克风权限后再发起视频通话')
+        setError('请先打开摄像头和麦克风权限，再发起视频通话。')
         return
       }
 
@@ -392,7 +391,7 @@ export function FamilyConversationPage() {
       setError('')
     } catch (e) {
       console.error(e)
-      setError(e instanceof Error ? e.message : '发起视频通话失败')
+      setError(e instanceof Error ? e.message : '视频通话暂时无法发起，请稍后再试。')
       setIsCallActive(false)
       setCallState('idle')
     }
@@ -422,7 +421,7 @@ export function FamilyConversationPage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load conversation')
+          setError(loadError instanceof Error ? loadError.message : '这段聊天暂时没有加载出来，请稍后再试。')
         }
       } finally {
         if (!cancelled) {
@@ -535,31 +534,17 @@ export function FamilyConversationPage() {
   return (
     <section className="screen screen--family-conversation">
       <section className="surface-card">
-        <div className="section-heading">
-          <div>
-            <Link className="back-link" to="/family/chats">
-              返回聊天列表
-            </Link>
-            <p className="surface-card__eyebrow">Chat</p>
-            <h2>Conversation with {conversation?.elderDisplayName ?? 'Family member'}</h2>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <button
-              className="ghost-action"
-              type="button"
-              onClick={() => void handleMarkConversationRead()}
-              disabled={markingRead || unreadCount === 0}
-            >
-              {markingRead ? '处理中...' : '一键已读'}
-            </button>
-            <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Voice call">{'\u{1F4DE}'}</button>
-            <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="Video call">{'\u{1F4F9}'}</button>
-          </div>
+        <div className="family-chat-header">
+          <Link className="family-chat-header__back" to="/family/chats" aria-label="返回聊天列表">
+            {'<'}
+          </Link>
+          <h2>{conversation?.elderDisplayName ?? '家人'}</h2>
+          <div className="family-chat-header__spacer" aria-hidden="true" />
         </div>
 
         {isCallActive && callType === 'voice' && (
           <VoiceCall
-            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || 'Family member', avatar: undefined }}
+            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || '家人', avatar: undefined }}
             callState={callState}
             duration={callDuration}
             isIncoming={isIncomingCall}
@@ -576,7 +561,7 @@ export function FamilyConversationPage() {
 
         {isCallActive && callType === 'video' && (
           <VideoCall
-            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || 'Family member', avatar: undefined }}
+            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || '家人', avatar: undefined }}
             remoteStream={remoteCallStream}
             localStream={localCallStream}
             callState={callState}
@@ -595,20 +580,20 @@ export function FamilyConversationPage() {
           />
         )}
 
-        {loading ? <PageState title="Loading conversation" description="Please wait..." /> : null}
-        {error ? <PageState variant="error" title="Conversation unavailable" description={error} /> : null}
+        {loading ? <PageState title="正在打开聊天" description="稍等一下，正在准备这段对话。" /> : null}
+        {error ? <PageState variant="error" title="暂时无法查看这段聊天" description={error} /> : null}
         {memoryFeedback ? <p className="state-note">{memoryFeedback}</p> : null}
         {readFeedback ? <p className="state-note">{readFeedback}</p> : null}
 
         <div ref={messageListRef} className="message-list">
           {!loading && !error && messages.length === 0 ? (
-            <PageState title="No messages yet" description="Send your first message to start this conversation." />
+            <PageState title="现在还没有聊天内容" description="发出第一条消息后，这里就会出现对话记录。" />
           ) : null}
 
           {messages.map((message) => {
             const messageText =
               (message.messageType !== 'Image' && message.messageType !== 'Voice' && message.messageType !== 'Video') || message.textContent
-                ? (message.textContent ?? message.transcript ?? 'Voice message')
+                ? (message.textContent ?? message.transcript ?? '语音消息')
                 : null
             const explainImageUrl = message.messageType === 'Image' ? message.mediaUrl ?? null : null
             const isIncomingMessage = message.senderType === 'Elder'
@@ -689,76 +674,13 @@ export function FamilyConversationPage() {
                       disabled={savingMemoryId === message.id}
                       onClick={() => void handleAddMemory(message)}
                     >
-                      {savingMemoryId === message.id ? 'Saving...' : 'Add to memories'}
+                      {savingMemoryId === message.id ? '保存中...' : '加入回忆'}
                     </button>
-                    {message.aiDrafted ? <span className="status-pill">AI drafted</span> : null}
+                    {message.aiDrafted ? <span className="status-pill">已帮你整理</span> : null}
                   </footer>
                 </article>
-                <MessageAuxArea message={message} isMine={message.senderType === 'Family'} />
                 {focusedMessageHintId === message.id ? (
                   <div className="message-focus-hint">已定位到相关消息</div>
-                ) : null}
-                {canExplain ? (
-                  <button
-                    className="message-bridge-trigger message-bridge-trigger--outside"
-                    type="button"
-                    disabled={explainLoading}
-                    onClick={() => void handleExplainMessage(message)}
-                    title="看不懂这句话？点这里让AI解释"
-                    aria-label="代沟翻译"
-                  >
-                    ?
-                  </button>
-                ) : null}
-
-                {canExplain && isBridgeOpen ? (
-                  <div className="message-bridge-card">
-                    <div className="message-bridge-card__header">
-                      <span className="surface-card__eyebrow">AI解释</span>
-                      <button
-                        type="button"
-                        className="message-bridge-close"
-                        onClick={() => handleCloseExplainMessage(message.id)}
-                        aria-label="收起解释"
-                      >
-                        收起
-                      </button>
-                    </div>
-                    {explainLoading ? <p>AI 正在解释这句话...</p> : null}
-                    {explainError ? <p className="state-note state-note--error">{explainError}</p> : null}
-                    {explainResult ? (
-                      <>
-                        <p><strong>1. 这句话的意思：</strong>{explainResult.explanation}</p>
-                        <p className="message-bridge-followup">
-                          <strong>2. 建议回复：</strong>
-                          {explainResult.followUpSuggestion ?? '我懂了，你再说详细一点。'}
-                          <button
-                            type="button"
-                            className="ghost-action"
-                            style={{ marginLeft: '10px' }}
-                            onClick={() => handleApplyBridgeSuggestion(explainResult.followUpSuggestion)}
-                          >
-                            自动输入
-                          </button>
-                        </p>
-                        {explainResult.hasMeme && explainResult.memeExplanation ? (
-                          <p className="message-bridge-followup"><strong>3. 这句话里的梗：</strong>{explainResult.memeExplanation}</p>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {message.senderType === 'Elder' && message.emotion ? (
-                  <div className={`message-emotion-chip message-emotion-chip--${toSeverityTone(message.emotion.severity)}`}>
-                    <div className="message-emotion-chip__meta">
-                      <span>{getEmotionSourceLabel(message.emotion.source)}</span>
-                      <span className={`message-emotion-mode message-emotion-mode--${getEmotionModeTone(message.emotion.mode)}`}>
-                        {getEmotionModeLabel(message.emotion.mode)}
-                      </span>
-                    </div>
-                    <strong>{formatEmotionSummary(message.emotion.summary)}</strong>
-                  </div>
                 ) : null}
               </div>
             )
@@ -766,107 +688,18 @@ export function FamilyConversationPage() {
         </div>
 
         {showEmojiPanel ? (
-          <div className="composer-card" style={{ marginBottom: '10px' }}>
-            <p className="surface-card__eyebrow">静态表情</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px' }}>
-              {STATIC_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  className="ghost-action"
-                  style={{ fontSize: '20px', padding: '6px 0' }}
-                  onClick={() => handlePickEmoji(emoji)}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
+          <div className="family-chat-emoji-panel">
+            {STATIC_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                className="family-chat-emoji-panel__item"
+                onClick={() => handlePickEmoji(emoji)}
+              >
+                {emoji}
+              </button>
+            ))}
           </div>
-        ) : null}
-
-        {preSendSuggestion ? (
-          <section className={`pre-send-suggestion-card pre-send-suggestion-card--${preSendSuggestion.type}`}>
-            <div className="pre-send-suggestion-card__header">
-              <div>
-                <p className="surface-card__eyebrow">
-                  {preSendSuggestion.type === 'soften' ? '情绪缓冲' : '接话续聊'}
-                </p>
-                <h3>{preSendSuggestion.title}</h3>
-                {renderSuggestionDebugTag(preSendSuggestion)}
-              </div>
-              <button
-                className="text-action"
-                type="button"
-                onClick={() => handleDismissSuggestion(preSendSuggestion.triggerKey)}
-              >
-                收起
-              </button>
-            </div>
-            <p className="pre-send-suggestion-card__reason">{preSendSuggestion.reason}</p>
-            <div className="pre-send-suggestion-card__list">
-              {preSendSuggestion.suggestions.map((suggestion, index) => (
-                <button
-                  key={`${preSendSuggestion.triggerKey}-${index}`}
-                  className="pre-send-suggestion-option"
-                  type="button"
-                  onClick={() => handleApplySuggestion(suggestion)}
-                >
-                  <span>{suggestion}</span>
-                  <span className="status-pill">采用</span>
-                </button>
-              ))}
-            </div>
-            <div className="inline-actions">
-              <button
-                className="ghost-action"
-                type="button"
-                onClick={() => handleDismissSuggestion(preSendSuggestion.triggerKey)}
-              >
-                忽略
-              </button>
-              <button
-                className="primary-action"
-                type="button"
-                disabled={sending || isRecordingVoice || !composerText.trim()}
-                onClick={() => void handleSendCurrentText()}
-              >
-                {sending ? 'Sending...' : '继续发送原文'}
-              </button>
-            </div>
-          </section>
-        ) : null}
-
-        {postSendFollowupSuggestion ? (
-          <section className="pre-send-suggestion-card pre-send-suggestion-card--followup">
-            <div className="pre-send-suggestion-card__header">
-              <div>
-                <p className="surface-card__eyebrow">发送后续聊</p>
-                <h3>{postSendFollowupSuggestion.title}</h3>
-                {renderSuggestionDebugTag(postSendFollowupSuggestion)}
-              </div>
-              <button
-                className="text-action"
-                type="button"
-                onClick={() => handleDismissSuggestion(postSendFollowupSuggestion.triggerKey)}
-              >
-                收起
-              </button>
-            </div>
-            <p className="pre-send-suggestion-card__reason">{postSendFollowupSuggestion.reason}</p>
-            <div className="pre-send-suggestion-card__list">
-              {postSendFollowupSuggestion.suggestions.map((suggestion, index) => (
-                <button
-                  key={`${postSendFollowupSuggestion.triggerKey}-${index}`}
-                  className="pre-send-suggestion-option"
-                  type="button"
-                  onClick={() => handleApplySuggestion(suggestion)}
-                >
-                  <span>{suggestion}</span>
-                  <span className="status-pill">用这句续聊</span>
-                </button>
-              ))}
-            </div>
-          </section>
         ) : null}
 
         {unreadSummaryState.isOpen ? (
@@ -931,8 +764,8 @@ export function FamilyConversationPage() {
         >
           <div className="composer-input-row">
             <input
-              aria-label="Input message"
-              placeholder="Type a message..."
+              aria-label="输入消息"
+              placeholder="输入你想说的话"
               value={composerText}
               onChange={(event) => {
                 setComposerText(event.target.value)
@@ -997,14 +830,40 @@ export function FamilyConversationPage() {
               >
                 未读摘要
               </button>
+              <button
+                className="ghost-action attachment-menu__button"
+                type="button"
+                disabled={sending || isRecordingVoice}
+                onClick={() => {
+                  setShowAttachmentOptions(false)
+                  void handleInitiateVoiceCall()
+                }}
+              >
+                语音通话
+              </button>
+              <button
+                className="ghost-action attachment-menu__button"
+                type="button"
+                disabled={sending || isRecordingVoice}
+                onClick={() => {
+                  setShowAttachmentOptions(false)
+                  void handleInitiateVideoCall()
+                }}
+              >
+                视频通话
+              </button>
             </div>
           ) : null}
           <div className="inline-actions">
-            <button className="ghost-action" type="button" onClick={() => setShowEmojiPanel((prev) => !prev)}>
+            <button
+              className="ghost-action family-chat-composer__emoji"
+              type="button"
+              onClick={() => setShowEmojiPanel((prev) => !prev)}
+            >
               {'\u{1F600}'}
             </button>
             <button className="primary-action" type="submit" disabled={sending || isRecordingVoice || !composerText.trim()}>
-              {sending ? 'Sending...' : 'Send'}
+              {sending ? '发送中...' : '发送'}
             </button>
             <button
               className={`ghost-action voice-action ${isRecordingVoice ? 'voice-action--recording' : ''}`}
@@ -1055,7 +914,7 @@ export function FamilyConversationPage() {
         void resolvePostSendFollowupSuggestion(nextText, followupSeed)
       }
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Failed to send message')
+      setError(submitError instanceof Error ? submitError.message : '这条消息暂时没有发出去，请稍后再试。')
     } finally {
       setSending(false)
     }
@@ -1075,7 +934,7 @@ export function FamilyConversationPage() {
       setError('')
       const allowed = await ensureMicrophoneCapturePermission()
       if (!allowed) {
-        setError('麦克风权限未开启，请在系统或浏览器设置里允许录音')
+        setError('请先打开麦克风权限，再试一次。')
         return
       }
 
@@ -1088,7 +947,7 @@ export function FamilyConversationPage() {
         setVoiceDurationMs(Date.now() - session.startedAt)
       }, 200)
     } catch (recordError) {
-      setError(recordError instanceof Error ? recordError.message : '无法开始录音')
+      setError(recordError instanceof Error ? recordError.message : '暂时无法开始录音，请稍后再试。')
     }
   }
 
@@ -1117,7 +976,7 @@ export function FamilyConversationPage() {
       })
       setConversation(nextConversation)
     } catch (recordError) {
-      setError(recordError instanceof Error ? recordError.message : '发送语音失败')
+      setError(recordError instanceof Error ? recordError.message : '语音暂时没有发出去，请稍后再试。')
     } finally {
       voiceSessionRef.current = null
       setIsRecordingVoice(false)
@@ -1148,7 +1007,7 @@ export function FamilyConversationPage() {
       })
       setConversation(nextConversation)
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : '发送图片失败')
+      setError(sendError instanceof Error ? sendError.message : '图片暂时没有发出去，请稍后再试。')
     } finally {
       setSending(false)
       setIsDraggingMedia(false)
@@ -1187,7 +1046,7 @@ export function FamilyConversationPage() {
       })
       setConversation(nextConversation)
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : '发送视频失败')
+      setError(sendError instanceof Error ? sendError.message : '视频暂时没有发出去，请稍后再试。')
     } finally {
       setSending(false)
       setIsDraggingMedia(false)
@@ -1256,10 +1115,10 @@ export function FamilyConversationPage() {
         description: buildMemoryDescription(message),
         mediaUrl: message.mediaUrl,
       })
-      setMemoryFeedback('Saved to memories')
+      setMemoryFeedback('已经加入回忆。')
       setError('')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Failed to save memory')
+      setError(saveError instanceof Error ? saveError.message : '暂时没有加入回忆，请稍后再试。')
     } finally {
       setSavingMemoryId(null)
     }
@@ -1390,7 +1249,7 @@ export function FamilyConversationPage() {
 
   async function handleMarkConversationRead() {
     if (!conversation || unreadCount === 0) {
-      setReadFeedback('现在没有新的未读消息')
+      setReadFeedback('现在没有新的未读消息。')
       return
     }
 
@@ -1420,10 +1279,10 @@ export function FamilyConversationPage() {
             }
           : prev
       ))
-      setReadFeedback(result.updatedCount > 0 ? '已全部标为已读' : '现在没有新的未读消息')
+      setReadFeedback(result.updatedCount > 0 ? '已经帮你标为已读。' : '现在没有新的未读消息。')
       setError('')
     } catch (readError) {
-      setError(readError instanceof Error ? readError.message : '一键已读失败')
+      setError(readError instanceof Error ? readError.message : '暂时没能完成已读处理，请稍后再试。')
     } finally {
       setMarkingRead(false)
     }
@@ -1555,32 +1414,10 @@ function isCallEndedPayload(data: unknown): data is { duration?: number } {
 
 function getSenderLabel(message: Message, conversation: ConversationDetail | null) {
   if (message.senderType === 'Family') {
-    return conversation?.familyDisplayName ?? 'Family'
+    return conversation?.familyDisplayName ?? '我'
   }
 
-  return conversation?.elderDisplayName ?? 'Elder'
-}
-
-function renderSuggestionDebugTag(suggestion: PreSendSuggestion) {
-  const sourceModel = suggestion.sourceModel?.trim()
-  if (!sourceModel) {
-    return null
-  }
-
-  const sourceLabel = sourceModel === 'fallback-local' ? 'fallback-local' : `llm:${sourceModel}`
-  const parts = [sourceLabel]
-  if (suggestion.scenario) {
-    parts.push(suggestion.scenario)
-  }
-  if (suggestion.framework) {
-    parts.push(suggestion.framework)
-  }
-
-  return (
-    <p className="state-note" style={{ marginTop: '6px', fontSize: '0.82rem' }}>
-      调试标记：{parts.join(' · ')}
-    </p>
-  )
+  return conversation?.elderDisplayName ?? '长辈'
 }
 
 function isLowInformation(input: string) {
@@ -1665,7 +1502,7 @@ function formatEmotionSummary(summary: string) {
 }
 
 function getEmotionModeLabel(mode: string | null | undefined) {
-  return mode === 'fallback' ? '兜底' : 'AI'
+  return mode === 'fallback' ? '基础分析' : '智能分析'
 }
 
 function getEmotionModeTone(mode: string | null | undefined) {

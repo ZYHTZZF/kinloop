@@ -38,9 +38,9 @@ export function FamilyCollaborationPage() {
           setFamilySpace(nextFamilySpace)
           setError('')
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '加载协作数据失败')
+          setError('家庭协作信息暂时没有刷新出来，请稍后再试。')
         }
       } finally {
         if (!cancelled) {
@@ -64,11 +64,7 @@ export function FamilyCollaborationPage() {
   const suggestedRelay = useMemo(() => {
     return [...coreMembers]
       .filter((member) => member.status === 'Active')
-      .sort((left, right) => {
-        const leftTime = left.lastActivityAt ?? 0
-        const rightTime = right.lastActivityAt ?? 0
-        return leftTime - rightTime
-      })[0]
+      .sort((left, right) => (left.lastActivityAt ?? 0) - (right.lastActivityAt ?? 0))[0]
   }, [coreMembers])
 
   const recentContact = useMemo(() => {
@@ -92,10 +88,10 @@ export function FamilyCollaborationPage() {
     try {
       await navigator.clipboard.writeText(joinCode)
       setCopiedJoinCode(true)
-      setFeedback(`已复制家庭码：${joinCode}`)
+      setFeedback(`已复制家庭加入码：${joinCode}`)
       window.setTimeout(() => setCopiedJoinCode(false), 2000)
-    } catch (copyError) {
-      setError(copyError instanceof Error ? copyError.message : '复制家庭码失败')
+    } catch {
+      setError('复制失败了，请再试一次。')
     }
   }
 
@@ -104,10 +100,10 @@ export function FamilyCollaborationPage() {
       setHandlingAlertId(alertId)
       await acknowledgeAlert(alertId, members.find((member) => member.role === 'Primary')?.id ?? '')
       setAlerts(await listActiveAlerts())
-      setFeedback('已接手一条求助任务。')
+      setFeedback('已接手这条提醒。')
       setError('')
-    } catch (ackError) {
-      setError(ackError instanceof Error ? ackError.message : '接单失败')
+    } catch {
+      setError('暂时还没接手成功，请稍后再试。')
     } finally {
       setHandlingAlertId(null)
     }
@@ -118,10 +114,10 @@ export function FamilyCollaborationPage() {
       setResolvingAlertId(alertId)
       await resolveAlert(alertId, '已联系家人并完成当前处理。')
       setAlerts(await listActiveAlerts())
-      setFeedback('已关闭一条求助任务。')
+      setFeedback('这条提醒已经处理完成。')
       setError('')
-    } catch (resolveError) {
-      setError(resolveError instanceof Error ? resolveError.message : '关闭任务失败')
+    } catch {
+      setError('暂时还没关闭成功，请稍后再试。')
     } finally {
       setResolvingAlertId(null)
     }
@@ -133,7 +129,7 @@ export function FamilyCollaborationPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">协作</p>
-            <h2>把家人的关心接成一条线，让今天谁来接力更清楚。</h2>
+            <h2>把今天谁来接力、谁来处理，安排得更清楚。</h2>
           </div>
         </div>
 
@@ -143,51 +139,39 @@ export function FamilyCollaborationPage() {
             <strong>{coreMembers.length}</strong>
           </div>
           <div className="today-overview-chip">
-            <span>待处理任务</span>
+            <span>待处理提醒</span>
             <strong>{alerts.length}</strong>
           </div>
           <div className="today-overview-chip">
             <span>家庭加入码</span>
-            <strong>{familySpace?.joinCode ?? '未生成'}</strong>
+            <strong>{familySpace?.joinCode ?? '暂未生成'}</strong>
           </div>
         </div>
 
         {!loading && !error ? (
           <article className="note-card collaboration-relay-note">
             <p className="surface-card__eyebrow">推荐接力</p>
-            <strong>{suggestedRelay ? `今天更适合由 ${suggestedRelay.displayName} 接一句。` : '当前还没有合适的接力建议。'}</strong>
-            <p>
-              {suggestedRelay
-                ? `${suggestedRelay.displayName} 最近比较久没有联系长辈，现在接上会更自然。`
-                : '成员活动数据还不够，先保持当前分工即可。'}
-            </p>
+            <strong>{suggestedRelay ? `今天更适合由 ${suggestedRelay.displayName} 先接一下。` : '目前还没有合适的接力建议。'}</strong>
           </article>
         ) : null}
 
         <div className="collaboration-stack">
           {loading ? (
-            <PageState title="正在整理这一轮家庭协作" description="稍等一下，我把成员、待办任务和家庭加入码整理出来。" />
+            <PageState title="正在整理家庭协作信息" description="稍等一下，我把成员、提醒和加入码整理出来。" />
           ) : null}
 
-          {error ? (
-            <PageState variant="error" title="协作页暂时没有连上本地服务" description={error} />
-          ) : null}
+          {error ? <PageState variant="error" title="暂时无法查看家庭协作" description={error} /> : null}
 
           {feedback ? <p className="state-note">{feedback}</p> : null}
 
           <article className="relay-card">
-            <p className="surface-card__eyebrow">家庭接力建议</p>
-            <span className="status-pill">这一轮更适合谁来接</span>
+            <p className="surface-card__eyebrow">接力建议</p>
+            <span className="status-pill">这次更适合谁先接手</span>
             <strong>
               最近联系：
               {recentContact ? ` ${recentContact.displayName} · ${formatShortDateTime(recentContact.lastActivityAt)}` : ' 暂无记录'}
             </strong>
-            <p>建议接力人：<strong>{suggestedRelay?.displayName ?? '暂无'}</strong></p>
-            <p>
-              {suggestedRelay
-                ? `${suggestedRelay.displayName} 最近较久没有和长辈产生有效互动，适合这次先接一句。`
-                : '当前成员不足，暂时无法生成接力建议。'}
-            </p>
+            <p>建议接力人：<strong>{suggestedRelay?.displayName ?? '暂时没有'}</strong></p>
             <div className="inline-actions">
               <button className="primary-action" type="button">
                 提醒接力
@@ -199,9 +183,9 @@ export function FamilyCollaborationPage() {
           </article>
 
           <article className="task-card">
-            <p className="surface-card__eyebrow">当前协同任务</p>
+            <p className="surface-card__eyebrow">当前提醒</p>
             {alerts.length === 0 ? (
-              <p className="state-note">当前没有待接手的异常提醒，协作状态比较平稳。</p>
+              <p className="state-note">现在没有待处理的提醒，今天的协作状态比较平稳。</p>
             ) : (
               alerts.map((alert) => (
                 <div className="list-row" key={alert.id}>
@@ -219,7 +203,7 @@ export function FamilyCollaborationPage() {
                         disabled={handlingAlertId === alert.id}
                         onClick={() => void handleAcknowledgeAlert(alert.id)}
                       >
-                        {handlingAlertId === alert.id ? '处理中…' : '我来跟进'}
+                        {handlingAlertId === alert.id ? '处理中...' : '我来跟进'}
                       </button>
                     ) : null}
                     {alert.status === 'HANDLING' ? (
@@ -229,7 +213,7 @@ export function FamilyCollaborationPage() {
                         disabled={resolvingAlertId === alert.id}
                         onClick={() => void handleResolveAlert(alert.id)}
                       >
-                        {resolvingAlertId === alert.id ? '关闭中…' : '关闭任务'}
+                        {resolvingAlertId === alert.id ? '关闭中...' : '完成处理'}
                       </button>
                     ) : null}
                   </div>
@@ -239,7 +223,7 @@ export function FamilyCollaborationPage() {
           </article>
 
           <article className="members-card">
-            <p className="surface-card__eyebrow">成员与权限</p>
+            <p className="surface-card__eyebrow">成员</p>
             <div className="list-stack">
               {members.map((member) => (
                 <div className="list-row" key={member.id}>
@@ -252,18 +236,16 @@ export function FamilyCollaborationPage() {
                 </div>
               ))}
             </div>
-            <p className="members-card__meta">紧急通知顺序：{alertOrder || '暂无'}</p>
+            <p className="members-card__meta">紧急通知顺序：{alertOrder || '暂未设置'}</p>
           </article>
 
           <article className="members-card">
             <p className="surface-card__eyebrow">家庭加入码</p>
-            <strong>{familySpace?.joinCode ?? '未生成'}</strong>
-            <p className="members-card__meta">
-              新成员注册时选择“加入家庭”，输入这个家庭码就能绑定到同一个家庭。
-            </p>
+            <strong>{familySpace?.joinCode ?? '暂未生成'}</strong>
+            <p className="members-card__meta">新成员注册时选择“加入家庭”，输入这个加入码就可以进入同一个家庭。</p>
             <div className="inline-actions">
               <button className="primary-action" type="button" onClick={() => void handleCopyJoinCode()} disabled={!familySpace?.joinCode}>
-                {copiedJoinCode ? '已复制' : '复制家庭码'}
+                {copiedJoinCode ? '已复制' : '复制加入码'}
               </button>
             </div>
           </article>
@@ -275,20 +257,20 @@ export function FamilyCollaborationPage() {
 
 function toAlertSummary(alert: Alert) {
   if (alert.alertType === 'SOS') {
-    return 'SOS 紧急求助'
+    return '紧急求助'
   }
 
-  return '身体不适 / 需要联系'
+  return '需要尽快联系'
 }
 
 function toAlertStatus(alert: Alert) {
   if (alert.status === 'HANDLING') {
-    return '已经有人接单处理中'
+    return '已经有人在处理了'
   }
 
   if (alert.status === 'TRIGGERED') {
-    return '刚刚触发，等待认领'
+    return '刚刚收到，正在等家人查看'
   }
 
-  return alert.status
+  return '已收到提醒'
 }
