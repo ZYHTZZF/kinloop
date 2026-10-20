@@ -1,9 +1,40 @@
 export const schemaSql = `
+  create table if not exists users (
+    id text primary key,
+    email text not null unique,
+    password_hash text not null,
+    password_salt text not null,
+    email_verified_at integer,
+    created_at integer not null,
+    updated_at integer not null
+  );
+
+  create table if not exists auth_codes (
+    id text primary key,
+    email text not null,
+    purpose text not null,
+    code text not null,
+    expires_at integer not null,
+    consumed_at integer,
+    created_at integer not null
+  );
+
+  create table if not exists auth_sessions (
+    id text primary key,
+    user_id text not null,
+    token_hash text not null unique,
+    expires_at integer not null,
+    created_at integer not null,
+    last_seen_at integer not null
+  );
+
   create table if not exists family_spaces (
     id text primary key,
     name text not null,
+    join_code text,
     elder_display_name text not null,
     primary_member_id text not null,
+    created_by_user_id text,
     created_at integer not null,
     updated_at integer not null
   );
@@ -11,8 +42,10 @@ export const schemaSql = `
   create table if not exists members (
     id text primary key,
     family_space_id text not null,
+    user_id text,
     role text not null,
     display_name text not null,
+    relation_label text,
     elder_alias text,
     phone text,
     last_activity_at integer,
@@ -147,11 +180,35 @@ export function initializeSchema(db) {
     'alter table pulses add column emotion_label text',
     'alter table pulses add column emotion_mode text',
     "alter table conversations add column conversation_type text not null default 'FAMILY_CHAT'",
+    'alter table family_spaces add column join_code text',
+    'alter table family_spaces add column created_by_user_id text',
+    'alter table members add column user_id text',
+    'alter table members add column relation_label text',
   ]) {
     try {
       db.exec(statement)
     } catch {
       // Ignore repeated migrations when the column already exists.
     }
+  }
+
+  for (const statement of [
+    'create unique index if not exists idx_family_spaces_join_code on family_spaces(join_code)',
+    'create index if not exists idx_members_family_space_id on members(family_space_id)',
+    'create index if not exists idx_members_user_id on members(user_id)',
+    'create index if not exists idx_auth_codes_email_purpose on auth_codes(email, purpose)',
+    'create index if not exists idx_auth_sessions_user_id on auth_sessions(user_id)',
+  ]) {
+    db.exec(statement)
+  }
+
+  try {
+    db.exec(`
+      update family_spaces
+      set join_code = 'KIN' || upper(substr(replace(hex(randomblob(6)), '0', '8'), 1, 6))
+      where join_code is null or join_code = ''
+    `)
+  } catch {
+    // Ignore best-effort backfill failures.
   }
 }

@@ -26,7 +26,7 @@ export function registerUnreadSummaryRoutes(app) {
         return
       }
 
-      const conversation = getConversationDetail(conversationId)
+      const conversation = getConversationDetail(conversationId, req.auth?.membership?.familySpaceId ?? null)
       if (!conversation) {
         res.status(404).json({ error: TEXT.conversationNotFound })
         return

@@ -1,13 +1,13 @@
 import express from 'express'
 import { createServer } from 'node:http'
-import { API_HOST, API_PORT, DB_PATH, UPLOADS_DIR } from './config.mjs'
+import { API_HOST, API_PORT, AUTH_DEV_EXPOSE_CODES, DB_PATH, UPLOADS_DIR } from './config.mjs'
 import { WebSocketServer } from 'ws'
 import { getDatabase } from './db/index.mjs'
 import { acknowledgeAlert, createAlert, listActiveAlerts, resolveAlert } from './repositories/alertRepository.mjs'
 import { createMessage, getConversationDetail, listConversationCards, markConversationUnreadAsRead } from './repositories/conversationRepository.mjs'
-import { getCurrentFamilySpace } from './repositories/familySpaceRepository.mjs'
+import { getFamilySpaceById } from './repositories/familySpaceRepository.mjs'
 import { createFollowup, listFollowups } from './repositories/followupRepository.mjs'
-import { approveInviteCode, createInviteCode, listInviteCodes } from './repositories/inviteRepository.mjs'
+import { approveInviteCode, listInviteCodes } from './repositories/inviteRepository.mjs'
 import { listMembers } from './repositories/memberRepository.mjs'
 import { createMemoryEntry, listMemories } from './repositories/memoryRepository.mjs'
 import { listPermissionPolicies } from './repositories/permissionPolicyRepository.mjs'
@@ -29,6 +29,20 @@ import { registerPreSendSuggestionRoutes } from './routes/preSendSuggestionRoute
 import { registerUnreadSummaryRoutes } from './routes/unreadSummaryRoutes.mjs'
 import { registerVolcanoRoutes } from './routes/volcanoRoutes.mjs'
 import memoryTriggerRoutes from './routes/memoryTriggerRoutes.mjs'
+import {
+  consumeAuthCode,
+  createAuthCode,
+  createInviteCodeForFamily,
+  createRegisteredUser,
+  deleteSession,
+  findUserByEmail,
+  getCurrentSessionPayload,
+  getMembershipForUserId,
+  getSessionByToken,
+  loginUser,
+  resetUserPassword,
+} from './repositories/authRepository.mjs'
+import { sendAuthCodeEmail } from './services/auth/emailService.mjs'
 
 getDatabase()
 
@@ -58,6 +72,41 @@ function notifyConversationMembers(conversation, payload) {
       sendJson(client, payload)
     }
   }
+}
+
+function getBearerToken(request) {
+  const header = `${request.headers.authorization ?? ''}`
+  const match = /^Bearer\s+(.+)$/i.exec(header)
+  return match?.[1] ?? null
+}
+
+function requireAuth(request, response, next) {
+  const token = getBearerToken(request)
+  if (!token) {
+    response.status(401).json({ error: 'Missing bearer token' })
+    return
+  }
+
+  const session = getSessionByToken(token)
+  if (!session) {
+    response.status(401).json({ error: 'Session expired or invalid' })
+    return
+  }
+
+  request.auth = {
+    token,
+    user: session.user,
+    membership: session.membership,
+  }
+  next()
+}
+
+function getFamilySpaceIdFromRequest(request) {
+  return request.auth?.membership?.familySpaceId ?? null
+}
+
+function getViewerRole(request) {
+  return request.auth?.membership?.role === 'elder' ? 'elder' : 'family'
 }
 
 const WEATHER_CODE_LABELS = {
@@ -236,6 +285,156 @@ app.get('/api/health', (_, response) => {
   })
 })
 
+app.post('/api/auth/send-code', async (request, response) => {
+  const email = `${request.body?.email ?? ''}`.trim().toLowerCase()
+  const purpose = request.body?.purpose === 'reset_password' ? 'reset_password' : 'register'
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    response.status(400).json({ error: '请输入有效邮箱地址。' })
+    return
+  }
+
+  const existingUser = findUserByEmail(email)
+  const existingMembership = existingUser ? getMembershipForUserId(existingUser.id) : null
+  if (purpose === 'register' && existingUser && existingMembership) {
+    response.status(409).json({ error: '该邮箱已注册，请直接登录。' })
+    return
+  }
+  if (purpose === 'reset_password' && !existingUser) {
+    response.status(404).json({ error: '该邮箱尚未注册。' })
+    return
+  }
+
+  try {
+    const authCode = createAuthCode(email, purpose)
+    let delivery = 'email'
+
+    try {
+      await sendAuthCodeEmail({ email, code: authCode.code, purpose })
+    } catch (emailError) {
+      if (!AUTH_DEV_EXPOSE_CODES) {
+        throw emailError
+      }
+
+      delivery = 'dev-fallback'
+      console.warn('[auth] email delivery failed, exposing code because KINLOOP_AUTH_DEV_EXPOSE_CODES=true')
+      console.warn('[auth] target:', email, 'purpose:', purpose, 'code:', authCode.code)
+      console.warn('[auth] email error:', emailError instanceof Error ? emailError.message : emailError)
+    }
+
+    response.status(201).json({
+      ok: true,
+      email,
+      purpose,
+      expiresAt: authCode.expiresAt,
+      delivery,
+      ...(AUTH_DEV_EXPOSE_CODES ? { devCode: authCode.code } : {}),
+    })
+  } catch (error) {
+    response.status(502).json({
+      error: error instanceof Error ? error.message : '发送验证码失败',
+    })
+  }
+})
+
+app.post('/api/auth/register', (request, response) => {
+  const email = `${request.body?.email ?? ''}`.trim().toLowerCase()
+  const code = `${request.body?.code ?? ''}`.trim()
+  const password = `${request.body?.password ?? ''}`
+
+  if (!email || !code || password.length < 8) {
+    response.status(400).json({ error: '请填写邮箱、验证码和至少 8 位密码。' })
+    return
+  }
+
+  try {
+    consumeAuthCode(email, 'register', code)
+    const session = createRegisteredUser({
+      email,
+      password,
+      role: request.body?.role,
+      familyAction: request.body?.familyAction,
+      familyName: request.body?.familyName,
+      familyCode: request.body?.familyCode,
+      displayName: request.body?.displayName,
+      relationLabel: request.body?.relationLabel,
+    })
+    response.status(201).json(session)
+  } catch (error) {
+    response.status(400).json({
+      error: error instanceof Error ? error.message : '注册失败',
+    })
+  }
+})
+
+app.post('/api/auth/login', (request, response) => {
+  const email = `${request.body?.email ?? ''}`.trim().toLowerCase()
+  const password = `${request.body?.password ?? ''}`
+
+  if (!email || !password) {
+    response.status(400).json({ error: '请输入邮箱和密码。' })
+    return
+  }
+
+  try {
+    response.json(loginUser({ email, password }))
+  } catch (error) {
+    response.status(401).json({
+      error: error instanceof Error ? error.message : '登录失败',
+    })
+  }
+})
+
+app.post('/api/auth/reset-password', (request, response) => {
+  const email = `${request.body?.email ?? ''}`.trim().toLowerCase()
+  const code = `${request.body?.code ?? ''}`.trim()
+  const newPassword = `${request.body?.newPassword ?? ''}`
+
+  if (!email || !code || newPassword.length < 8) {
+    response.status(400).json({ error: '请输入邮箱、验证码和至少 8 位新密码。' })
+    return
+  }
+
+  try {
+    consumeAuthCode(email, 'reset_password', code)
+    response.json(resetUserPassword({ email, newPassword }))
+  } catch (error) {
+    response.status(400).json({
+      error: error instanceof Error ? error.message : '重置密码失败',
+    })
+  }
+})
+
+app.use('/api', (request, response, next) => {
+  if (
+    request.path === '/health'
+    || request.path === '/weather/current'
+    || request.path === '/auth/send-code'
+    || request.path === '/auth/register'
+    || request.path === '/auth/login'
+    || request.path === '/auth/reset-password'
+  ) {
+    next()
+    return
+  }
+
+  requireAuth(request, response, next)
+})
+
+app.get('/api/auth/me', (request, response) => {
+  const session = getCurrentSessionPayload(request.auth.token)
+  if (!session) {
+    response.status(401).json({ error: 'Session expired or invalid' })
+    return
+  }
+  response.json(session)
+})
+
+app.post('/api/auth/logout', (request, response) => {
+  deleteSession(request.auth.token)
+  response.status(204).end()
+})
+
 app.get('/api/weather/current', async (request, response) => {
   const city = `${request.query?.city ?? '武汉'}`.trim() || '武汉'
 
@@ -248,8 +447,8 @@ app.get('/api/weather/current', async (request, response) => {
   }
 })
 
-app.get('/api/family-space', (_, response) => {
-  response.json(getCurrentFamilySpace())
+app.get('/api/family-space', (request, response) => {
+  response.json(getFamilySpaceById(getFamilySpaceIdFromRequest(request)))
 })
 
 registerAsrRoutes(app)
@@ -264,17 +463,18 @@ registerUnreadSummaryRoutes(app)
 
 registerVolcanoRoutes(app)
 
-app.get('/api/members', (_, response) => {
-  response.json(listMembers())
+app.get('/api/members', (request, response) => {
+  response.json(listMembers(getFamilySpaceIdFromRequest(request)))
 })
 
 app.get('/api/conversations/cards', (request, response) => {
-  const viewer = request.query?.viewer === 'family' ? 'family' : 'elder'
-  response.json(listConversationCards(viewer))
+  const requestedViewer = request.query?.viewer === 'elder' ? 'elder' : request.query?.viewer === 'family' ? 'family' : getViewerRole(request)
+  const viewer = getViewerRole(request) === 'elder' ? 'elder' : requestedViewer === 'family' ? 'family' : 'family'
+  response.json(listConversationCards(getFamilySpaceIdFromRequest(request), viewer))
 })
 
 app.get('/api/conversations/:conversationId', (request, response) => {
-  const conversation = getConversationDetail(request.params.conversationId)
+  const conversation = getConversationDetail(request.params.conversationId, getFamilySpaceIdFromRequest(request))
 
   if (!conversation) {
     response.status(404).json({ error: 'Conversation not found' })
@@ -291,24 +491,24 @@ app.patch('/api/conversations/:conversationId/read-all', (request, response) => 
     return
   }
 
-  const conversation = getConversationDetail(request.params.conversationId)
+  const conversation = getConversationDetail(request.params.conversationId, getFamilySpaceIdFromRequest(request))
   if (!conversation) {
     response.status(404).json({ error: 'Conversation not found' })
     return
   }
 
-  response.json(markConversationUnreadAsRead(request.params.conversationId, viewer))
+  response.json(markConversationUnreadAsRead(request.params.conversationId, getFamilySpaceIdFromRequest(request), viewer))
 })
 
 app.post('/api/conversations/:conversationId/messages', (request, response) => {
-  const conversation = getConversationDetail(request.params.conversationId)
+  const conversation = getConversationDetail(request.params.conversationId, getFamilySpaceIdFromRequest(request))
 
   if (!conversation) {
     response.status(404).json({ error: 'Conversation not found' })
     return
   }
 
-  const nextConversation = createMessage(request.params.conversationId, request.body)
+  const nextConversation = createMessage(request.params.conversationId, getFamilySpaceIdFromRequest(request), request.body)
   const createdMessage = nextConversation.messages.at(-1) ?? null
   response.status(201).json(nextConversation)
   notifyConversationMembers(nextConversation, {
@@ -323,7 +523,7 @@ app.post('/api/conversations/:conversationId/messages', (request, response) => {
   // Fire-and-forget emotion analysis. Messaging should never be blocked by provider latency.
   void (async () => {
     try {
-      const familySpace = getCurrentFamilySpace()
+      const familySpace = getFamilySpaceById(getFamilySpaceIdFromRequest(request))
       const messageType = `${createdMessage?.messageType ?? request.body?.messageType ?? ''}`.toLowerCase()
       const textContent = createdMessage?.textContent ?? request.body?.textContent ?? null
       const transcript = createdMessage?.transcript ?? request.body?.transcript ?? null
@@ -354,28 +554,28 @@ app.post('/api/conversations/:conversationId/messages', (request, response) => {
   })()
 })
 
-app.get('/api/memories', (_, response) => {
-  response.json(listMemories())
+app.get('/api/memories', (request, response) => {
+  response.json(listMemories(getFamilySpaceIdFromRequest(request)))
 })
 
 app.post('/api/memories', (request, response) => {
-  response.status(201).json(createMemoryEntry(request.body))
+  response.status(201).json(createMemoryEntry(request.body, getFamilySpaceIdFromRequest(request)))
 })
 
-app.get('/api/pulses/today', (_, response) => {
-  response.json(listTodayPulses())
+app.get('/api/pulses/today', (request, response) => {
+  response.json(listTodayPulses(getFamilySpaceIdFromRequest(request)))
 })
 
-app.get('/api/pulses/history', (_, response) => {
-  response.json(listPulseHistory())
+app.get('/api/pulses/history', (request, response) => {
+  response.json(listPulseHistory(getFamilySpaceIdFromRequest(request)))
 })
 
-app.get('/api/pulses/today-summary', (_, response) => {
-  response.json(getTodayEmotionSummary())
+app.get('/api/pulses/today-summary', (request, response) => {
+  response.json(getTodayEmotionSummary(getFamilySpaceIdFromRequest(request)))
 })
 
 app.post('/api/emotions/analyze', async (request, response) => {
-  const familySpace = getCurrentFamilySpace()
+  const familySpace = getFamilySpaceById(getFamilySpaceIdFromRequest(request))
   const payload = normalizeEmotionRequest(request.body, familySpace?.id ?? null)
 
   if (!isEmotionRequestValid(payload)) {
@@ -395,7 +595,7 @@ app.post('/api/emotions/analyze', async (request, response) => {
 })
 
 app.post('/api/emotions/video-call-summary', (request, response) => {
-  const familySpace = getCurrentFamilySpace()
+  const familySpace = getFamilySpaceById(getFamilySpaceIdFromRequest(request))
   const payload = {
     ...request.body,
     familySpaceId: request.body?.familySpaceId ?? familySpace?.id ?? null,
@@ -409,14 +609,14 @@ app.post('/api/emotions/video-call-summary', (request, response) => {
     return
   }
 
-  const conversation = getConversationDetail(payload.conversationId)
+  const conversation = getConversationDetail(payload.conversationId, getFamilySpaceIdFromRequest(request))
   if (!conversation) {
     response.status(404).json({ error: 'Conversation not found' })
     return
   }
 
   const summaryResult = buildVideoCallEmotionSummary(payload)
-  const nextConversation = createMessage(payload.conversationId, {
+  const nextConversation = createMessage(payload.conversationId, getFamilySpaceIdFromRequest(request), {
     senderType: 'System',
     senderMemberId: null,
     messageType: 'Text',
@@ -441,44 +641,73 @@ app.post('/api/emotions/video-call-summary', (request, response) => {
   })
 })
 
-app.get('/api/followups', (_, response) => {
-  response.json(listFollowups())
+app.get('/api/followups', (request, response) => {
+  response.json(listFollowups(getFamilySpaceIdFromRequest(request)))
 })
 
 app.post('/api/followups', (request, response) => {
   response.status(201).json(createFollowup(request.body))
 })
 
-app.get('/api/alerts/active', (_, response) => {
-  response.json(listActiveAlerts())
+app.get('/api/alerts/active', (request, response) => {
+  response.json(listActiveAlerts(getFamilySpaceIdFromRequest(request)))
 })
 
 app.post('/api/alerts', (request, response) => {
-  response.status(201).json(createAlert(request.body))
+  response.status(201).json(createAlert(request.body, getFamilySpaceIdFromRequest(request)))
 })
 
 app.patch('/api/alerts/:alertId/acknowledge', (request, response) => {
-  response.json(acknowledgeAlert(request.params.alertId, request.body.memberId))
+  response.json(acknowledgeAlert(
+    request.params.alertId,
+    request.body.memberId,
+    getFamilySpaceIdFromRequest(request),
+  ))
 })
 
 app.patch('/api/alerts/:alertId/resolve', (request, response) => {
-  response.json(resolveAlert(request.params.alertId, request.body))
+  response.json(resolveAlert(request.params.alertId, request.body, getFamilySpaceIdFromRequest(request)))
 })
 
-app.get('/api/permission-policies', (_, response) => {
-  response.json(listPermissionPolicies())
+app.get('/api/permission-policies', (request, response) => {
+  response.json(listPermissionPolicies(getFamilySpaceIdFromRequest(request)))
 })
 
-app.get('/api/invites', (_, response) => {
-  response.json(listInviteCodes())
+app.get('/api/invites', (request, response) => {
+  response.json(listInviteCodes(getFamilySpaceIdFromRequest(request)))
 })
 
 app.post('/api/invites', (request, response) => {
-  response.status(201).json(createInviteCode(request.body))
+  response.status(201).json(createInviteCodeForFamily({
+    familySpaceId: getFamilySpaceIdFromRequest(request),
+    requestedRole: request.body?.requestedRole ?? 'Family',
+    createdByMemberId: request.auth.membership.memberId,
+  }))
 })
 
 app.patch('/api/invites/:inviteId/approve', (request, response) => {
-  response.json(approveInviteCode(request.params.inviteId, request.body.approvedMemberId))
+  response.json(approveInviteCode(
+    request.params.inviteId,
+    request.body.approvedMemberId,
+    getFamilySpaceIdFromRequest(request),
+  ))
+})
+
+app.use((error, request, response, _next) => {
+  console.error(error)
+
+  if (response.headersSent) {
+    return
+  }
+
+  const message = error instanceof Error ? error.message : '服务器开小差了，请稍后再试。'
+  const isApiRequest = request.path?.startsWith('/api/')
+  if (isApiRequest) {
+    response.status(500).json({ error: message || '服务器开小差了，请稍后再试。' })
+    return
+  }
+
+  response.status(500).send('服务器开小差了，请稍后再试。')
 })
 
 server.listen(API_PORT, API_HOST, () => {

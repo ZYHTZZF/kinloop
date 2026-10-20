@@ -66,6 +66,32 @@ export async function ensureMicrophoneCapturePermission() {
   return true
 }
 
+export async function ensureCallMediaPermission(callType: 'voice' | 'video') {
+  if (typeof window === 'undefined') return false
+
+  const host = window.location.hostname
+  if (!window.isSecureContext && host !== 'localhost' && host !== '127.0.0.1') {
+    return false
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return false
+  }
+
+  const constraints: MediaStreamConstraints =
+    callType === 'video'
+      ? { audio: true, video: true }
+      : { audio: true, video: false }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints)
+    stream.getTracks().forEach((track) => track.stop())
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function ensureNotificationPermission() {
   if (Capacitor.isNativePlatform()) {
     const current = await LocalNotifications.checkPermissions()

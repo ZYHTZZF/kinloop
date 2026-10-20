@@ -1,6 +1,6 @@
 import { getDatabase } from '../db/index.mjs'
 
-export function listMemories() {
+export function listMemories(familySpaceId) {
   const db = getDatabase()
   return db.prepare(`
     select
@@ -19,11 +19,12 @@ export function listMemories() {
       created_at as createdAt,
       updated_at as updatedAt
     from memory_entries
+    where family_space_id = ?
     order by added_at desc
-  `).all()
+  `).all(familySpaceId)
 }
 
-export function createMemoryEntry(payload) {
+export function createMemoryEntry(payload, familySpaceId) {
   const db = getDatabase()
   const now = Date.now()
   const id = `memory_${now}`
@@ -40,7 +41,7 @@ export function createMemoryEntry(payload) {
     )
   `).run({
     id,
-    familySpaceId: payload.familySpaceId,
+    familySpaceId,
     sourceConvId: payload.sourceConvId ?? null,
     sourceMsgId: payload.sourceMsgId ?? null,
     addedByMemberId: payload.addedByMemberId,

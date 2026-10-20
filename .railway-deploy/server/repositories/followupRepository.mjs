@@ -1,6 +1,6 @@
 import { getDatabase } from '../db/index.mjs'
 
-export function listFollowups() {
+export function listFollowups(familySpaceId) {
   const db = getDatabase()
   return db.prepare(`
     select
@@ -14,8 +14,14 @@ export function listFollowups() {
       status,
       created_at as createdAt
     from followup_records
+    where linked_pulse_id in (
+      select id from pulses where family_space_id = ?
+    )
+      or linked_alert_id in (
+        select id from alerts where family_space_id = ?
+      )
     order by created_at desc
-  `).all()
+  `).all(familySpaceId, familySpaceId)
 }
 
 export function createFollowup(payload) {

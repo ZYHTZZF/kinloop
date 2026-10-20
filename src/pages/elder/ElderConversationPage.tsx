@@ -31,7 +31,7 @@ import {
   stopVoiceRecording,
   type VoiceRecordingSession,
 } from '../../utils/chatVoice'
-import { ensureMicrophoneCapturePermission } from '../../platform/permissions'
+import { ensureCallMediaPermission, ensureMicrophoneCapturePermission } from '../../platform/permissions'
 import type { ElderVoiceIntentResult } from '../../domain/elderVoice'
 import { webrtcManager } from '../../services/webrtc/WebRTCManager'
 import * as chatApi from '../../services/api/chatApi'
@@ -390,6 +390,15 @@ export function ElderConversationPage() {
   const handleAcceptCall = async () => {
     if (!currentUserId || !otherUserId) return
     try {
+      const allowed = await ensureCallMediaPermission(callType)
+      if (!allowed) {
+        setError(callType === 'video' ? '请允许摄像头和麦克风权限后再接听视频通话' : '请允许麦克风权限后再接听语音通话')
+        setIsCallActive(false)
+        setIsIncomingCall(false)
+        setCallState('idle')
+        return
+      }
+
       setCallState('connecting')
       if (incomingOfferRef.current) {
         await webrtcManager.acceptCall(
@@ -408,6 +417,7 @@ export function ElderConversationPage() {
       }
     } catch (e) {
       console.error(e)
+      setError(e instanceof Error ? e.message : '接听通话失败')
       setIsCallActive(false)
       setCallState('idle')
     }
@@ -440,30 +450,58 @@ export function ElderConversationPage() {
 
   const handleInitiateVoiceCall = async () => {
     if (!currentUserId || !otherUserId) return
-    isCallerRef.current = true
-    setIsCallActive(true)
-    setCallType('voice')
-    setCallState('ringing')
-    setIsIncomingCall(false)
-    await webrtcManager.initiateCall(currentUserId, otherUserId, 'voice')
-    await sendOutgoingCallMessage('voice')
-    setLocalCallStream(webrtcManager.getLocalStream())
-    setRemoteCallStream(webrtcManager.getRemoteStream())
+    try {
+      const allowed = await ensureCallMediaPermission('voice')
+      if (!allowed) {
+        setError('请允许麦克风权限后再发起语音通话')
+        return
+      }
+
+      isCallerRef.current = true
+      setIsCallActive(true)
+      setCallType('voice')
+      setCallState('ringing')
+      setIsIncomingCall(false)
+      await webrtcManager.initiateCall(currentUserId, otherUserId, 'voice')
+      await sendOutgoingCallMessage('voice')
+      setLocalCallStream(webrtcManager.getLocalStream())
+      setRemoteCallStream(webrtcManager.getRemoteStream())
+      setError('')
+    } catch (e) {
+      console.error(e)
+      setError(e instanceof Error ? e.message : '发起语音通话失败')
+      setIsCallActive(false)
+      setCallState('idle')
+    }
   }
 
   const handleInitiateVideoCall = async () => {
     if (!currentUserId || !otherUserId) return
-    isCallerRef.current = true
-    setIsCallActive(true)
-    setCallType('video')
-    setCallState('ringing')
-    setIsIncomingCall(false)
-    await webrtcManager.initiateCall(currentUserId, otherUserId, 'video')
-    await sendOutgoingCallMessage('video')
-    setIsCameraOn(true)
-    webrtcManager.toggleVideo(true)
-    setLocalCallStream(webrtcManager.getLocalStream())
-    setRemoteCallStream(webrtcManager.getRemoteStream())
+    try {
+      const allowed = await ensureCallMediaPermission('video')
+      if (!allowed) {
+        setError('请允许摄像头和麦克风权限后再发起视频通话')
+        return
+      }
+
+      isCallerRef.current = true
+      setIsCallActive(true)
+      setCallType('video')
+      setCallState('ringing')
+      setIsIncomingCall(false)
+      await webrtcManager.initiateCall(currentUserId, otherUserId, 'video')
+      await sendOutgoingCallMessage('video')
+      setIsCameraOn(true)
+      webrtcManager.toggleVideo(true)
+      setLocalCallStream(webrtcManager.getLocalStream())
+      setRemoteCallStream(webrtcManager.getRemoteStream())
+      setError('')
+    } catch (e) {
+      console.error(e)
+      setError(e instanceof Error ? e.message : '发起视频通话失败')
+      setIsCallActive(false)
+      setCallState('idle')
+    }
   }
 
   const handleToggleCamera = (enabled: boolean) => {

@@ -24,6 +24,9 @@ export const VOLCANO_ENDPOINT = 'https://api.volcanoapi.com'
 export const LLM_API_KEY = process.env.KINLOOP_LLM_API_KEY ?? process.env.KINLOOP_VOLCANO_API_KEY ?? ''
 export const LLM_BASE_URL = process.env.KINLOOP_LLM_BASE_URL ?? 'https://ark.cn-beijing.volces.com/api/v3'
 export const LLM_MODEL = process.env.KINLOOP_LLM_MODEL ?? ''
+export const SUGGESTION_FAST_MODEL = process.env.KINLOOP_SUGGESTION_FAST_MODEL ?? LLM_MODEL
+export const SUGGESTION_STRONG_MODEL = process.env.KINLOOP_SUGGESTION_STRONG_MODEL ?? SUGGESTION_FAST_MODEL
+export const SUGGESTION_ROUTING_MODE = process.env.KINLOOP_SUGGESTION_ROUTING_MODE ?? 'speed'
 export const ASR_MODEL = process.env.KINLOOP_ASR_MODEL ?? ''
 export const ASR_BASE_URL = process.env.KINLOOP_ASR_BASE_URL ?? LLM_BASE_URL
 export const ASR_API_KEY = process.env.KINLOOP_ASR_API_KEY ?? LLM_API_KEY
@@ -32,3 +35,13 @@ export const VOLC_ASR_ACCESS_TOKEN = process.env.KINLOOP_VOLC_ASR_ACCESS_TOKEN ?
 export const VOLC_ASR_API_KEY = process.env.KINLOOP_VOLC_ASR_API_KEY ?? ''
 export const VOLC_ASR_CLUSTER = process.env.KINLOOP_VOLC_ASR_CLUSTER ?? ''
 export const VOLC_ASR_RESOURCE_ID = process.env.KINLOOP_VOLC_ASR_RESOURCE_ID ?? 'volc.bigasr.auc_turbo'
+export const AUTH_SESSION_TTL_MS = Number(process.env.KINLOOP_AUTH_SESSION_TTL_MS ?? 30 * 24 * 60 * 60 * 1000)
+export const AUTH_CODE_TTL_MS = Number(process.env.KINLOOP_AUTH_CODE_TTL_MS ?? 10 * 60 * 1000)
+export const AUTH_DEV_EXPOSE_CODES = `${process.env.KINLOOP_AUTH_DEV_EXPOSE_CODES ?? 'false'}`.toLowerCase() === 'true'
+export const SMTP_HOST = process.env.KINLOOP_SMTP_HOST ?? ''
+export const SMTP_PORT = Number(process.env.KINLOOP_SMTP_PORT ?? 465)
+export const SMTP_SECURE = `${process.env.KINLOOP_SMTP_SECURE ?? 'true'}`.toLowerCase() !== 'false'
+export const SMTP_REQUIRE_TLS = `${process.env.KINLOOP_SMTP_REQUIRE_TLS ?? 'true'}`.toLowerCase() !== 'false'
+export const SMTP_USER = process.env.KINLOOP_SMTP_USER ?? ''
+export const SMTP_PASS = process.env.KINLOOP_SMTP_PASS ?? ''
+export const SMTP_FROM = process.env.KINLOOP_SMTP_FROM ?? SMTP_USER

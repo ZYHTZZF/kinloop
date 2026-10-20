@@ -48,14 +48,15 @@ class WebRTCManager {
     }
 
     const callId = `${currentUserId}-${remoteUserId}-${Date.now()}`
+    let localStream: MediaStream | null = null
 
     try {
-      const localStream = await this.requestMediaStream(callType)
+      localStream = await this.requestMediaStream(callType)
       const peerConnection = this.createPeerConnection()
       const remoteStream = new MediaStream()
 
       localStream.getTracks().forEach((track) => {
-        peerConnection.addTrack(track, localStream)
+        peerConnection.addTrack(track, localStream!)
       })
 
       peerConnection.ontrack = (event) => {
@@ -91,6 +92,7 @@ class WebRTCManager {
 
       this.emit('call-initiated', { callId, remoteUserId, callType })
     } catch (error) {
+      localStream?.getTracks().forEach((track) => track.stop())
       this.cleanup()
       throw error
     }
@@ -107,15 +109,17 @@ class WebRTCManager {
       throw new Error('Call already in progress')
     }
 
+    let localStream: MediaStream | null = null
+
     try {
-      const localStream = await this.requestMediaStream(callType)
+      localStream = await this.requestMediaStream(callType)
       const peerConnection = this.createPeerConnection()
       const remoteStream = new MediaStream()
 
       await peerConnection.setRemoteDescription(offer)
 
       localStream.getTracks().forEach((track) => {
-        peerConnection.addTrack(track, localStream)
+        peerConnection.addTrack(track, localStream!)
       })
 
       peerConnection.ontrack = (event) => {
@@ -150,6 +154,7 @@ class WebRTCManager {
 
       this.emit('call-accepted', { callId, remoteUserId })
     } catch (error) {
+      localStream?.getTracks().forEach((track) => track.stop())
       this.cleanup()
       throw error
     }

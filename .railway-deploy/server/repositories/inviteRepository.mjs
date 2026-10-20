@@ -1,6 +1,6 @@
 import { getDatabase } from '../db/index.mjs'
 
-export function listInviteCodes() {
+export function listInviteCodes(familySpaceId) {
   const db = getDatabase()
   return db.prepare(`
     select
@@ -15,11 +15,12 @@ export function listInviteCodes() {
       created_at as createdAt,
       approved_at as approvedAt
     from invite_codes
+    where family_space_id = ?
     order by created_at desc
-  `).all()
+  `).all(familySpaceId)
 }
 
-export function createInviteCode(payload) {
+export function createInviteCode(payload, familySpaceId) {
   const db = getDatabase()
   const now = Date.now()
   const id = `invite_${now}`
@@ -35,7 +36,7 @@ export function createInviteCode(payload) {
     )
   `).run({
     id,
-    familySpaceId: payload.familySpaceId,
+    familySpaceId,
     code,
     status: payload.status ?? 'ACTIVE',
     requestedRole: payload.requestedRole ?? 'Family',
@@ -63,7 +64,7 @@ export function createInviteCode(payload) {
   `).get(id)
 }
 
-export function approveInviteCode(inviteId, approvedMemberId) {
+export function approveInviteCode(inviteId, approvedMemberId, familySpaceId) {
   const db = getDatabase()
   const now = Date.now()
 
@@ -71,7 +72,8 @@ export function approveInviteCode(inviteId, approvedMemberId) {
     update invite_codes
     set status = 'APPROVED', approved_member_id = ?, approved_at = ?
     where id = ?
-  `).run(approvedMemberId, now, inviteId)
+      and family_space_id = ?
+  `).run(approvedMemberId, now, inviteId, familySpaceId)
 
   return db.prepare(`
     select

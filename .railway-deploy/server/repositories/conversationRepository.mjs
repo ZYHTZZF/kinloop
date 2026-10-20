@@ -1,4 +1,5 @@
 import { getDatabase } from '../db/index.mjs'
+import { createEntityId } from '../services/auth/tokenService.mjs'
 
 function looksGarbled(text) {
   if (typeof text !== 'string' || !text) return false
@@ -107,7 +108,65 @@ function getUnreadMessagesForViewer(messages, viewer) {
   ))
 }
 
-function fetchConversationRows(db) {
+function ensureFamilyChatSeeds(db, familySpaceId) {
+  if (!familySpaceId) {
+    return
+  }
+
+  const elderRow = db.prepare(`
+    select id
+    from members
+    where family_space_id = ?
+      and role = 'Elder'
+    limit 1
+  `).get(familySpaceId)
+
+  if (!elderRow?.id) {
+    return
+  }
+
+  const familyMembers = db.prepare(`
+    select id, last_activity_at as lastActivityAt
+    from members
+    where family_space_id = ?
+      and role in ('Primary', 'Family', 'Trusted')
+  `).all(familySpaceId)
+
+  const existingConversationMemberIds = new Set(
+    db.prepare(`
+      select family_member_id as familyMemberId
+      from conversations
+      where family_space_id = ?
+        and conversation_type = 'FAMILY_CHAT'
+    `).all(familySpaceId).map((row) => row.familyMemberId),
+  )
+
+  const insertConversation = db.prepare(`
+    insert into conversations (
+      id, family_space_id, elder_member_id, family_member_id, conversation_type, last_meaningful_activity_at, created_at
+    ) values (?, ?, ?, ?, 'FAMILY_CHAT', ?, ?)
+  `)
+
+  const now = Date.now()
+  for (const member of familyMembers) {
+    if (!member?.id || existingConversationMemberIds.has(member.id)) {
+      continue
+    }
+
+    insertConversation.run(
+      createEntityId('conv'),
+      familySpaceId,
+      elderRow.id,
+      member.id,
+      member.lastActivityAt ?? null,
+      now,
+    )
+  }
+}
+
+function fetchConversationRows(db, familySpaceId) {
+  ensureFamilyChatSeeds(db, familySpaceId)
+
   return db.prepare(`
     select
       conversations.id as conversationId,
@@ -123,8 +182,9 @@ function fetchConversationRows(db) {
     from conversations
     inner join members on members.id = conversations.family_member_id
     inner join family_spaces on family_spaces.id = conversations.family_space_id
+    where conversations.family_space_id = ?
     order by conversations.last_meaningful_activity_at desc
-  `).all()
+  `).all(familySpaceId)
 }
 
 function fetchConversationMessages(db, conversationId) {
@@ -226,9 +286,9 @@ function fetchConversationMessages(db, conversationId) {
   }))
 }
 
-export function listConversationCards(viewer = 'elder') {
+export function listConversationCards(familySpaceId, viewer = 'elder') {
   const db = getDatabase()
-  const conversations = fetchConversationRows(db)
+  const conversations = fetchConversationRows(db, familySpaceId)
     .filter((conversation) => !(viewer === 'family' && conversation.conversationType === 'AI_ASSISTANT'))
     .sort((a, b) => {
       if (viewer === 'elder') {
@@ -262,7 +322,7 @@ export function listConversationCards(viewer = 'elder') {
   })
 }
 
-export function getConversationDetail(conversationId) {
+export function getConversationDetail(conversationId, familySpaceId) {
   const db = getDatabase()
   const conversation = db.prepare(`
     select
@@ -279,7 +339,8 @@ export function getConversationDetail(conversationId) {
     inner join members on members.id = conversations.family_member_id
     inner join family_spaces on family_spaces.id = conversations.family_space_id
     where conversations.id = ?
-  `).get(conversationId)
+      and conversations.family_space_id = ?
+  `).get(conversationId, familySpaceId)
 
   if (!conversation) {
     return null
@@ -299,7 +360,7 @@ export function getConversationDetail(conversationId) {
   }
 }
 
-export function createMessage(conversationId, payload) {
+export function createMessage(conversationId, familySpaceId, payload) {
   const db = getDatabase()
   const now = Date.now()
   const id = `msg_${now}`
@@ -340,10 +401,10 @@ export function createMessage(conversationId, payload) {
     where id = ?
   `).run(now, conversationId)
 
-  return getConversationDetail(conversationId)
+  return getConversationDetail(conversationId, familySpaceId)
 }
 
-export function markConversationUnreadAsRead(conversationId, viewer = 'elder') {
+export function markConversationUnreadAsRead(conversationId, familySpaceId, viewer = 'elder') {
   const db = getDatabase()
   const peerSenderType = getPeerSenderType(viewer)
   const now = Date.now()
@@ -361,6 +422,6 @@ export function markConversationUnreadAsRead(conversationId, viewer = 'elder') {
 
   return {
     updatedCount: Number(result?.changes ?? 0),
-    conversation: getConversationDetail(conversationId),
+    conversation: getConversationDetail(conversationId, familySpaceId),
   }
 }
