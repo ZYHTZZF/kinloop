@@ -27,6 +27,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.2",
+    "tencentcloud-sdk-nodejs-tts": "^4.1.203",
     "ws": "^8.20.0"
   },
   "devDependencies": {

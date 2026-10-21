@@ -37,6 +37,17 @@ export interface StartSpeechRecognitionOptions {
   onListeningStateChange?: (listening: boolean) => void
 }
 
+export interface SpeechRecognitionSupportStatus {
+  supported: boolean
+  reason:
+    | 'available'
+    | 'native-unavailable'
+    | 'native-error'
+    | 'browser-unsupported'
+    | 'browser-insecure-context'
+    | 'browser-mic-unavailable'
+}
+
 function getBrowserSpeechRecognitionCtor(): BrowserSpeechRecognitionCtor | null {
   if (typeof window === 'undefined') return null
 
@@ -48,17 +59,53 @@ function getBrowserSpeechRecognitionCtor(): BrowserSpeechRecognitionCtor | null 
   return win.SpeechRecognition ?? win.webkitSpeechRecognition ?? null
 }
 
-export async function isSpeechRecognitionSupported() {
+export async function getSpeechRecognitionSupportStatus(): Promise<SpeechRecognitionSupportStatus> {
   if (Capacitor.isNativePlatform()) {
     try {
       const { available } = await SpeechRecognition.available()
-      return available
+      return {
+        supported: available,
+        reason: available ? 'available' : 'native-unavailable',
+      }
     } catch {
-      return false
+      return {
+        supported: false,
+        reason: 'native-error',
+      }
     }
   }
 
-  return getBrowserSpeechRecognitionCtor() !== null
+  if (typeof window === 'undefined') {
+    return {
+      supported: false,
+      reason: 'browser-unsupported',
+    }
+  }
+
+  const host = window.location.hostname
+  if (!window.isSecureContext && host !== 'localhost' && host !== '127.0.0.1') {
+    return {
+      supported: false,
+      reason: 'browser-insecure-context',
+    }
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return {
+      supported: false,
+      reason: 'browser-mic-unavailable',
+    }
+  }
+
+  return {
+    supported: getBrowserSpeechRecognitionCtor() !== null,
+    reason: getBrowserSpeechRecognitionCtor() !== null ? 'available' : 'browser-unsupported',
+  }
+}
+
+export async function isSpeechRecognitionSupported() {
+  const status = await getSpeechRecognitionSupportStatus()
+  return status.supported
 }
 
 export async function startSpeechRecognition(

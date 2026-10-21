@@ -97,6 +97,7 @@ export function ElderConversationPage() {
   const [isCameraOn, setIsCameraOn] = useState(true)
   const [localCallStream, setLocalCallStream] = useState<MediaStream | null>(null)
   const [remoteCallStream, setRemoteCallStream] = useState<MediaStream | null>(null)
+  const [activeCallId, setActiveCallId] = useState<string | null>(null)
 
   const isCallerRef = useRef(false)
   const incomingOfferRef = useRef<string | null>(null)
@@ -242,6 +243,7 @@ export function ElderConversationPage() {
         if (!sdp) return
         isCallerRef.current = false
         incomingOfferRef.current = sdp
+        setActiveCallId(signal.callId)
         setIsCallActive(true)
         setCallType(signal.callType || 'voice')
         setCallState('ringing')
@@ -261,12 +263,14 @@ export function ElderConversationPage() {
         if (isCallerRef.current) {
           void logCallSystemMessage('对方暂时没有接听这次通话。')
         }
+        setActiveCallId(null)
         setIsCallActive(false)
         setCallState('idle')
         setLocalCallStream(null)
         setRemoteCallStream(null)
       } else if (signal.type === 'hangup') {
         webrtcManager.hangup()
+        setActiveCallId(null)
         setIsCallActive(false)
         setCallState('ended')
         setLocalCallStream(null)
@@ -292,6 +296,7 @@ export function ElderConversationPage() {
       setCallState('ended')
       setIsCallActive(false)
       setCallDuration(0)
+      setActiveCallId(null)
       setLocalCallStream(null)
       setRemoteCallStream(null)
       setTimeout(() => setCallState('idle'), 500)
@@ -406,14 +411,16 @@ export function ElderConversationPage() {
           { type: 'offer', sdp: incomingOfferRef.current } as RTCSessionDescription,
           otherUserId,
           callType,
-          `${otherUserId}-${currentUserId}`,
+          activeCallId ?? `${otherUserId}-${currentUserId}`,
         )
+        setActiveCallId(webrtcManager.getCallId())
         if (callType === 'video') {
           setIsCameraOn(true)
           webrtcManager.toggleVideo(true)
         }
         setLocalCallStream(webrtcManager.getLocalStream())
         setRemoteCallStream(webrtcManager.getRemoteStream())
+        setIsIncomingCall(false)
       }
     } catch (e) {
       console.error(e)
@@ -424,8 +431,9 @@ export function ElderConversationPage() {
   }
 
   const handleRejectCall = async () => {
-    if (!currentUserId || !otherUserId) return
-    await webrtcManager.rejectCall(currentUserId, otherUserId, 'call-id')
+    if (!currentUserId || !otherUserId || !activeCallId) return
+    await webrtcManager.rejectCall(currentUserId, otherUserId, activeCallId)
+    setActiveCallId(null)
     setIsCallActive(false)
     setCallState('idle')
     setLocalCallStream(null)
@@ -433,15 +441,16 @@ export function ElderConversationPage() {
   }
 
   const handleHangupCall = () => {
-    if (!currentUserId || !otherUserId) return
+    if (!currentUserId || !otherUserId || !activeCallId) return
     chatApi.sendWebrtcSignal({
       type: 'hangup',
       from: currentUserId,
       to: otherUserId,
-      callId: `${currentUserId}-${otherUserId}`,
+      callId: activeCallId,
       timestamp: Date.now(),
     })
     webrtcManager.hangup()
+    setActiveCallId(null)
     setIsCallActive(false)
     setCallState('ended')
     setLocalCallStream(null)
@@ -463,6 +472,7 @@ export function ElderConversationPage() {
       setCallState('ringing')
       setIsIncomingCall(false)
       await webrtcManager.initiateCall(currentUserId, otherUserId, 'voice')
+      setActiveCallId(webrtcManager.getCallId())
       await sendOutgoingCallMessage('voice')
       setLocalCallStream(webrtcManager.getLocalStream())
       setRemoteCallStream(webrtcManager.getRemoteStream())
@@ -490,6 +500,7 @@ export function ElderConversationPage() {
       setCallState('ringing')
       setIsIncomingCall(false)
       await webrtcManager.initiateCall(currentUserId, otherUserId, 'video')
+      setActiveCallId(webrtcManager.getCallId())
       await sendOutgoingCallMessage('video')
       setIsCameraOn(true)
       webrtcManager.toggleVideo(true)
@@ -540,36 +551,13 @@ export function ElderConversationPage() {
   return (
     <section className="screen screen--elder-conversation">
       <section className="surface-card">
-        <header className="detail-header">
-          <Link className="back-link" to="/elder/inbox">
-            返回
+        <div className="family-chat-header">
+          <Link className="family-chat-header__back" to="/elder/inbox" aria-label="返回聊天列表">
+            {'<'}
           </Link>
-          {conversation ? (
-            <div className="detail-header__identity" style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span className="avatar-badge">{conversation.avatar}</span>
-                <div>
-                  <p className="surface-card__eyebrow">正在聊天</p>
-                  <h2>{conversation.name}</h2>
-                </div>
-              </div>
-              {!isAiAssistantConversation ? (
-                <div style={{ display: 'flex', gap: '16px', paddingRight: '16px' }}>
-                  <button
-                    className="ghost-action"
-                    type="button"
-                    onClick={() => void handleMarkConversationRead()}
-                    disabled={markingRead || unreadCount === 0}
-                  >
-                    {markingRead ? '处理中...' : '一键已读'}
-                  </button>
-                  <button onClick={() => void handleInitiateVoiceCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="语音通话">{'\u{1F4DE}'}</button>
-                  <button onClick={() => void handleInitiateVideoCall()} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }} title="视频通话">{'\u{1F4F9}'}</button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </header>
+          <h2>{conversation?.name ?? '家人'}</h2>
+          <div className="family-chat-header__spacer" aria-hidden="true" />
+        </div>
 
         {isCallActive && callType === 'voice' && (
           <VoiceCall
@@ -771,18 +759,17 @@ export function ElderConversationPage() {
 
         {conversation && !isAiAssistantConversation ? (
           <form
-            className={`ai-confirm-card ${isDraggingImage ? 'composer-card--dragging' : ''}`}
+            className={`composer-card ${isDraggingImage ? 'composer-card--dragging' : ''}`}
             onSubmit={handleSubmitReply}
             onDragOver={handleComposerDragOver}
             onDragLeave={handleComposerDragLeave}
             onDrop={handleComposerDrop}
           >
-            <p className="surface-card__eyebrow">发送前确认</p>
-            <strong>发给 {conversation.name}：</strong>
             <div className="composer-input-row">
               <input
                 ref={draftInputRef}
                 aria-label="待发送内容"
+                placeholder="输入你想说的话"
                 value={draftText}
                 onChange={(event) => setDraftText(event.target.value)}
               />
@@ -895,17 +882,49 @@ export function ElderConversationPage() {
                 >
                   未读摘要
                 </button>
+                <button
+                  className="ghost-action attachment-menu__button"
+                  type="button"
+                  disabled={sending || isRecordingVoice}
+                  onClick={() => {
+                    setShowAttachmentOptions(false)
+                    void handleMarkConversationRead()
+                  }}
+                >
+                  {markingRead ? '处理中...' : '一键已读'}
+                </button>
+                <button
+                  className="ghost-action attachment-menu__button"
+                  type="button"
+                  disabled={sending || isRecordingVoice}
+                  onClick={() => {
+                    setShowAttachmentOptions(false)
+                    void handleInitiateVoiceCall()
+                  }}
+                >
+                  语音通话
+                </button>
+                <button
+                  className="ghost-action attachment-menu__button"
+                  type="button"
+                  disabled={sending || isRecordingVoice}
+                  onClick={() => {
+                    setShowAttachmentOptions(false)
+                    void handleInitiateVideoCall()
+                  }}
+                >
+                  视频通话
+                </button>
               </div>
             ) : null}
             {isDraggingImage ? <p className="composer-drop-tip">松手后直接发送图片或视频</p> : null}
             {showEmojiPanel ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px' }}>
+              <div className="family-chat-emoji-panel">
                 {STATIC_EMOJIS.map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
-                    className="ghost-action"
-                    style={{ fontSize: '20px', padding: '6px 0' }}
+                    className="family-chat-emoji-panel__item"
                     onClick={() => handlePickEmoji(emoji)}
                   >
                     {emoji}
@@ -914,7 +933,7 @@ export function ElderConversationPage() {
               </div>
             ) : null}
             <div className="inline-actions">
-              <button className="ghost-action" type="button" onClick={() => setShowEmojiPanel((prev) => !prev)}>
+              <button className="ghost-action family-chat-composer__emoji" type="button" onClick={() => setShowEmojiPanel((prev) => !prev)}>
                 {'\u{1F600}'}
               </button>
               <button

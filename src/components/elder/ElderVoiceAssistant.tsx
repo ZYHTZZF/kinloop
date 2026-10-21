@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { classifyElderSpeech, type ElderVoiceIntentResult } from '../../domain/elderVoice'
 import {
@@ -9,10 +9,12 @@ import {
   listConversationCards,
   listMembers,
   sendMessage,
+  synthesizeSpeech,
 } from '../../services/api'
 import type { ConversationCard, Member } from '../../services/api'
 import { ensureSpeechRecognitionPermission } from '../../platform/permissions'
 import {
+  getSpeechRecognitionSupportStatus,
   isSpeechRecognitionSupported,
   startSpeechRecognition,
   type SpeechSession,
@@ -27,10 +29,13 @@ const examplePrompts = [
 
 type AssistantStage = 'idle' | 'recording' | 'transcribing' | 'classifying' | 'result' | 'acting'
 const AUTO_EXECUTE_CONFIDENCE = 0.78
+const WAKE_WORD = '小智小智'
 
 export function ElderVoiceAssistant() {
   const navigate = useNavigate()
   const location = useLocation()
+  const isHomeRoute = location.pathname === '/elder/home'
+  const isConversationRoute = /^\/elder\/conversations\/[^/]+$/.test(location.pathname)
   const [members, setMembers] = useState<Member[]>([])
   const [conversations, setConversations] = useState<ConversationCard[]>([])
   const [familySpaceId, setFamilySpaceId] = useState('fs_demo')
@@ -44,9 +49,31 @@ export function ElderVoiceAssistant() {
   const [error, setError] = useState('')
   const [assistantNotice, setAssistantNotice] = useState('')
   const [isRecording, setIsRecording] = useState(false)
+  const [edgePosition, setEdgePosition] = useState<{ x: number; y: number } | null>(null)
 
   const micReadyRef = useRef(false)
   const speechSessionRef = useRef<SpeechSession | null>(null)
+  const wakeWordSessionRef = useRef<SpeechSession | null>(null)
+  const wakeWordRestartTimerRef = useRef<number | null>(null)
+  const wakeWordEnabledRef = useRef(false)
+  const wakeWordTriggeredRef = useRef(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioObjectUrlRef = useRef<string | null>(null)
+  const edgeButtonRef = useRef<HTMLButtonElement | null>(null)
+  const dragStateRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+    moved: boolean
+  } | null>(null)
+  const suppressTapRef = useRef(false)
+  const wakeWordEnabled = location.pathname.startsWith('/elder') && !open && stage === 'idle' && !isRecording
+
+  useEffect(() => {
+    wakeWordEnabledRef.current = wakeWordEnabled
+  }, [wakeWordEnabled])
 
   useEffect(() => {
     void loadDirectory()
@@ -56,20 +83,91 @@ export function ElderVoiceAssistant() {
     resetAssistant()
   }, [location.pathname])
 
+  useEffect(() => {
+    if (!isConversationRoute || typeof window === 'undefined') return
+    setEdgePosition(getDefaultEdgePosition())
+  }, [isConversationRoute])
+
+  useEffect(() => {
+    function handleWindowResize() {
+      setEdgePosition((current) => {
+        if (!current) return getDefaultEdgePosition()
+        return clampEdgePosition(current.x, current.y)
+      })
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', handleWindowResize)
+      return () => window.removeEventListener('resize', handleWindowResize)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    window.addEventListener('pointermove', handleEdgePointerMove)
+    window.addEventListener('pointerup', handleEdgePointerUp)
+    window.addEventListener('pointercancel', handleEdgePointerUp)
+
+    return () => {
+      window.removeEventListener('pointermove', handleEdgePointerMove)
+      window.removeEventListener('pointerup', handleEdgePointerUp)
+      window.removeEventListener('pointercancel', handleEdgePointerUp)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!wakeWordEnabled) {
+      void stopWakeWordListening()
+      return
+    }
+
+    void startWakeWordListening()
+
+    return () => {
+      void stopWakeWordListening()
+    }
+  }, [wakeWordEnabled])
+
   return (
     <>
-      <button
-        className={`global-voice-button${isRecording ? ' is-holding' : ''}`}
-        type="button"
-        aria-label={resolveButtonLabel(stage)}
-        onClick={() => void handleVoiceToggle()}
-      >
-        <span className="global-voice-button__mic">🎙</span>
-        <span>{resolveButtonLabel(stage)}</span>
-      </button>
+      {isConversationRoute ? (
+        <button
+          ref={edgeButtonRef}
+          className={[
+            'global-voice-button',
+            'global-voice-button--edge',
+            isRecording ? 'is-holding' : '',
+          ].filter(Boolean).join(' ')}
+          type="button"
+          aria-label="打开 AI 助手"
+          style={edgePosition ? { left: edgePosition.x, top: edgePosition.y, right: 'auto', bottom: 'auto' } : undefined}
+          onPointerDown={handleEdgePointerDown}
+          onClick={() => void handleEdgeButtonClick()}
+        >
+          <span className="global-voice-button__mic">🎙</span>
+          <span>AI</span>
+        </button>
+      ) : null}
+
+      {!isConversationRoute ? (
+        <button
+          className={[
+            'global-voice-button',
+            isRecording ? 'is-holding' : '',
+            isHomeRoute ? 'global-voice-button--home' : '',
+          ].filter(Boolean).join(' ')}
+          type="button"
+          aria-label={resolveButtonLabel(stage)}
+          onClick={() => void handleVoiceToggle()}
+        >
+          <span className="global-voice-button__mic">🎙</span>
+          <span>{resolveButtonLabel(stage)}</span>
+        </button>
+      ) : null}
 
       {open ? (
-        <section className="voice-sheet" aria-live="polite">
+        <section className={['voice-sheet', isConversationRoute ? 'voice-sheet--edge' : ''].filter(Boolean).join(' ')} aria-live="polite">
           <div className="voice-sheet__header">
             <div>
               <p className="surface-card__eyebrow">语音入口</p>
@@ -165,6 +263,66 @@ export function ElderVoiceAssistant() {
     </>
   )
 
+  function handleEdgeButtonClick() {
+    if (suppressTapRef.current) {
+      suppressTapRef.current = false
+      return
+    }
+
+    void handleVoiceToggle()
+  }
+
+  function handleEdgePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (typeof window === 'undefined') return
+
+    const buttonRect = event.currentTarget.getBoundingClientRect()
+    const nextOrigin = edgePosition ?? { x: buttonRect.left, y: buttonRect.top }
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: nextOrigin.x,
+      originY: nextOrigin.y,
+      moved: false,
+    }
+
+    suppressTapRef.current = false
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function handleEdgePointerMove(event: PointerEvent) {
+    const dragState = dragStateRef.current
+    if (!dragState || dragState.pointerId !== event.pointerId) return
+
+    const deltaX = event.clientX - dragState.startX
+    const deltaY = event.clientY - dragState.startY
+    const movedEnough = Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4
+
+    if (movedEnough) {
+      dragState.moved = true
+      suppressTapRef.current = true
+    }
+
+    if (!dragState.moved) return
+
+    setEdgePosition(clampEdgePosition(dragState.originX + deltaX, dragState.originY + deltaY))
+  }
+
+  function handleEdgePointerUp(event: PointerEvent) {
+    const dragState = dragStateRef.current
+    if (!dragState || dragState.pointerId !== event.pointerId) return
+
+    if (dragState.moved) {
+      const buttonRect = edgeButtonRef.current?.getBoundingClientRect()
+      if (buttonRect) {
+        setEdgePosition(clampEdgePosition(buttonRect.left, buttonRect.top))
+      }
+    }
+
+    dragStateRef.current = null
+  }
+
   async function loadDirectory() {
     try {
       const [nextMembers, nextConversations, familySpace] = await Promise.all([
@@ -185,6 +343,8 @@ export function ElderVoiceAssistant() {
 
   async function handleVoiceToggle() {
     if (stage === 'classifying' || stage === 'acting') return
+
+    await stopWakeWordListening()
 
     if (isRecording) {
       await stopRecording(true)
@@ -369,6 +529,15 @@ export function ElderVoiceAssistant() {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel()
     }
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.src = ''
+      audioRef.current = null
+    }
+    if (audioObjectUrlRef.current) {
+      URL.revokeObjectURL(audioObjectUrlRef.current)
+      audioObjectUrlRef.current = null
+    }
     void stopRecording(false)
     setOpen(false)
     setStage('idle')
@@ -380,11 +549,99 @@ export function ElderVoiceAssistant() {
     setIsRecording(false)
   }
 
-  async function startRecording() {
-    const supportsSpeechRecognition = await isSpeechRecognitionSupported()
+  async function startWakeWordListening() {
+    if (wakeWordSessionRef.current || typeof window === 'undefined') return
 
-    if (!supportsSpeechRecognition) {
-      setError('当前暂时无法使用语音功能，请稍后再试。')
+    const micReady = await ensureMicrophoneReady({ silent: true })
+    if (!micReady) return
+
+    const supportStatus = await getSpeechRecognitionSupportStatus()
+    if (!supportStatus.supported) {
+      console.warn('[Voice Assistant] wake word disabled:', supportStatus.reason)
+      return
+    }
+
+    try {
+      wakeWordSessionRef.current = await startSpeechRecognition({
+        language: 'zh-CN',
+        onPartialResult: (text) => {
+          if (containsWakeWord(text)) {
+            void handleWakeWordDetected()
+          }
+        },
+        onFinalResult: (text) => {
+          if (containsWakeWord(text)) {
+            void handleWakeWordDetected()
+          }
+        },
+        onListeningStateChange: (listening) => {
+          if (!listening) {
+            wakeWordSessionRef.current = null
+            wakeWordTriggeredRef.current = false
+            if (wakeWordEnabledRef.current) {
+              scheduleWakeWordRestart()
+            }
+          }
+        },
+      })
+    } catch {
+      wakeWordSessionRef.current = null
+    }
+  }
+
+  async function stopWakeWordListening() {
+    if (wakeWordRestartTimerRef.current !== null) {
+      window.clearTimeout(wakeWordRestartTimerRef.current)
+      wakeWordRestartTimerRef.current = null
+    }
+
+    const activeWakeSession = wakeWordSessionRef.current
+    wakeWordSessionRef.current = null
+    await activeWakeSession?.stop()
+  }
+
+  function scheduleWakeWordRestart() {
+    if (typeof window === 'undefined' || wakeWordRestartTimerRef.current !== null) return
+
+    wakeWordRestartTimerRef.current = window.setTimeout(() => {
+      wakeWordRestartTimerRef.current = null
+      if (wakeWordEnabledRef.current) {
+        void startWakeWordListening()
+      }
+    }, 400)
+  }
+
+  async function handleWakeWordDetected() {
+    if (!wakeWordEnabledRef.current || open || stage !== 'idle' || wakeWordTriggeredRef.current) return
+
+    wakeWordTriggeredRef.current = true
+
+    await stopWakeWordListening()
+
+    setOpen(true)
+    setStage('recording')
+    setFeedback('')
+    setError('')
+    setResult(null)
+    setSpokenText('')
+    setAssistantNotice('怎么啦，你继续说。')
+    setIsRecording(true)
+
+    const started = await startRecording()
+    if (!started) {
+      setStage('transcribing')
+      setAssistantNotice('已经听到你在找我，你可以直接把想说的话补充进去。')
+      return
+    }
+
+    speak('怎么啦')
+  }
+
+  async function startRecording() {
+    const supportStatus = await getSpeechRecognitionSupportStatus()
+
+    if (!supportStatus.supported) {
+      setError(resolveSpeechRecognitionError(supportStatus.reason))
       return false
     }
 
@@ -481,28 +738,89 @@ export function ElderVoiceAssistant() {
   }
 
   function speak(text: string) {
-    if (typeof window === 'undefined') return
+    void speakWithFallback(text)
+  }
+
+  async function speakWithFallback(text: string) {
     const content = text?.trim()
-    if (!content) return
-    if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return
+    if (!content || typeof window === 'undefined') return
+
+    try {
+      const result = await synthesizeSpeech(content)
+      const audio = audioRef.current ?? new Audio()
+      const audioUrl = base64AudioToObjectUrl(result.audioBase64, result.mimeType)
+
+      if (audioObjectUrlRef.current) {
+        URL.revokeObjectURL(audioObjectUrlRef.current)
+      }
+
+      audioObjectUrlRef.current = audioUrl
+      audio.pause()
+      audio.src = audioUrl
+      audio.preload = 'auto'
+      audio.setAttribute('playsinline', 'true')
+      audioRef.current = audio
+      await audio.play()
+      return
+    } catch (error) {
+      console.warn('[Voice Assistant] remote TTS fallback to system speech:', error)
+    }
+
+    if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
+      setAssistantNotice('已经收到，但这台设备暂时没能把语音播出来。')
+      return
+    }
     window.speechSynthesis.cancel()
     const utterance = new SpeechSynthesisUtterance(content)
     utterance.lang = 'zh-CN'
     utterance.rate = 1
+    utterance.onerror = () => {
+      setAssistantNotice('已经收到，但这台设备暂时没能把语音播出来。')
+    }
     window.speechSynthesis.speak(utterance)
   }
 
-  async function ensureMicrophoneReady() {
+  async function ensureMicrophoneReady(options: { silent?: boolean } = {}) {
     if (micReadyRef.current) return true
 
     const ready = await ensureSpeechRecognitionPermission()
     if (!ready) {
-      setError('请先打开麦克风权限，再试一次。')
+      if (!options.silent) {
+        setError('请先打开麦克风权限，再试一次。')
+      }
       return false
     }
 
     micReadyRef.current = true
     return true
+  }
+
+  function getDefaultEdgePosition() {
+    if (typeof window === 'undefined') {
+      return { x: 0, y: 0 }
+    }
+
+    const buttonWidth = window.innerWidth <= 640 ? 50 : 54
+    const buttonHeight = window.innerWidth <= 640 ? 68 : 74
+    const desiredX = window.innerWidth - buttonWidth - 8
+    const desiredY = window.innerHeight - buttonHeight - 164
+    return clampEdgePosition(desiredX, desiredY)
+  }
+
+  function clampEdgePosition(x: number, y: number) {
+    if (typeof window === 'undefined') {
+      return { x, y }
+    }
+
+    const buttonRect = edgeButtonRef.current?.getBoundingClientRect()
+    const buttonWidth = buttonRect?.width ?? (window.innerWidth <= 640 ? 50 : 54)
+    const buttonHeight = buttonRect?.height ?? (window.innerWidth <= 640 ? 68 : 74)
+    const margin = 8
+
+    return {
+      x: Math.min(Math.max(x, margin), Math.max(margin, window.innerWidth - buttonWidth - margin)),
+      y: Math.min(Math.max(y, margin + 72), Math.max(margin, window.innerHeight - buttonHeight - margin - 12)),
+    }
   }
 }
 
@@ -538,3 +856,53 @@ function toUrgencyLabel(level: ElderVoiceIntentResult['urgencyLevel']) {
 function delay(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
+
+function containsWakeWord(text: string) {
+  const normalized = text.replace(/\s+/g, '')
+  return normalized.includes(WAKE_WORD)
+}
+
+function base64AudioToObjectUrl(base64Data: string, mimeType: string) {
+  const binary = window.atob(base64Data)
+  const bytes = new Uint8Array(binary.length)
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+
+  const blob = new Blob([bytes], { type: mimeType })
+  return URL.createObjectURL(blob)
+}
+
+function resolveSpeechRecognitionError(
+  reason:
+    | 'available'
+    | 'native-unavailable'
+    | 'native-error'
+    | 'browser-unsupported'
+    | 'browser-insecure-context'
+    | 'browser-mic-unavailable',
+) {
+  if (reason === 'native-unavailable') {
+    return '这台设备当前没有可用的语音识别服务，请检查系统语音输入功能。'
+  }
+
+  if (reason === 'native-error') {
+    return '语音识别服务刚才没有正常启动，请稍后再试。'
+  }
+
+  if (reason === 'browser-insecure-context') {
+    return '当前页面环境不支持语音识别，请在 App 内或安全连接下再试。'
+  }
+
+  if (reason === 'browser-mic-unavailable') {
+    return '这台设备当前没有可用的麦克风输入能力。'
+  }
+
+  if (reason === 'browser-unsupported') {
+    return '当前设备暂时不支持语音识别功能。'
+  }
+
+  return '当前暂时无法使用语音功能，请稍后再试。'
+}
+

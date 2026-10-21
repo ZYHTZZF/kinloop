@@ -19,6 +19,18 @@ export const UPLOADS_DIR = process.env.KINLOOP_UPLOADS_DIR
 // Volcano-related config
 export const VOLCANO_API_KEY = process.env.KINLOOP_VOLCANO_API_KEY ?? ''
 export const VOLCANO_ENDPOINT = 'https://api.volcanoapi.com'
+export const VOLC_TTS_API_KEY = process.env.KINLOOP_VOLC_TTS_API_KEY ?? VOLCANO_API_KEY
+export const VOLC_TTS_APP_ID = process.env.KINLOOP_VOLC_TTS_APP_ID ?? process.env.KINLOOP_VOLC_ASR_APP_ID ?? ''
+export const VOLC_TTS_ACCESS_TOKEN = process.env.KINLOOP_VOLC_TTS_ACCESS_TOKEN ?? VOLC_TTS_API_KEY
+export const VOLC_TTS_CLUSTER = process.env.KINLOOP_VOLC_TTS_CLUSTER ?? 'volcano_tts'
+export const VOLC_TTS_VOICE_TYPE = process.env.KINLOOP_VOLC_TTS_VOICE_TYPE ?? 'BV700_streaming'
+export const VOLC_TTS_ENDPOINT = process.env.KINLOOP_VOLC_TTS_ENDPOINT ?? 'https://openspeech.bytedance.com/api/v1/tts'
+export const TENCENT_TTS_APP_ID = process.env.KINLOOP_TENCENT_TTS_APP_ID ?? ''
+export const TENCENT_TTS_SECRET_ID = process.env.KINLOOP_TENCENT_TTS_SECRET_ID ?? ''
+export const TENCENT_TTS_SECRET_KEY = process.env.KINLOOP_TENCENT_TTS_SECRET_KEY ?? ''
+export const TENCENT_TTS_REGION = process.env.KINLOOP_TENCENT_TTS_REGION ?? 'ap-guangzhou'
+export const TENCENT_TTS_ENDPOINT = process.env.KINLOOP_TENCENT_TTS_ENDPOINT ?? 'tts.tencentcloudapi.com'
+export const TENCENT_TTS_VOICE_TYPE = Number(process.env.KINLOOP_TENCENT_TTS_VOICE_TYPE ?? 101001)
 
 // LLM intent parsing (OpenAI-compatible chat/completions endpoint)
 export const LLM_API_KEY = process.env.KINLOOP_LLM_API_KEY ?? process.env.KINLOOP_VOLCANO_API_KEY ?? ''

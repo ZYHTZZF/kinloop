@@ -28,6 +28,7 @@ import { registerGenerationBridgeRoutes } from './routes/generationBridgeRoutes.
 import { registerPreSendSuggestionRoutes } from './routes/preSendSuggestionRoutes.mjs'
 import { registerUnreadSummaryRoutes } from './routes/unreadSummaryRoutes.mjs'
 import { registerVolcanoRoutes } from './routes/volcanoRoutes.mjs'
+import { registerTtsRoutes } from './routes/ttsRoutes.mjs'
 import memoryTriggerRoutes from './routes/memoryTriggerRoutes.mjs'
 import {
   consumeAuthCode,
@@ -462,6 +463,8 @@ registerPreSendSuggestionRoutes(app)
 registerUnreadSummaryRoutes(app)
 
 registerVolcanoRoutes(app)
+
+registerTtsRoutes(app)
 
 app.get('/api/members', (request, response) => {
   response.json(listMembers(getFamilySpaceIdFromRequest(request)))

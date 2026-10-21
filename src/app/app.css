@@ -569,7 +569,20 @@
   overflow: hidden;
 }
 
+.app-shell--elder.app-shell--conversation {
+  height: 100dvh;
+  padding-inline: 0;
+  overflow: hidden;
+}
+
 .app-shell--family.app-shell--conversation .app-shell__content {
+  max-width: none;
+  height: 100dvh;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.app-shell--elder.app-shell--conversation .app-shell__content {
   max-width: none;
   height: 100dvh;
   padding-bottom: 0;
@@ -1328,7 +1341,7 @@
 .global-voice-button {
   position: fixed;
   left: 50%;
-  bottom: 72px;
+  bottom: calc(28px + env(safe-area-inset-bottom, 0px));
   z-index: 24;
   display: grid;
   justify-items: center;
@@ -1354,6 +1367,25 @@
   line-height: 1.25;
 }
 
+.global-voice-button--edge {
+  left: auto;
+  right: -14px;
+  bottom: calc(124px + env(safe-area-inset-bottom, 0px));
+  width: 54px;
+  height: 74px;
+  min-height: 74px;
+  padding: 10px 12px 10px 8px;
+  gap: 0;
+  border-radius: 20px 0 0 20px;
+  box-shadow:
+    0 16px 28px rgba(65, 99, 125, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transform: none;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
 .global-voice-button.is-holding {
   transform: translateX(-50%) scale(1.04);
   box-shadow:
@@ -1362,12 +1394,24 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.24);
 }
 
+.global-voice-button--edge.is-holding {
+  transform: scale(1.04);
+}
+
 .global-voice-button:hover {
   transform: translateX(-50%) translateY(-2px);
   box-shadow:
     0 28px 42px rgba(57, 85, 165, 0.28),
     0 0 0 12px rgba(255, 255, 255, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.global-voice-button--edge:hover {
+  transform: none;
+}
+
+.global-voice-button--edge:active {
+  cursor: grabbing;
 }
 
 .global-voice-button__mic {
@@ -1396,6 +1440,14 @@
   box-shadow: 0 18px 30px rgba(85, 65, 45, 0.12);
   transform: translateX(-50%);
   backdrop-filter: blur(16px);
+}
+
+.voice-sheet--edge {
+  left: auto;
+  right: 16px;
+  bottom: calc(116px + env(safe-area-inset-bottom, 0px));
+  width: min(82vw, 420px);
+  transform: none;
 }
 
 .voice-sheet__header {
@@ -1446,7 +1498,7 @@
 .manual-help-link {
   position: fixed;
   right: max(16px, calc((100vw - min(92vw, 760px)) / 2));
-  bottom: 78px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   z-index: 22;
   display: inline-flex;
   align-items: center;
@@ -2238,6 +2290,18 @@
 .screen--elder-conversation .surface-card {
   background:
     linear-gradient(180deg, rgba(255, 252, 248, 0.98), rgba(243, 236, 225, 0.96));
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  box-shadow: none;
 }
 
 .screen--elder-conversation .message-list {
@@ -2245,7 +2309,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 8px 10px 8px 10px;
+  padding: 8px 12px 16px;
   scrollbar-gutter: stable;
 }
 
@@ -2368,6 +2432,22 @@
 }
 
 .screen--family-conversation .composer-card {
+  position: relative;
+  z-index: 8;
+  margin-top: auto;
+  margin-bottom: 0;
+  padding-top: 12px;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: rgba(255, 252, 247, 0.98);
+  box-shadow: 0 -8px 24px rgba(56, 47, 38, 0.08);
+}
+
+.screen--elder-conversation .composer-card {
   position: relative;
   z-index: 8;
   margin-top: auto;
@@ -2850,6 +2930,16 @@
     min-height: 104px;
   }
 
+  .global-voice-button--edge {
+    right: -10px;
+    bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+    width: 50px;
+    height: 68px;
+    min-height: 68px;
+    padding: 10px 10px 10px 8px;
+    border-radius: 18px 0 0 18px;
+  }
+
   .voice-sheet {
     bottom: 120px;
     width: calc(100vw - 16px);
@@ -2857,8 +2947,15 @@
     border-radius: 18px;
   }
 
+  .voice-sheet--edge {
+    left: auto;
+    right: 8px;
+    bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+    width: min(82vw, 360px);
+  }
+
   .manual-help-link {
     right: 12px;
-    bottom: 74px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
 }

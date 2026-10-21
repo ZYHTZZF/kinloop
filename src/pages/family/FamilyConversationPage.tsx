@@ -98,6 +98,7 @@ export function FamilyConversationPage() {
   const [isCameraOn, setIsCameraOn] = useState(true)
   const [localCallStream, setLocalCallStream] = useState<MediaStream | null>(null)
   const [remoteCallStream, setRemoteCallStream] = useState<MediaStream | null>(null)
+  const [activeCallId, setActiveCallId] = useState<string | null>(null)
 
   const isCallerRef = useRef(false)
   const incomingOfferRef = useRef<string | null>(null)
@@ -206,6 +207,7 @@ export function FamilyConversationPage() {
         if (!sdp) return
         isCallerRef.current = false
         incomingOfferRef.current = sdp
+        setActiveCallId(signal.callId)
         setIsCallActive(true)
         setCallType(signal.callType || 'voice')
         setCallState('ringing')
@@ -225,12 +227,14 @@ export function FamilyConversationPage() {
         if (isCallerRef.current) {
           void logCallSystemMessage('对方暂时没有接听这次通话。')
         }
+        setActiveCallId(null)
         setIsCallActive(false)
         setCallState('idle')
         setLocalCallStream(null)
         setRemoteCallStream(null)
       } else if (signal.type === 'hangup') {
         webrtcManager.hangup()
+        setActiveCallId(null)
         setIsCallActive(false)
         setCallState('ended')
         setLocalCallStream(null)
@@ -256,6 +260,7 @@ export function FamilyConversationPage() {
       setCallState('ended')
       setIsCallActive(false)
       setCallDuration(0)
+      setActiveCallId(null)
       setLocalCallStream(null)
       setRemoteCallStream(null)
       setTimeout(() => setCallState('idle'), 500)
@@ -299,14 +304,16 @@ export function FamilyConversationPage() {
           { type: 'offer', sdp: incomingOfferRef.current } as RTCSessionDescription,
           otherUserId,
           callType,
-          `${otherUserId}-${currentUserId}`,
+          activeCallId ?? `${otherUserId}-${currentUserId}`,
         )
+        setActiveCallId(webrtcManager.getCallId())
         if (callType === 'video') {
           setIsCameraOn(true)
           webrtcManager.toggleVideo(true)
         }
         setLocalCallStream(webrtcManager.getLocalStream())
         setRemoteCallStream(webrtcManager.getRemoteStream())
+        setIsIncomingCall(false)
       }
     } catch (e) {
       console.error(e)
@@ -317,8 +324,9 @@ export function FamilyConversationPage() {
   }
 
   const handleRejectCall = async () => {
-    if (!currentUserId || !otherUserId) return
-    await webrtcManager.rejectCall(currentUserId, otherUserId, 'call-id')
+    if (!currentUserId || !otherUserId || !activeCallId) return
+    await webrtcManager.rejectCall(currentUserId, otherUserId, activeCallId)
+    setActiveCallId(null)
     setIsCallActive(false)
     setCallState('idle')
     setLocalCallStream(null)
@@ -326,15 +334,16 @@ export function FamilyConversationPage() {
   }
 
   const handleHangupCall = () => {
-    if (!currentUserId || !otherUserId) return
+    if (!currentUserId || !otherUserId || !activeCallId) return
     chatApi.sendWebrtcSignal({
       type: 'hangup',
       from: currentUserId,
       to: otherUserId,
-      callId: `${currentUserId}-${otherUserId}`,
+      callId: activeCallId,
       timestamp: Date.now(),
     })
     webrtcManager.hangup()
+    setActiveCallId(null)
     setIsCallActive(false)
     setCallState('ended')
     setLocalCallStream(null)
@@ -356,6 +365,7 @@ export function FamilyConversationPage() {
       setCallState('ringing')
       setIsIncomingCall(false)
       await webrtcManager.initiateCall(currentUserId, otherUserId, 'voice')
+      setActiveCallId(webrtcManager.getCallId())
       await sendOutgoingCallMessage('voice')
       setLocalCallStream(webrtcManager.getLocalStream())
       setRemoteCallStream(webrtcManager.getRemoteStream())
@@ -383,6 +393,7 @@ export function FamilyConversationPage() {
       setCallState('ringing')
       setIsIncomingCall(false)
       await webrtcManager.initiateCall(currentUserId, otherUserId, 'video')
+      setActiveCallId(webrtcManager.getCallId())
       await sendOutgoingCallMessage('video')
       setIsCameraOn(true)
       webrtcManager.toggleVideo(true)
@@ -544,7 +555,7 @@ export function FamilyConversationPage() {
 
         {isCallActive && callType === 'voice' && (
           <VoiceCall
-            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || '家人', avatar: undefined }}
+            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || '家人', avatar: conversation?.avatar }}
             callState={callState}
             duration={callDuration}
             isIncoming={isIncomingCall}
@@ -561,7 +572,7 @@ export function FamilyConversationPage() {
 
         {isCallActive && callType === 'video' && (
           <VideoCall
-            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || '家人', avatar: undefined }}
+            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || '家人', avatar: conversation?.avatar }}
             remoteStream={remoteCallStream}
             localStream={localCallStream}
             callState={callState}

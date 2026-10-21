@@ -241,6 +241,10 @@ class WebRTCManager {
     return this.callSession?.state ?? 'idle'
   }
 
+  getCallId(): string | null {
+    return this.callSession?.callId ?? null
+  }
+
   toggleAudio(enabled: boolean): void {
     this.callSession?.localStream.getAudioTracks().forEach((track) => {
       track.enabled = enabled

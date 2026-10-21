@@ -1,239 +1,160 @@
-.container {
+.overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  inset: 0;
   z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  transition: opacity 0.3s;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(24, 20, 18, 0.36);
+  backdrop-filter: blur(10px);
 }
 
-.container.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  color: white;
-  text-align: center;
-}
-
-.normalStyle .content {
-  gap: 20px;
-}
-
-.familyStyle .content {
-  gap: 30px;
-}
-
-.incomingHeader {
+.sheet {
   position: relative;
+  width: min(100%, 360px);
+  min-height: 460px;
+  padding: 20px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+  border-radius: 28px;
+  background: linear-gradient(180deg, #f8f4ee, #efe6da);
+  box-shadow: 0 20px 60px rgba(30, 24, 20, 0.22);
+  display: grid;
+  align-content: space-between;
+  justify-items: center;
+  gap: 18px;
 }
 
-.ringingAnimation {
+.minimizeButton {
   position: absolute;
-  width: 200px;
-  height: 200px;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  border-radius: 50%;
-  animation: ringing 1.5s infinite;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-
-@keyframes ringing {
-  0% {
-    transform: translate(-50%, -50%) scale(0.8);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(1.2);
-    opacity: 0;
-  }
-}
-
-.callHeader {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.callerName {
-  font-size: 28px;
-  font-weight: bold;
-  margin: 0;
-}
-
-.normalStyle .callerName {
-  font-size: 24px;
-}
-
-.familyStyle .callerName {
-  font-size: 36px;
-}
-
-.status,
-.duration {
-  font-size: 16px;
-  margin: 0;
-  opacity: 0.9;
-}
-
-.normalStyle .status,
-.normalStyle .duration {
-  font-size: 14px;
-}
-
-.familyStyle .status,
-.familyStyle .duration {
+  top: 14px;
+  left: 14px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #42352b;
   font-size: 18px;
 }
 
+.header {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  margin-top: 18px;
+  text-align: center;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #2d241d;
+}
+
+.header p {
+  margin: 0;
+  color: #7a6a5c;
+  font-size: 0.95rem;
+}
+
+.avatar,
+.avatarFallback {
+  width: 124px;
+  height: 124px;
+  border-radius: 50%;
+}
+
 .avatar {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
   object-fit: cover;
-  border: 3px solid white;
+  border: 4px solid rgba(255, 255, 255, 0.85);
 }
 
-.familyStyle .avatar {
-  width: 160px;
-  height: 160px;
+.avatarFallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #d8c1a7, #b99473);
+  color: white;
+  font-size: 2rem;
+  font-weight: 700;
 }
 
-.largeAvatar {
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 4px solid white;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+.incomingActions,
+.bottomControls {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: end;
 }
 
-.familyStyle .largeAvatar {
-  width: 280px;
-  height: 280px;
-  border-width: 6px;
+.bottomControls {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.incomingActions {
-  display: flex;
-  gap: 40px;
-  justify-content: center;
-  margin-top: 30px;
+.actionButton,
+.controlButton {
+  min-height: 52px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 0.95rem;
 }
 
-.familyStyle .incomingActions {
-  gap: 60px;
-  margin-top: 50px;
+.controlButton {
+  background: rgba(255, 255, 255, 0.82);
+  color: #3a2f27;
 }
 
-.acceptButton,
+.controlButtonActive {
+  background: rgba(83, 107, 92, 0.92);
+  color: white;
+}
+
+.hangupButton,
 .rejectButton {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.familyStyle .acceptButton,
-.familyStyle .rejectButton {
-  width: 80px;
-  height: 80px;
-  font-size: 32px;
+  background: #d95f4f;
+  color: white;
 }
 
 .acceptButton {
-  background-color: #4caf50;
+  background: #4f8464;
   color: white;
 }
 
-.acceptButton:hover {
-  background-color: #45a049;
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+.minimizedCard {
+  position: fixed;
+  top: 88px;
+  left: 16px;
+  z-index: 1001;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 86px;
+  padding: 8px;
+  border: 0;
+  border-radius: 18px;
+  background: rgba(255, 252, 247, 0.96);
+  box-shadow: 0 12px 28px rgba(30, 24, 20, 0.18);
 }
 
-.rejectButton {
-  background-color: #ff4444;
+.minimizedAvatar,
+.minimizedAvatarFallback {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+}
+
+.minimizedAvatar {
+  object-fit: cover;
+}
+
+.minimizedAvatarFallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #d8c1a7, #b99473);
   color: white;
+  font-weight: 700;
 }
 
-.rejectButton:hover {
-  background-color: #ee0000;
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-}
-
-.controls {
-  display: flex;
-  gap: 24px;
-  justify-content: center;
-  margin-top: 30px;
-}
-
-.familyStyle .controls {
-  gap: 40px;
-  margin-top: 50px;
-}
-
-.controlButton,
-.hangupButton {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.familyStyle .controlButton,
-.familyStyle .hangupButton {
-  width: 80px;
-  height: 80px;
-  font-size: 32px;
-}
-
-.controlButton:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-  transform: scale(1.05);
-}
-
-.controlButton.active {
-  background-color: rgba(255, 100, 100, 0.6);
-}
-
-.hangupButton {
-  background-color: rgba(255, 68, 68, 0.8);
-}
-
-.hangupButton:hover {
-  background-color: rgba(255, 68, 68, 1);
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(255, 68, 68, 0.4);
+.minimizedName {
+  font-size: 12px;
+  color: #43362b;
 }

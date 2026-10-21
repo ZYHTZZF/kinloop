@@ -1,315 +1,202 @@
-.container {
+.overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: #000;
+  inset: 0;
   z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  transition: opacity 0.3s;
+  background: rgba(8, 8, 10, 0.96);
 }
 
-.container.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  color: white;
-  text-align: center;
-}
-
-.incomingHeader {
-  position: relative;
-}
-
-.ringingAnimation {
-  position: absolute;
-  width: 200px;
-  height: 200px;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  border-radius: 50%;
-  animation: ringing 1.5s infinite;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-
-@keyframes ringing {
-  0% {
-    transform: translate(-50%, -50%) scale(0.8);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(1.2);
-    opacity: 0;
-  }
-}
-
-.callerName {
-  font-size: 28px;
-  font-weight: bold;
-  margin: 0;
-}
-
-.normalStyle .callerName {
-  font-size: 24px;
-}
-
-.familyStyle .callerName {
-  font-size: 32px;
-}
-
-.status {
-  font-size: 16px;
-  margin: 0;
-  opacity: 0.9;
-}
-
-.normalStyle .status {
-  font-size: 14px;
-}
-
-.familyStyle .status {
-  font-size: 18px;
-}
-
-.avatar {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid white;
-}
-
-.familyStyle .avatar {
-  width: 160px;
-  height: 160px;
-}
-
-.incomingActions {
-  display: flex;
-  gap: 40px;
-  justify-content: center;
-  margin-top: 30px;
-}
-
-.familyStyle .incomingActions {
-  gap: 60px;
-  margin-top: 50px;
-}
-
-.acceptButton,
-.rejectButton {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.familyStyle .acceptButton,
-.familyStyle .rejectButton {
-  width: 80px;
-  height: 80px;
-  font-size: 32px;
-}
-
-.acceptButton {
-  background-color: #4caf50;
-  color: white;
-}
-
-.acceptButton:hover {
-  background-color: #45a049;
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-}
-
-.rejectButton {
-  background-color: #ff4444;
-  color: white;
-}
-
-.rejectButton:hover {
-  background-color: #ee0000;
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-}
-
-.videoContainer {
+.videoShell {
   position: relative;
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.remoteVideo,
-.localVideo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  overflow: hidden;
+  background: #000;
 }
 
 .remoteVideo {
-  position: absolute;
-  top: 0;
-  left: 0;
-}
-
-.localVideoWrapper {
-  position: absolute;
-  bottom: 100px;
-  right: 20px;
-  width: 160px;
-  height: 240px;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 3px solid white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  background: #000;
-}
-
-.normalStyle .localVideoWrapper {
-  width: 120px;
-  height: 160px;
-  bottom: 80px;
-  right: 16px;
-}
-
-.familyStyle .localVideoWrapper {
-  width: 200px;
-  height: 300px;
-  bottom: 130px;
-  right: 30px;
-}
-
-.localVideo {
   width: 100%;
   height: 100%;
+  object-fit: cover;
 }
 
-.controlBar {
+.minimizeButton {
   position: absolute;
-  bottom: 0;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: 16px;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 15, 18, 0.48);
+  color: white;
+  font-size: 18px;
+}
+
+.topInfo {
+  position: absolute;
+  top: calc(18px + env(safe-area-inset-top, 0px));
   left: 0;
   right: 0;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
-  padding: 40px 20px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.callInfo {
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
   color: white;
 }
 
-.duration {
-  font-size: 18px;
-  margin: 8px 0 0 0;
-  font-weight: bold;
+.topInfo h2,
+.incomingHeader h2 {
+  margin: 0;
+  font-size: 1.2rem;
 }
 
-.normalStyle .duration {
-  font-size: 16px;
+.topInfo p,
+.incomingHeader p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.92rem;
 }
 
-.familyStyle .duration {
-  font-size: 20px;
+.localPreview {
+  position: absolute;
+  top: calc(64px + env(safe-area-inset-top, 0px));
+  right: 16px;
+  z-index: 1;
+  width: 92px;
+  height: 132px;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  background: rgba(18, 18, 20, 0.7);
 }
 
-.controls {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  flex: 1;
+.localVideo,
+.localAvatarFallbackImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.normalStyle .controls {
+.localAvatarFallback,
+.incomingAvatarFallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #a67e63, #705848);
+  color: white;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.bottomControls {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
-.familyStyle .controls {
-  gap: 20px;
-}
-
 .controlButton,
-.hangupButton {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  background-color: rgba(255, 255, 255, 0.2);
+.actionButton {
+  min-height: 52px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 0.95rem;
+}
+
+.controlButton {
+  background: rgba(255, 255, 255, 0.18);
   color: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
 }
 
-.familyStyle .controlButton,
-.familyStyle .hangupButton {
-  width: 64px;
-  height: 64px;
-  font-size: 28px;
+.controlButtonActive {
+  background: rgba(83, 107, 92, 0.92);
 }
 
-.controlButton:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-  transform: scale(1.05);
+.hangupButton,
+.rejectButton {
+  background: #d95f4f;
+  color: white;
 }
 
-.controlButton.active {
-  background-color: rgba(255, 100, 100, 0.6);
+.acceptButton {
+  background: #4f8464;
+  color: white;
 }
 
-.hangupButton {
-  background-color: rgba(255, 68, 68, 0.8);
+.incomingSheet {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(100% - 32px, 340px);
+  padding: 26px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(28, 28, 32, 0.98), rgba(18, 18, 22, 0.98));
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  color: white;
 }
 
-.hangupButton:hover {
-  background-color: rgba(255, 68, 68, 1);
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(255, 68, 68, 0.4);
+.incomingAvatar,
+.incomingAvatarFallback {
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
 }
 
-@media (max-width: 768px) {
-  .localVideoWrapper {
-    width: 100px;
-    height: 150px;
-    bottom: 80px;
-    right: 12px;
-    border-width: 2px;
-  }
+.incomingAvatar {
+  object-fit: cover;
+  border: 3px solid rgba(255, 255, 255, 0.88);
+}
 
-  .controls {
-    gap: 8px;
-  }
+.incomingHeader {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
 
-  .controlButton,
-  .hangupButton {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
-  }
+.incomingActions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.minimizedCard {
+  position: fixed;
+  top: 88px;
+  left: 16px;
+  z-index: 1001;
+  width: 86px;
+  height: 108px;
+  padding: 8px;
+  border: 0;
+  border-radius: 18px;
+  background: rgba(24, 24, 28, 0.92);
+  box-shadow: 0 12px 28px rgba(8, 8, 12, 0.28);
+}
+
+.minimizedAvatar,
+.minimizedAvatarFallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+}
+
+.minimizedAvatar {
+  object-fit: cover;
+}
+
+.minimizedAvatarFallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #a67e63, #705848);
+  color: white;
+  font-weight: 700;
 }
