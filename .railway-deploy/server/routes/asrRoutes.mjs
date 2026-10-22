@@ -1,10 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import tencentCloudAsrSdk from 'tencentcloud-sdk-nodejs-asr'
 import {
   ASR_MODEL,
   ASR_API_KEY,
   ASR_BASE_URL,
+  TENCENT_ASR_ENDPOINT,
+  TENCENT_ASR_ENGINE_MODEL_TYPE,
+  TENCENT_ASR_REGION,
+  TENCENT_ASR_SECRET_ID,
+  TENCENT_ASR_SECRET_KEY,
   UPLOADS_DIR,
   VOLC_ASR_ACCESS_TOKEN,
   VOLC_ASR_API_KEY,
@@ -12,6 +18,32 @@ import {
   VOLC_ASR_CLUSTER,
   VOLC_ASR_RESOURCE_ID,
 } from '../config.mjs'
+
+const AsrClient = tencentCloudAsrSdk.asr.v20190614.Client
+let tencentAsrClient = null
+
+function getTencentAsrClient() {
+  if (!TENCENT_ASR_SECRET_ID || !TENCENT_ASR_SECRET_KEY) {
+    return null
+  }
+
+  if (!tencentAsrClient) {
+    tencentAsrClient = new AsrClient({
+      credential: {
+        secretId: TENCENT_ASR_SECRET_ID,
+        secretKey: TENCENT_ASR_SECRET_KEY,
+      },
+      region: TENCENT_ASR_REGION,
+      profile: {
+        httpProfile: {
+          endpoint: TENCENT_ASR_ENDPOINT,
+        },
+      },
+    })
+  }
+
+  return tencentAsrClient
+}
 
 export function registerAsrRoutes(app) {
   app.post('/api/asr/transcribe', async (req, res) => {
@@ -27,6 +59,12 @@ export function registerAsrRoutes(app) {
       const buffer = Buffer.from(audioBase64, 'base64')
       if (!buffer.length) {
         res.status(400).json({ error: 'invalid audio payload' })
+        return
+      }
+
+      const tencentResult = await tryTencentAsr(buffer, mimeType)
+      if (tencentResult.ok) {
+        res.json({ ok: true, text: tencentResult.text, provider: 'tencentcloud' })
         return
       }
 
@@ -49,7 +87,7 @@ export function registerAsrRoutes(app) {
 
       const candidates = buildAsrCandidates(ASR_BASE_URL)
       const extension = normalizeAudioExt(mimeType)
-      const errors = volcResult.errors.slice()
+      const errors = [...tencentResult.errors, ...volcResult.errors]
 
       for (const endpoint of candidates) {
         const form = new FormData()
@@ -83,6 +121,47 @@ export function registerAsrRoutes(app) {
       res.status(500).json({ error: 'ASR transcribe failed' })
     }
   })
+}
+
+async function tryTencentAsr(buffer, mimeType) {
+  const client = getTencentAsrClient()
+  const format = normalizeTencentVoiceFormat(mimeType)
+
+  if (!client) {
+    return { ok: false, errors: ['Tencent ASR missing config: set KINLOOP_TENCENT_ASR_SECRET_ID and KINLOOP_TENCENT_ASR_SECRET_KEY'] }
+  }
+
+  if (!format) {
+    return { ok: false, errors: [`Tencent ASR unsupported audio format: ${mimeType}`] }
+  }
+
+  try {
+    const result = await client.SentenceRecognition({
+      EngSerViceType: TENCENT_ASR_ENGINE_MODEL_TYPE,
+      SourceType: 1,
+      VoiceFormat: format,
+      ProjectId: 0,
+      Data: buffer.toString('base64'),
+      DataLen: buffer.byteLength,
+      FilterDirty: 2,
+      FilterModal: 1,
+      FilterPunc: 0,
+      ConvertNumMode: 1,
+      WordInfo: 0,
+    })
+
+    const text = String(result?.Result ?? '').trim()
+    if (!text) {
+      return { ok: false, errors: ['Tencent ASR returned an empty transcript'] }
+    }
+
+    return { ok: true, text, errors: [] }
+  } catch (error) {
+    return {
+      ok: false,
+      errors: [error instanceof Error ? `Tencent ASR failed: ${error.message}` : 'Tencent ASR failed'],
+    }
+  }
 }
 
 async function tryVolcAsr(buffer, mimeType, req) {
@@ -302,6 +381,17 @@ function normalizeAudioExt(mimeType) {
   if (mimeType.includes('wav')) return 'wav'
   if (mimeType.includes('ogg')) return 'ogg'
   return 'webm'
+}
+
+function normalizeTencentVoiceFormat(mimeType) {
+  if (mimeType.includes('wav')) return 'wav'
+  if (mimeType.includes('mpeg') || mimeType.includes('mp3')) return 'mp3'
+  if (mimeType.includes('m4a') || mimeType.includes('mp4')) return 'm4a'
+  if (mimeType.includes('aac')) return 'aac'
+  if (mimeType.includes('amr')) return 'amr'
+  if (mimeType.includes('ogg')) return 'ogg-opus'
+  if (mimeType.includes('pcm')) return 'pcm'
+  return null
 }
 
 async function safeText(response) {

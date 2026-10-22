@@ -1,5 +1,6 @@
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
 import { SpeechRecognition } from '@capacitor-community/speech-recognition'
+import { transcribeRecordedAudio } from '../services/api/asrApi'
 
 type SpeechRecognitionResultLike = {
   0: { transcript: string }
@@ -35,6 +36,12 @@ export interface StartSpeechRecognitionOptions {
   onFinalResult?: (text: string) => void
   onError?: (message: string) => void
   onListeningStateChange?: (listening: boolean) => void
+}
+
+interface AudioCaptureSession {
+  mediaStream: MediaStream
+  recorder: MediaRecorder
+  chunks: Blob[]
 }
 
 export interface SpeechRecognitionSupportStatus {
@@ -116,6 +123,74 @@ export async function startSpeechRecognition(
   }
 
   return startBrowserSpeechRecognition(options)
+}
+
+export async function startRecordedSpeechRecognition(
+  options: StartSpeechRecognitionOptions = {},
+): Promise<SpeechSession | null> {
+  if (typeof window === 'undefined') return null
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    return null
+  }
+
+  let session: AudioCaptureSession | null = null
+
+  try {
+    const mediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        sampleRate: 16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
+      video: false,
+    })
+
+    const mimeType = resolveRecorderMimeType()
+    const recorder = mimeType
+      ? new MediaRecorder(mediaStream, { mimeType })
+      : new MediaRecorder(mediaStream)
+
+    const chunks: Blob[] = []
+    recorder.addEventListener('dataavailable', (event) => {
+      if (event.data && event.data.size > 0) {
+        chunks.push(event.data)
+      }
+    })
+
+    session = { mediaStream, recorder, chunks }
+    recorder.start(250)
+    options.onListeningStateChange?.(true)
+  } catch (error) {
+    options.onError?.(error instanceof Error ? error.message : '麦克风启动失败')
+    stopAudioCaptureSession(session)
+    return null
+  }
+
+  return {
+    stop: async () => {
+      if (!session) return
+      const finishedSession = session
+      session = null
+
+      try {
+        const audioBlob = await stopAndCollectRecording(finishedSession)
+        const wavBlob = await convertBlobToWav(audioBlob)
+        const result = await transcribeRecordedAudio(wavBlob)
+        const text = String(result.text ?? '').trim()
+
+        if (text) {
+          options.onFinalResult?.(text)
+        } else {
+          options.onError?.('刚才没有识别到清晰内容')
+        }
+      } catch (error) {
+        options.onError?.(error instanceof Error ? error.message : '语音转写失败')
+      } finally {
+        options.onListeningStateChange?.(false)
+      }
+    },
+  }
 }
 
 async function startNativeSpeechRecognition(
@@ -248,4 +323,159 @@ function startBrowserSpeechRecognition(
 
 async function cleanupNativeSpeechListeners(handles: PluginListenerHandle[]) {
   await Promise.allSettled(handles.map((handle) => handle.remove()))
+}
+
+function resolveRecorderMimeType() {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+  ]
+
+  for (const mimeType of candidates) {
+    if (MediaRecorder.isTypeSupported(mimeType)) {
+      return mimeType
+    }
+  }
+
+  return ''
+}
+
+function stopAndCollectRecording(session: AudioCaptureSession) {
+  return new Promise<Blob>((resolve, reject) => {
+    const { recorder, chunks } = session
+    let settled = false
+
+    const cleanup = () => {
+      stopAudioCaptureSession(session)
+      recorder.removeEventListener('stop', handleStop)
+      recorder.removeEventListener('error', handleError)
+    }
+
+    const handleStop = () => {
+      if (settled) return
+      settled = true
+      const fallbackType = recorder.mimeType || chunks[0]?.type || 'audio/webm'
+      const blob = new Blob(chunks, { type: fallbackType })
+      cleanup()
+      resolve(blob)
+    }
+
+    const handleError = (event: Event) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      const mediaError = event as Event & { error?: Error }
+      reject(mediaError.error ?? new Error('录音停止失败'))
+    }
+
+    recorder.addEventListener('stop', handleStop)
+    recorder.addEventListener('error', handleError)
+
+    if (recorder.state === 'inactive') {
+      handleStop()
+      return
+    }
+
+    recorder.stop()
+  })
+}
+
+function stopAudioCaptureSession(session: AudioCaptureSession | null) {
+  session?.mediaStream.getTracks().forEach((track) => track.stop())
+}
+
+async function convertBlobToWav(sourceBlob: Blob) {
+  const audioBuffer = await decodeAudioBlob(sourceBlob)
+  const monoData = mergeToMono(audioBuffer)
+  const targetSampleRate = 16000
+  const resampled = audioBuffer.sampleRate === targetSampleRate
+    ? monoData
+    : resamplePcm(monoData, audioBuffer.sampleRate, targetSampleRate)
+  return encodeWavBlob(resampled, targetSampleRate)
+}
+
+async function decodeAudioBlob(sourceBlob: Blob) {
+  const arrayBuffer = await sourceBlob.arrayBuffer()
+  const audioContext = new AudioContext()
+
+  try {
+    return await audioContext.decodeAudioData(arrayBuffer.slice(0))
+  } finally {
+    await audioContext.close()
+  }
+}
+
+function mergeToMono(audioBuffer: AudioBuffer) {
+  if (audioBuffer.numberOfChannels === 1) {
+    return audioBuffer.getChannelData(0)
+  }
+
+  const frameCount = audioBuffer.length
+  const output = new Float32Array(frameCount)
+
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel += 1) {
+    const channelData = audioBuffer.getChannelData(channel)
+    for (let index = 0; index < frameCount; index += 1) {
+      output[index] += channelData[index] / audioBuffer.numberOfChannels
+    }
+  }
+
+  return output
+}
+
+function resamplePcm(source: Float32Array, sourceRate: number, targetRate: number) {
+  if (sourceRate === targetRate) {
+    return source
+  }
+
+  const sampleRatio = sourceRate / targetRate
+  const targetLength = Math.max(1, Math.round(source.length / sampleRatio))
+  const result = new Float32Array(targetLength)
+
+  for (let index = 0; index < targetLength; index += 1) {
+    const sourceIndex = index * sampleRatio
+    const leftIndex = Math.floor(sourceIndex)
+    const rightIndex = Math.min(leftIndex + 1, source.length - 1)
+    const weight = sourceIndex - leftIndex
+    result[index] = source[leftIndex] * (1 - weight) + source[rightIndex] * weight
+  }
+
+  return result
+}
+
+function encodeWavBlob(samples: Float32Array, sampleRate: number) {
+  const bytesPerSample = 2
+  const headerSize = 44
+  const buffer = new ArrayBuffer(headerSize + samples.length * bytesPerSample)
+  const view = new DataView(buffer)
+
+  writeAscii(view, 0, 'RIFF')
+  view.setUint32(4, 36 + samples.length * bytesPerSample, true)
+  writeAscii(view, 8, 'WAVE')
+  writeAscii(view, 12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * bytesPerSample, true)
+  view.setUint16(32, bytesPerSample, true)
+  view.setUint16(34, 16, true)
+  writeAscii(view, 36, 'data')
+  view.setUint32(40, samples.length * bytesPerSample, true)
+
+  let offset = headerSize
+  for (let index = 0; index < samples.length; index += 1) {
+    const sample = Math.max(-1, Math.min(1, samples[index]))
+    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
+    offset += bytesPerSample
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' })
+}
+
+function writeAscii(view: DataView, offset: number, value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    view.setUint8(offset + index, value.charCodeAt(index))
+  }
 }

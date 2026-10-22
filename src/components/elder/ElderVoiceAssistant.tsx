@@ -1,5 +1,6 @@
 ﻿import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { classifyElderSpeech, type ElderVoiceIntentResult } from '../../domain/elderVoice'
 import {
   createAlert,
@@ -16,6 +17,7 @@ import { ensureSpeechRecognitionPermission } from '../../platform/permissions'
 import {
   getSpeechRecognitionSupportStatus,
   isSpeechRecognitionSupported,
+  startRecordedSpeechRecognition,
   startSpeechRecognition,
   type SpeechSession,
 } from '../../platform/speech'
@@ -59,6 +61,7 @@ export function ElderVoiceAssistant() {
   const wakeWordTriggeredRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioObjectUrlRef = useRef<string | null>(null)
+  const spokenTextRef = useRef('')
   const edgeButtonRef = useRef<HTMLButtonElement | null>(null)
   const dragStateRef = useRef<{
     pointerId: number
@@ -345,11 +348,12 @@ export function ElderVoiceAssistant() {
     if (stage === 'classifying' || stage === 'acting') return
 
     await stopWakeWordListening()
+    await delay(180)
 
     if (isRecording) {
+      setStage('transcribing')
       await stopRecording(true)
       setIsRecording(false)
-      setStage('transcribing')
       return
     }
 
@@ -373,6 +377,7 @@ export function ElderVoiceAssistant() {
     setError('')
     setResult(null)
     setSpokenText('')
+    spokenTextRef.current = ''
     setAssistantNotice('')
     setIsRecording(true)
   }
@@ -523,6 +528,7 @@ export function ElderVoiceAssistant() {
     setFeedback('')
     setError('')
     setAssistantNotice('')
+    spokenTextRef.current = spokenText
   }
 
   function resetAssistant() {
@@ -542,6 +548,7 @@ export function ElderVoiceAssistant() {
     setOpen(false)
     setStage('idle')
     setSpokenText('')
+    spokenTextRef.current = ''
     setResult(null)
     setFeedback('')
     setError('')
@@ -617,6 +624,7 @@ export function ElderVoiceAssistant() {
     wakeWordTriggeredRef.current = true
 
     await stopWakeWordListening()
+    await delay(180)
 
     setOpen(true)
     setStage('recording')
@@ -624,6 +632,7 @@ export function ElderVoiceAssistant() {
     setError('')
     setResult(null)
     setSpokenText('')
+    spokenTextRef.current = ''
     setAssistantNotice('怎么啦，你继续说。')
     setIsRecording(true)
 
@@ -638,27 +647,40 @@ export function ElderVoiceAssistant() {
   }
 
   async function startRecording() {
-    const supportStatus = await getSpeechRecognitionSupportStatus()
+    let startupErrorMessage = ''
 
-    if (!supportStatus.supported) {
-      setError(resolveSpeechRecognitionError(supportStatus.reason))
-      return false
+    if (!Capacitor.isNativePlatform()) {
+      const supportStatus = await getSpeechRecognitionSupportStatus()
+
+      if (!supportStatus.supported) {
+        setError(resolveSpeechRecognitionError(supportStatus.reason))
+        return false
+      }
     }
 
     try {
-      speechSessionRef.current = await startSpeechRecognition({
+      const startSession = Capacitor.isNativePlatform()
+        ? startRecordedSpeechRecognition
+        : startSpeechRecognition
+
+      speechSessionRef.current = await startSession({
         language: 'zh-CN',
         onPartialResult: (text) => {
           if (text.trim()) {
-            setSpokenText(text.trim())
+            const normalizedText = text.trim()
+            spokenTextRef.current = normalizedText
+            setSpokenText(normalizedText)
           }
         },
         onFinalResult: (text) => {
           if (text.trim()) {
-            setSpokenText(text.trim())
+            const normalizedText = text.trim()
+            spokenTextRef.current = normalizedText
+            setSpokenText(normalizedText)
           }
         },
         onError: (message) => {
+          startupErrorMessage = message
           setAssistantNotice(`这次没有听清：${message}`)
         },
         onListeningStateChange: (listening) => {
@@ -669,11 +691,11 @@ export function ElderVoiceAssistant() {
       })
 
       if (!speechSessionRef.current) {
-        setError('语音功能暂时没能打开，请稍后再试。')
+        setError(resolveSpeechRecognitionStartupError(startupErrorMessage))
         return false
       }
 
-      setAssistantNotice('已经准备好了，你可以直接说。')
+      setAssistantNotice(Capacitor.isNativePlatform() ? '已经开始录音，你说完后再点一次按钮。' : '已经准备好了，你可以直接说。')
       setError('')
       return true
     } catch (recordError) {
@@ -689,7 +711,7 @@ export function ElderVoiceAssistant() {
       speechSessionRef.current = null
       setIsRecording(false)
       if (shouldTranscribe) {
-        if (spokenText.trim()) {
+        if (spokenTextRef.current.trim()) {
           setAssistantNotice('已经帮你记下来了，看看这句话对不对。')
           setError('')
         } else {
@@ -904,5 +926,39 @@ function resolveSpeechRecognitionError(
   }
 
   return '当前暂时无法使用语音功能，请稍后再试。'
+}
+
+function resolveSpeechRecognitionStartupError(message: string) {
+  const normalized = message.trim().toLowerCase()
+
+  if (!normalized) {
+    return '语音功能暂时没能打开，请稍后再试。'
+  }
+
+  if (
+    normalized.includes('insufficient permissions') ||
+    normalized.includes('missing permission') ||
+    normalized.includes('permission')
+  ) {
+    return '请先打开麦克风权限，再试一次。'
+  }
+
+  if (normalized.includes('recognitionservice busy') || normalized.includes('busy')) {
+    return '语音服务刚刚还在忙，请稍等一秒再试一次。'
+  }
+
+  if (normalized.includes('audio recording error') || normalized.includes('audio')) {
+    return '麦克风刚才没有正常启动，请稍后再试。'
+  }
+
+  if (normalized.includes('network')) {
+    return '语音识别服务刚才网络不稳定，请稍后再试。'
+  }
+
+  if (normalized.includes('no match') || normalized.includes('no speech')) {
+    return '刚才没有听清你的声音，请再试一次。'
+  }
+
+  return `语音功能暂时没能打开：${message}`
 }
 

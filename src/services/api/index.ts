@@ -1,5 +1,6 @@
 export * from './alertApi'
 export * from './aiIntentApi'
+export * from './asrApi'
 export * from './authApi'
 export * from './conversationApi'
 export * from './conversationCache'
