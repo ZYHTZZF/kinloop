@@ -13,7 +13,13 @@ import {
   synthesizeSpeech,
 } from '../../services/api'
 import type { ConversationCard, Member } from '../../services/api'
-import { ensureSpeechRecognitionPermission } from '../../platform/permissions'
+import {
+  isLocalWakeWordAvailable,
+  speakNativeWakeReply,
+  startLocalWakeWordListening,
+  type LocalWakeWordSession,
+} from '../../platform/localWakeWord'
+import { ensureMicrophoneCapturePermission, ensureSpeechRecognitionPermission } from '../../platform/permissions'
 import {
   getSpeechRecognitionSupportStatus,
   isSpeechRecognitionSupported,
@@ -52,10 +58,11 @@ export function ElderVoiceAssistant() {
   const [assistantNotice, setAssistantNotice] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const [edgePosition, setEdgePosition] = useState<{ x: number; y: number } | null>(null)
+  const [wakeWordDebug, setWakeWordDebug] = useState('')
 
   const micReadyRef = useRef(false)
   const speechSessionRef = useRef<SpeechSession | null>(null)
-  const wakeWordSessionRef = useRef<SpeechSession | null>(null)
+  const wakeWordSessionRef = useRef<SpeechSession | LocalWakeWordSession | null>(null)
   const wakeWordRestartTimerRef = useRef<number | null>(null)
   const wakeWordEnabledRef = useRef(false)
   const wakeWordTriggeredRef = useRef(false)
@@ -135,22 +142,24 @@ export function ElderVoiceAssistant() {
   return (
     <>
       {isConversationRoute ? (
-        <button
-          ref={edgeButtonRef}
-          className={[
-            'global-voice-button',
-            'global-voice-button--edge',
-            isRecording ? 'is-holding' : '',
-          ].filter(Boolean).join(' ')}
-          type="button"
-          aria-label="打开 AI 助手"
-          style={edgePosition ? { left: edgePosition.x, top: edgePosition.y, right: 'auto', bottom: 'auto' } : undefined}
-          onPointerDown={handleEdgePointerDown}
-          onClick={() => void handleEdgeButtonClick()}
-        >
-          <span className="global-voice-button__mic">🎙</span>
-          <span>AI</span>
-        </button>
+        <>
+          <button
+            ref={edgeButtonRef}
+            className={[
+              'global-voice-button',
+              'global-voice-button--edge',
+              isRecording ? 'is-holding' : '',
+            ].filter(Boolean).join(' ')}
+            type="button"
+            aria-label="打开 AI 助手"
+            style={edgePosition ? { left: edgePosition.x, top: edgePosition.y, right: 'auto', bottom: 'auto' } : undefined}
+            onPointerDown={handleEdgePointerDown}
+            onClick={() => void handleEdgeButtonClick()}
+          >
+            <span className="global-voice-button__mic">🎙</span>
+            <span>AI</span>
+          </button>
+        </>
       ) : null}
 
       {!isConversationRoute ? (
@@ -559,6 +568,14 @@ export function ElderVoiceAssistant() {
   async function startWakeWordListening() {
     if (wakeWordSessionRef.current || typeof window === 'undefined') return
 
+    if (Capacitor.isNativePlatform()) {
+      const startedLocalWakeWord = await startLocalWakeWordListeningIfAvailable()
+      if (!startedLocalWakeWord) {
+        await startCloudWakeWordListening()
+      }
+      return
+    }
+
     const micReady = await ensureMicrophoneReady({ silent: true })
     if (!micReady) return
 
@@ -596,6 +613,103 @@ export function ElderVoiceAssistant() {
     }
   }
 
+  async function startLocalWakeWordListeningIfAvailable() {
+    setWakeWordDebug('本地听小智')
+
+    const micReady = await ensureMicrophoneCapturePermission()
+    if (!micReady || !wakeWordEnabledRef.current) {
+      setWakeWordDebug(micReady ? '' : '麦克风未开')
+      return false
+    }
+
+    const available = await isLocalWakeWordAvailable()
+    if (!available || !wakeWordEnabledRef.current) {
+      setWakeWordDebug('')
+      return false
+    }
+
+    try {
+      wakeWordSessionRef.current = await startLocalWakeWordListening({
+        onDetected: () => {
+          setWakeWordDebug('已唤醒')
+          void handleWakeWordDetected()
+        },
+        onStatus: (status) => {
+          if (status === 'listening') {
+            setWakeWordDebug('本地听小智')
+          } else if (status === 'error') {
+            setWakeWordDebug('监听失败')
+          }
+        },
+      })
+      return true
+    } catch (error) {
+      wakeWordSessionRef.current = null
+      setWakeWordDebug('本地监听失败')
+      console.warn('[Voice Assistant] local wake word failed:', error)
+      return false
+    }
+  }
+
+  async function startCloudWakeWordListening() {
+    setWakeWordDebug('监听中')
+    const micReady = await ensureMicrophoneCapturePermission()
+    if (!micReady || !wakeWordEnabledRef.current) {
+      setWakeWordDebug(micReady ? '' : '麦克风未开')
+      return
+    }
+
+    let latestWakeTranscript = ''
+
+    try {
+      wakeWordSessionRef.current = await startRecordedSpeechRecognition({
+        language: 'zh-CN',
+        onFinalResult: (text) => {
+          latestWakeTranscript = text.trim()
+          if (containsWakeWord(latestWakeTranscript)) {
+            setWakeWordDebug('已唤醒')
+            void handleWakeWordDetected()
+          } else if (latestWakeTranscript) {
+            setWakeWordDebug(`听到：${latestWakeTranscript.slice(0, 12)}`)
+            console.info('[Voice Assistant] wake word not matched:', latestWakeTranscript)
+          }
+        },
+        onError: (message) => {
+          setWakeWordDebug(`未听清：${message.slice(0, 10)}`)
+          console.warn('[Voice Assistant] cloud wake word check skipped:', message)
+        },
+      })
+
+      if (!wakeWordSessionRef.current) {
+        setWakeWordDebug('未开始')
+        scheduleWakeWordRestart(1200)
+        return
+      }
+
+      setWakeWordDebug('听小智')
+      wakeWordRestartTimerRef.current = window.setTimeout(() => {
+        const activeWakeSession = wakeWordSessionRef.current
+        wakeWordSessionRef.current = null
+        wakeWordRestartTimerRef.current = null
+
+        void (async () => {
+          await activeWakeSession?.stop()
+
+          if (!wakeWordTriggeredRef.current && wakeWordEnabledRef.current) {
+            scheduleWakeWordRestart(800)
+          }
+        })()
+      }, 2200)
+    } catch (error) {
+      wakeWordSessionRef.current = null
+      setWakeWordDebug('监听失败')
+      console.warn('[Voice Assistant] cloud wake word failed:', error)
+      if (wakeWordEnabledRef.current) {
+        scheduleWakeWordRestart(1200)
+      }
+    }
+  }
+
   async function stopWakeWordListening() {
     if (wakeWordRestartTimerRef.current !== null) {
       window.clearTimeout(wakeWordRestartTimerRef.current)
@@ -607,7 +721,7 @@ export function ElderVoiceAssistant() {
     await activeWakeSession?.stop()
   }
 
-  function scheduleWakeWordRestart() {
+  function scheduleWakeWordRestart(delayMs = 400) {
     if (typeof window === 'undefined' || wakeWordRestartTimerRef.current !== null) return
 
     wakeWordRestartTimerRef.current = window.setTimeout(() => {
@@ -615,13 +729,14 @@ export function ElderVoiceAssistant() {
       if (wakeWordEnabledRef.current) {
         void startWakeWordListening()
       }
-    }, 400)
+    }, delayMs)
   }
 
   async function handleWakeWordDetected() {
     if (!wakeWordEnabledRef.current || open || stage !== 'idle' || wakeWordTriggeredRef.current) return
 
     wakeWordTriggeredRef.current = true
+    setWakeWordDebug('')
 
     await stopWakeWordListening()
     await delay(180)
@@ -633,17 +748,24 @@ export function ElderVoiceAssistant() {
     setResult(null)
     setSpokenText('')
     spokenTextRef.current = ''
-    setAssistantNotice('怎么啦，你继续说。')
-    setIsRecording(true)
+    setAssistantNotice('我在，你继续说。')
+    const usedNativeWakeReply = await speakNativeWakeReply('我在')
+    if (!usedNativeWakeReply) {
+      speak('我在')
+    }
+
+    await delay(850)
 
     const started = await startRecording()
     if (!started) {
+      setIsRecording(false)
       setStage('transcribing')
-      setAssistantNotice('已经听到你在找我，你可以直接把想说的话补充进去。')
+      setAssistantNotice('我在。你可以直接把想说的话补充进去。')
       return
     }
 
-    speak('怎么啦')
+    setIsRecording(true)
+    setAssistantNotice('我在听，你继续说。说完后再点一次按钮。')
   }
 
   async function startRecording() {
@@ -880,8 +1002,20 @@ function delay(ms: number) {
 }
 
 function containsWakeWord(text: string) {
-  const normalized = text.replace(/\s+/g, '')
-  return normalized.includes(WAKE_WORD)
+  const normalized = normalizeWakeWordText(text)
+  return [
+    WAKE_WORD,
+    '小知小知',
+    '小志小志',
+    '小智小志',
+    '小志小智',
+  ].some((candidate) => normalized.includes(candidate))
+}
+
+function normalizeWakeWordText(text: string) {
+  return text
+    .normalize('NFKC')
+    .replace(/[^\u4e00-\u9fffa-zA-Z0-9]/g, '')
 }
 
 function base64AudioToObjectUrl(base64Data: string, mimeType: string) {
