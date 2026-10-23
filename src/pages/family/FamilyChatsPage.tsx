@@ -64,7 +64,7 @@ export function FamilyChatsPage() {
           {cards.map((card) => (
             <Link className="list-row" key={card.id} to={`/family/chats/${card.id}`}>
               <div className="list-row__main">
-                <span className="avatar-badge">{card.avatar}</span>
+                <span className="avatar-badge">{getContactInitial(card)}</span>
                 <div>
                   <strong>{card.elderDisplayName}</strong>
                   <p>{card.primaryMessage?.preview ?? '暂时还没有新内容'}</p>
@@ -80,4 +80,9 @@ export function FamilyChatsPage() {
       </section>
     </section>
   )
+}
+
+function getContactInitial(card: ConversationCard) {
+  const displayName = card.elderDisplayName || card.avatar || ''
+  return displayName.trim().charAt(0) || '亲'
 }

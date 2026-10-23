@@ -236,9 +236,9 @@
 
 .welcome-primary {
   border: 0;
-  background: linear-gradient(135deg, #486b5a, #6a8d77);
-  color: #fdf8ef;
-  box-shadow: 0 10px 24px rgba(72, 107, 90, 0.2);
+  background: linear-gradient(180deg, #4d86b3, #316b99);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(49, 107, 153, 0.18);
 }
 
 .welcome-secondary--block {
@@ -439,9 +439,9 @@
   --app-panel: rgba(250, 249, 244, 0.92);
   --app-panel-strong: rgba(255, 255, 252, 0.98);
   --app-panel-muted: rgba(241, 238, 229, 0.92);
-  --app-accent: #4f6b5e;
-  --app-accent-soft: rgba(79, 107, 94, 0.12);
-  --app-accent-strong: #355041;
+  --app-accent: #5f8fb8;
+  --app-accent-soft: rgba(95, 143, 184, 0.12);
+  --app-accent-strong: #316b99;
   --app-secondary: #916f54;
 }
 
@@ -640,10 +640,10 @@
 }
 
 .bottom-tab-nav__item.is-active {
-  background: rgba(49, 88, 68, 0.96);
-  color: #f7f4ed;
-  border-color: rgba(49, 88, 68, 0.96);
-  box-shadow: 0 10px 18px rgba(49, 88, 68, 0.2);
+  background: #e9f4fb;
+  color: #316b99;
+  border-color: rgba(95, 143, 184, 0.18);
+  box-shadow: none;
 }
 
 .screen--elder-home {
@@ -1636,10 +1636,10 @@
 }
 
 .message-bubble--focused {
-  border-color: rgba(79, 107, 94, 0.42);
+  border-color: rgba(95, 143, 184, 0.38);
   box-shadow:
-    0 0 0 3px rgba(79, 107, 94, 0.12),
-    0 14px 28px rgba(79, 107, 94, 0.12);
+    0 0 0 4px rgba(95, 143, 184, 0.12),
+    0 10px 24px rgba(49, 107, 153, 0.12);
 }
 
 .message-bubble__sender {
@@ -1672,8 +1672,8 @@
   max-width: min(100%, 320px);
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(79, 107, 94, 0.12);
-  color: #355041;
+  background: #e9f4fb;
+  color: #316b99;
   font-size: 12px;
   line-height: 1.4;
 }
@@ -2235,7 +2235,7 @@
   top: 18px;
   bottom: 18px;
   width: 1px;
-  background: linear-gradient(180deg, rgba(79, 107, 94, 0.18), rgba(79, 107, 94, 0.02));
+  background: linear-gradient(180deg, rgba(95, 143, 184, 0.28), rgba(95, 143, 184, 0.03));
 }
 
 .screen--family-status .timeline-card {
@@ -2957,5 +2957,727 @@
   .manual-help-link {
     right: 12px;
     bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Kinloop calm-blue redesign: more distinctive surfaces without changing product structure. */
+.app-shell,
+.app-shell--elder,
+.app-shell--family {
+  --app-bg:
+    linear-gradient(180deg, rgba(248, 251, 253, 0.98) 0%, rgba(242, 247, 250, 0.98) 52%, rgba(236, 244, 249, 0.98) 100%);
+  --app-panel: rgba(255, 255, 255, 0.9);
+  --app-panel-strong: #ffffff;
+  --app-panel-muted: #f1f6fa;
+  --app-ink: #1f2a33;
+  --app-muted: #51616e;
+  --app-soft: #83919d;
+  --app-accent: #5f8fb8;
+  --app-accent-soft: rgba(95, 143, 184, 0.12);
+  --app-accent-strong: #316b99;
+  --app-secondary: #6e8495;
+  --app-border: rgba(38, 54, 68, 0.1);
+  --app-shadow: 0 14px 36px rgba(31, 42, 51, 0.08);
+  --app-shadow-soft: 0 8px 22px rgba(31, 42, 51, 0.055);
+  --app-radius-xl: 20px;
+  --app-radius-lg: 16px;
+  --app-radius-md: 12px;
+  color: var(--app-ink);
+}
+
+.app-shell::before {
+  background:
+    linear-gradient(90deg, rgba(49, 107, 153, 0.04) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(49, 107, 153, 0.04) 1px, transparent 1px),
+    var(--app-bg);
+  background-size: 44px 44px, 44px 44px, auto;
+}
+
+.app-shell::after,
+.app-shell--elder::after,
+.app-shell--family::after,
+.welcome-shell__backdrop {
+  background:
+    linear-gradient(90deg, rgba(49, 107, 153, 0.08), transparent 22%, transparent 78%, rgba(49, 107, 153, 0.06)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.8), transparent 28%);
+  opacity: 1;
+}
+
+.welcome-shell {
+  color: #1f2a33;
+}
+
+.welcome-card,
+.surface-card {
+  border: 1px solid rgba(38, 54, 68, 0.1);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 252, 254, 0.92));
+  box-shadow: 0 18px 46px rgba(31, 42, 51, 0.09);
+}
+
+.surface-card {
+  overflow: hidden;
+}
+
+.surface-card::after,
+.welcome-card::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(49, 107, 153, 0.9), rgba(95, 143, 184, 0.22), transparent 82%);
+  pointer-events: none;
+}
+
+.welcome-card {
+  position: relative;
+}
+
+.welcome-panel,
+.role-choice-card,
+.family-binding-card,
+.binding-result-card,
+.pulse-row,
+.timeline-card,
+.memory-card,
+.support-card,
+.trend-card,
+.status-summary-card,
+.action-suggestion-card,
+.relay-card,
+.task-card,
+.members-card,
+.family-emotion-panel,
+.family-emotion-alert-card,
+.family-emotion-summary-card,
+.family-emotion-summary-note,
+.family-emotion-empty,
+.family-emotion-trend-card,
+.family-emotion-source-card,
+.help-card,
+.conversation-card,
+.note-card,
+.today-overview-chip,
+.voice-sheet,
+.unread-summary-dialog,
+.ai-confirm-card,
+.composer-card,
+.pre-send-suggestion-card {
+  border-color: rgba(38, 54, 68, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 24px rgba(31, 42, 51, 0.055);
+}
+
+.welcome-card__intro h1,
+.welcome-panel h2,
+.app-shell__header h1,
+.section-heading h2,
+.elder-home__hero-copy h2,
+.memory-card h3,
+.relay-card strong,
+.task-card strong,
+.members-card strong,
+.support-card strong,
+.signal-row strong,
+.ai-confirm-card strong,
+.action-suggestion-card strong,
+.status-summary-card strong,
+.trend-card strong {
+  color: #1f2a33;
+  letter-spacing: 0;
+}
+
+.app-shell__header {
+  position: relative;
+  max-width: 820px;
+  margin-bottom: 20px;
+  padding: 18px;
+  border: 1px solid rgba(38, 54, 68, 0.1);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(240, 247, 252, 0.86));
+  box-shadow: 0 16px 38px rgba(31, 42, 51, 0.08);
+  overflow: hidden;
+}
+
+.app-shell__header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 18px;
+  bottom: 18px;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: #316b99;
+}
+
+.app-shell__header-copy {
+  padding-left: 8px;
+}
+
+.app-shell__header h1 {
+  max-width: 20ch;
+  font-size: clamp(1.45rem, 4.2vw, 2.05rem);
+  line-height: 1.16;
+}
+
+.app-shell__eyebrow,
+.surface-card__eyebrow,
+.welcome-kicker {
+  width: fit-content;
+  padding: 5px 10px;
+  border: 1px solid rgba(95, 143, 184, 0.18);
+  border-radius: 999px;
+  background: rgba(233, 244, 251, 0.72);
+  color: #316b99;
+  letter-spacing: 0.06em;
+}
+
+.app-shell__eyebrow::before,
+.surface-card__eyebrow::before {
+  display: none;
+}
+
+.section-heading {
+  align-items: start;
+  padding-bottom: 2px;
+}
+
+.section-heading h2 {
+  font-size: clamp(1.2rem, 1.45vw, 1.72rem);
+}
+
+.status-pill,
+.welcome-tag,
+.welcome-badge,
+.bound-member-chip {
+  border: 1px solid rgba(95, 143, 184, 0.16);
+  background: #e9f4fb;
+  color: #316b99;
+  box-shadow: none;
+}
+
+.welcome-tag--muted,
+.state-note {
+  border-color: rgba(38, 54, 68, 0.08);
+  background: #f6f9fb;
+  color: #51616e;
+}
+
+.welcome-step.is-active,
+.surface-card--status,
+.surface-card--film-strip,
+.family-binding-card--directory,
+.family-emotion-panel--hero,
+.screen--family-collaboration .members-card:last-child,
+.elder-home__voice-prompt,
+.elder-home__quick-link,
+.family-social-hero,
+.family-social-stat,
+.family-social-quickbar__item,
+.message-bridge-card,
+.message-emotion-chip,
+.voice-sheet__status-card,
+.voice-sheet__result-card {
+  border-color: rgba(95, 143, 184, 0.14);
+  background:
+    linear-gradient(180deg, rgba(248, 252, 255, 0.98), rgba(239, 247, 252, 0.92));
+  box-shadow: 0 10px 28px rgba(49, 107, 153, 0.07);
+}
+
+.welcome-step.is-done span,
+.role-choice-card.is-active::after,
+.welcome-tabs button.is-active,
+.family-mode-grid button.is-active,
+.welcome-primary,
+.primary-action {
+  border-color: #316b99;
+  background: linear-gradient(180deg, #4d86b3, #316b99);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(49, 107, 153, 0.18);
+}
+
+.primary-action:hover,
+.welcome-primary:hover {
+  background: linear-gradient(180deg, #427aa6, #2b608a);
+}
+
+.welcome-tabs button,
+.family-mode-grid button,
+.welcome-secondary,
+.app-shell__switch-link,
+.back-link,
+.ghost-action,
+.ghost-action--link,
+.message-bridge-close,
+.pre-send-suggestion-option,
+.attachment-menu__button {
+  border-color: rgba(38, 54, 68, 0.1);
+  background: rgba(255, 255, 255, 0.88);
+  color: #316b99;
+  box-shadow: none;
+}
+
+.welcome-tabs button:hover,
+.family-mode-grid button:hover,
+.welcome-secondary:hover,
+.app-shell__switch-link:hover,
+.back-link:hover,
+.ghost-action:hover,
+.ghost-action--link:hover,
+.message-bridge-close:hover,
+.pre-send-suggestion-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(95, 143, 184, 0.24);
+  background: #f2f8fc;
+}
+
+.welcome-field input,
+.voice-sheet__textarea,
+.ai-confirm-card input,
+.composer-card input {
+  border-color: #dde6ee;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #1f2a33;
+}
+
+.welcome-field input:focus,
+.voice-sheet__textarea:focus,
+.ai-confirm-card input:focus,
+.composer-card input:focus {
+  outline: none;
+  border-color: #5f8fb8;
+  box-shadow: 0 0 0 4px rgba(95, 143, 184, 0.14);
+}
+
+.bottom-tab-nav {
+  gap: 8px;
+}
+
+.app-shell--family .bottom-tab-nav {
+  width: min(760px, calc(100vw - 20px));
+  padding: 7px;
+  border-color: rgba(38, 54, 68, 0.1);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 250, 253, 0.92));
+  box-shadow: 0 16px 34px rgba(31, 42, 51, 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.bottom-tab-nav__item {
+  border-color: transparent;
+  background: transparent;
+  color: #768592;
+}
+
+.bottom-tab-nav__item:hover {
+  transform: none;
+  background: rgba(233, 244, 251, 0.72);
+  border-color: rgba(95, 143, 184, 0.14);
+  color: #316b99;
+}
+
+.bottom-tab-nav__item.is-active {
+  border-color: rgba(95, 143, 184, 0.18);
+  background: #e9f4fb;
+  color: #316b99;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.list-stack {
+  gap: 10px;
+}
+
+.list-row {
+  position: relative;
+  border-color: rgba(38, 54, 68, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 5px 16px rgba(31, 42, 51, 0.045);
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.list-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: rgba(95, 143, 184, 0);
+  transition: background-color 160ms ease;
+}
+
+.list-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(95, 143, 184, 0.18);
+  background: #f8fbfd;
+}
+
+.list-row:hover::before,
+.list-row--ai::before {
+  background: rgba(95, 143, 184, 0.9);
+}
+
+.avatar-badge,
+.list-row--ai .avatar-badge {
+  border: 1px solid rgba(95, 143, 184, 0.16);
+  background:
+    linear-gradient(180deg, #fafdff, #dcecf6);
+  color: #316b99;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.screen--elder-conversation .surface-card,
+.screen--family-conversation .surface-card {
+  border: 0;
+  background: #eef4f8;
+}
+
+.screen--elder-conversation .message-list,
+.screen--family-conversation .message-list,
+.message-list {
+  background:
+    linear-gradient(180deg, #f4f8fb, #eef4f8);
+}
+
+.family-chat-header {
+  border-bottom-color: rgba(38, 54, 68, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 252, 254, 0.96));
+}
+
+.screen--family-conversation .family-chat-header__back,
+.screen--elder-conversation .family-chat-header__back {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(95, 143, 184, 0.18);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #316b99;
+  font-size: 1.8rem;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: 0 6px 16px rgba(31, 42, 51, 0.08);
+}
+
+.screen--family-conversation .family-chat-header__back span,
+.screen--elder-conversation .family-chat-header__back span {
+  display: block;
+  transform: translateY(-1px);
+}
+
+.screen--family-conversation .composer-card,
+.screen--elder-conversation .composer-card {
+  border-top: 1px solid rgba(38, 54, 68, 0.1);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 -12px 30px rgba(31, 42, 51, 0.08);
+}
+
+.message-bubble {
+  border-color: rgba(38, 54, 68, 0.08);
+  box-shadow: 0 5px 14px rgba(31, 42, 51, 0.05);
+}
+
+.message-bubble--family,
+.message-bubble--peer {
+  background: #ffffff;
+}
+
+.message-bubble--elder,
+.message-bubble--self {
+  background:
+    linear-gradient(180deg, #eaf5fc, #dcecf6);
+  border-color: rgba(95, 143, 184, 0.16);
+}
+
+.message-bubble--ai-log {
+  background: #f8fbfd;
+  border-color: rgba(95, 143, 184, 0.18);
+  border-left-color: rgba(49, 107, 153, 0.72);
+}
+
+.message-bubble--focused {
+  border-color: rgba(95, 143, 184, 0.38);
+  box-shadow:
+    0 0 0 4px rgba(95, 143, 184, 0.12),
+    0 10px 24px rgba(49, 107, 153, 0.12);
+}
+
+.message-focus-hint,
+.message-emotion-mode--ai,
+.status-pill--low,
+.status-pill--ai-log-understand,
+.status-pill--ai-log-result {
+  background: #e9f4fb;
+  color: #316b99;
+}
+
+.message-bridge-trigger,
+.message-bridge-followup,
+.message-voice__meta,
+.message-voice__fallback,
+.text-action,
+.composer-drop-tip {
+  color: #316b99;
+}
+
+.message-voice,
+.content-preview--voice,
+.content-preview--text,
+.pre-send-suggestion-card--followup {
+  border-color: rgba(95, 143, 184, 0.14);
+  background: #f6fafc;
+}
+
+.global-voice-button {
+  background: linear-gradient(180deg, #5f8fb8, #316b99);
+  color: #ffffff;
+  box-shadow:
+    0 18px 34px rgba(49, 107, 153, 0.24),
+    0 0 0 8px rgba(255, 255, 255, 0.55);
+}
+
+.global-voice-button:hover,
+.global-voice-button.is-holding {
+  box-shadow:
+    0 22px 42px rgba(49, 107, 153, 0.28),
+    0 0 0 10px rgba(255, 255, 255, 0.58);
+}
+
+.global-voice-button__mic {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.manual-help-link,
+.help-card--danger,
+.state-note--error,
+.status-pill--high {
+  border-color: rgba(184, 92, 82, 0.18);
+  background: #fff2f0;
+  color: #9c4f47;
+  box-shadow: 0 8px 18px rgba(184, 92, 82, 0.08);
+}
+
+.help-card--warn,
+.family-status-focus-note,
+.status-pill--medium,
+.message-emotion-mode--fallback {
+  border-color: rgba(163, 106, 45, 0.18);
+  background: #fff7eb;
+  color: #8a5d29;
+}
+
+.severity-dot--low {
+  background: #6e8495;
+}
+
+.severity-dot--medium {
+  background: #a36a2d;
+}
+
+.severity-dot--high {
+  background: #b85c52;
+}
+
+.screen--family-status .timeline-stack::before {
+  background: linear-gradient(180deg, rgba(95, 143, 184, 0.28), rgba(95, 143, 184, 0.03));
+}
+
+.timeline-card--focused {
+  border-color: rgba(95, 143, 184, 0.28);
+  box-shadow: 0 0 0 4px rgba(95, 143, 184, 0.1);
+}
+
+.family-today-simple {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.family-today-summary-card {
+  min-height: 150px;
+  padding: 20px;
+  border: 1px solid rgba(38, 54, 68, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2a33;
+  display: grid;
+  align-content: space-between;
+  gap: 12px;
+  box-shadow: 0 8px 24px rgba(31, 42, 51, 0.055);
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.family-today-summary-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(95, 143, 184, 0.2);
+  background: #f8fbfd;
+}
+
+.family-today-summary-card__label {
+  color: #51616e;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.family-today-summary-card strong {
+  color: #1f2a33;
+  font-size: clamp(2.4rem, 8vw, 4rem);
+  line-height: 1;
+}
+
+.family-today-summary-card small {
+  color: #6e8495;
+  font-size: 0.9rem;
+}
+
+.family-today-summary-card--alert {
+  border-color: rgba(184, 92, 82, 0.28);
+  background: linear-gradient(180deg, #fff2f0, #ffe7e2);
+  box-shadow: 0 12px 30px rgba(184, 92, 82, 0.14);
+}
+
+.family-today-summary-card--alert:hover {
+  border-color: rgba(184, 92, 82, 0.34);
+  background: linear-gradient(180deg, #fff0ed, #ffddd6);
+}
+
+.family-today-summary-card--alert .family-today-summary-card__label,
+.family-today-summary-card--alert strong,
+.family-today-summary-card--alert small {
+  color: #8f3f38;
+}
+
+.family-today-simple__updated {
+  grid-column: 1 / -1;
+  color: #768592;
+  font-size: 0.88rem;
+  text-align: right;
+}
+
+.family-subpage-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+}
+
+.family-subpage-back {
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(82, 116, 142, 0.22);
+  background: rgba(255, 255, 255, 0.86);
+  color: #2f6488;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 8px 18px rgba(65, 90, 112, 0.08);
+}
+
+.family-emotion-week-chart {
+  display: grid;
+  gap: 12px;
+}
+
+.family-emotion-bar-row {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(82, 116, 142, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+  text-decoration: none;
+}
+
+.family-emotion-bar-row__date {
+  color: #5f7180;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.family-emotion-bar-row__track {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(82, 116, 142, 0.12);
+}
+
+.family-emotion-bar-row__bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(82, 116, 142, 0.26);
+}
+
+.family-emotion-bar-row__bar--active {
+  background: linear-gradient(90deg, #e9675f, #f2a15d);
+}
+
+.family-emotion-bar-row strong {
+  color: #2e3d49;
+  text-align: right;
+}
+
+.family-emotion-message-list {
+  display: grid;
+  gap: 14px;
+}
+
+.family-emotion-message-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid rgba(82, 116, 142, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.family-emotion-message-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #71808d;
+  font-size: 0.86rem;
+}
+
+@media (max-width: 640px) {
+  .app-shell__header {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .surface-card,
+  .welcome-card,
+  .welcome-panel {
+    border-radius: 18px;
+  }
+
+  .app-shell--family .bottom-tab-nav {
+    border-radius: 20px;
+  }
+
+  .family-today-simple {
+    grid-template-columns: 1fr;
+  }
+
+  .family-today-simple__updated {
+    text-align: left;
   }
 }

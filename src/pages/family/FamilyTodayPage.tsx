@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { getOnboardingState } from '../../app/onboardingStorage'
 import { PageState } from '../../components/common/PageState'
 import { getTodayEmotionStatus } from '../../services/api'
-import type { TodayEmotionSourceBreakdownItem, TodayEmotionStatus } from '../../services/api'
+import type { TodayEmotionStatus } from '../../services/api'
 import { formatShortDateTime } from '../../utils/dateTime'
 
 export function FamilyTodayPage() {
   const [status, setStatus] = useState<TodayEmotionStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [viewedTodayAlertKey, setViewedTodayAlertKey] = useState(() => readViewedTodayAlertKey())
 
   useEffect(() => {
     let cancelled = false
@@ -38,172 +40,65 @@ export function FamilyTodayPage() {
     }
   }, [])
 
-  const trend = useMemo(() => status?.trend ?? [], [status])
-  const abnormalCards = useMemo(() => status?.abnormalCards ?? [], [status])
-  const sourceItems = useMemo(() => status?.sourceBreakdown.items ?? [], [status])
-  const topAlerts = abnormalCards.slice(0, 3)
-  const topTrend = trend.slice(0, 4)
+  const todayPoint = useMemo(() => {
+    if (!status) return null
+    const todayKey = toDayKey(status.generatedAt)
+    return status.trend.find((point) => point.dayKey === todayKey) ?? status.trend.at(-1) ?? null
+  }, [status])
+
+  const todayAbnormalCards = useMemo(() => {
+    if (!status) return []
+    const todayKey = toDayKey(status.generatedAt)
+    return status.abnormalCards.filter((card) => toDayKey(card.happenedAt) === todayKey)
+  }, [status])
+
+  const todayAbnormalCount = todayPoint?.abnormalCount ?? 0
+  const weeklyAbnormalCount = status?.abnormalCount ?? 0
+  const todayAlertKey = status ? buildTodayAlertKey(status, todayAbnormalCount, todayAbnormalCards.map((card) => card.pulseId)) : ''
+  const hasUnreadTodayAlert = todayAbnormalCount > 0 && todayAlertKey !== viewedTodayAlertKey
+  function handleOpenTodayAlerts() {
+    if (!todayAlertKey) return
+    saveViewedTodayAlertKey(todayAlertKey)
+    setViewedTodayAlertKey(todayAlertKey)
+  }
 
   return (
     <section className="screen screen--family-today">
       <section className="surface-card surface-card--family-social">
         <div className="section-heading section-heading--family-social">
           <div>
-            <p className="surface-card__eyebrow">今日概览</p>
-            <h2>先看最需要回应的变化</h2>
-          </div>
-          <div className="inline-actions">
-            <Link className="ghost-action ghost-action--link" to="/family/status">
-              查看记录
-            </Link>
-            <Link className="primary-action" to="/family/chats">
-              去聊天
-            </Link>
+            <p className="surface-card__eyebrow">今日</p>
+            <h2>先看有没有需要留意的异常情绪</h2>
           </div>
         </div>
 
         {loading ? (
           <PageState
             title="正在整理今天的状态"
-            description="稍等一下，我先把需要优先关注的内容排好。"
+            description="稍等一下，我把需要优先关注的内容整理好。"
           />
         ) : null}
         {error ? <PageState variant="error" title="暂时无法查看今日状态" description={error} /> : null}
 
         {!loading && !error && status ? (
-          <div className="family-social-home">
-            <section className="family-social-hero">
-              <div className="family-social-hero__copy">
-                <p className="surface-card__eyebrow">今日结论</p>
-                <h3>{getHeroTitle(status)}</h3>
-                <p>{status.stableSummary}</p>
-              </div>
+          <div className="family-today-simple">
+            <Link
+              className={`family-today-summary-card${hasUnreadTodayAlert ? ' family-today-summary-card--alert' : ''}`}
+              to="/family/today/alerts"
+              onClick={handleOpenTodayAlerts}
+            >
+              <span className="family-today-summary-card__label">今日异常情绪</span>
+              <strong>{todayAbnormalCount}</strong>
+              <small>{hasUnreadTodayAlert ? '有新的异常，点击查看' : todayAbnormalCount > 0 ? '已查看今日异常' : '今天暂无新增异常'}</small>
+            </Link>
 
-              <div className="family-social-hero__stats">
-                <article className="family-social-stat">
-                  <span>需要留意</span>
-                  <strong>{status.abnormalCount}</strong>
-                  <small>今天优先处理</small>
-                </article>
-                <article className="family-social-stat">
-                  <span>最近线索</span>
-                  <strong>{status.totalEmotionCount}</strong>
-                  <small>近 {status.windowDays} 天累计</small>
-                </article>
-                <article className="family-social-stat">
-                  <span>更新时间</span>
-                  <strong>{formatShortDateTime(status.generatedAt)}</strong>
-                  <small>刚刚整理完成</small>
-                </article>
-              </div>
-            </section>
+            <Link className="family-today-summary-card" to="/family/today/week">
+              <span className="family-today-summary-card__label">近七天异常情绪</span>
+              <strong>{weeklyAbnormalCount}</strong>
+              <small>最近 {status.windowDays} 天累计</small>
+            </Link>
 
-            <section className="family-social-quickbar">
-              <Link className="family-social-quickbar__item" to="/family/chats">
-                <strong>去联系家人</strong>
-                <span>直接进入聊天，先回应当下情绪</span>
-              </Link>
-              <Link className="family-social-quickbar__item" to="/family/status">
-                <strong>看跟进记录</strong>
-                <span>把已经处理过的提醒接着跟完</span>
-              </Link>
-            </section>
-
-            <section className="family-social-section">
-              <div className="family-social-section__header">
-                <div>
-                  <p className="surface-card__eyebrow">重点处理</p>
-                  <h3>今天建议先看这几条</h3>
-                </div>
-                <span className="status-pill">{topAlerts.length} 条重点</span>
-              </div>
-
-              {topAlerts.length === 0 ? (
-                <div className="family-social-empty">
-                  <strong>今天没有新的高优先级提醒</strong>
-                  <p>可以按平常节奏聊一聊，保持陪伴就很好。</p>
-                </div>
-              ) : (
-                <div className="family-social-focus-list">
-                  {topAlerts.map((card) => (
-                    <article className="family-social-focus-card" key={card.pulseId}>
-                      <div className="family-social-focus-card__top">
-                        <div className="family-social-focus-card__tags">
-                          <span className={`status-pill status-pill--${toSeverityTone(card.severity)}`}>
-                            {card.severityLabel}
-                          </span>
-                          <span className="family-emotion-source-chip">{card.sourceLabel}</span>
-                        </div>
-                        <span className="family-social-focus-card__time">{formatShortDateTime(card.happenedAt)}</span>
-                      </div>
-
-                      <strong>{card.summary}</strong>
-                      <p>{card.actionSuggestion}</p>
-
-                      <div className="family-social-focus-card__actions">
-                        {card.sourceConversationId ? (
-                          <Link
-                            className="ghost-action ghost-action--link"
-                            to={`/family/chats/${card.sourceConversationId}${card.sourceMessageId ? `?messageId=${encodeURIComponent(card.sourceMessageId)}` : ''}`}
-                          >
-                            查看原聊天
-                          </Link>
-                        ) : null}
-                        <Link
-                          className="ghost-action ghost-action--link"
-                          to={`/family/status?pulseId=${encodeURIComponent(card.pulseId)}`}
-                        >
-                          去跟进
-                        </Link>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <div className="family-social-grid">
-              <section className="family-social-section">
-                <div className="family-social-section__header">
-                  <div>
-                    <p className="surface-card__eyebrow">最近趋势</p>
-                    <h3>近几天的变化节奏</h3>
-                  </div>
-                </div>
-                <div className="family-social-trend-grid">
-                  {topTrend.map((point) => (
-                    <article className="family-social-trend-card" key={point.dayKey}>
-                      <div className="family-social-trend-card__top">
-                        <strong>{point.dateLabel}</strong>
-                        <span className={`status-pill status-pill--${toSeverityTone(point.highestSeverity)}`}>
-                          {point.dominantLabelText}
-                        </span>
-                      </div>
-                      <p>{point.summary}</p>
-                      <div className="family-social-trend-card__meta">
-                        <span>线索 {point.totalCount}</span>
-                        <span>重点 {point.abnormalCount}</span>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-
-              <section className="family-social-section">
-                <div className="family-social-section__header">
-                  <div>
-                    <p className="surface-card__eyebrow">信息来源</p>
-                    <h3>今天主要依据这些内容</h3>
-                  </div>
-                </div>
-                <div className="family-social-source-grid">
-                  {sourceItems.map((item) => (
-                    <SourceBreakdownCard key={item.source} item={item} />
-                  ))}
-                </div>
-                <p className="family-social-section__note">{status.sourceBreakdown.note}</p>
-              </section>
-            </div>
+            <p className="family-today-simple__updated">更新于 {formatShortDateTime(status.generatedAt)}</p>
           </div>
         ) : null}
       </section>
@@ -211,28 +106,43 @@ export function FamilyTodayPage() {
   )
 }
 
-function SourceBreakdownCard({ item }: { item: TodayEmotionSourceBreakdownItem }) {
-  return (
-    <article className="family-social-source-card">
-      <span>{item.label}</span>
-      <strong>{toPercentLabel(item.ratio)}</strong>
-      <small>{item.count} 条相关内容</small>
-    </article>
-  )
+function buildTodayAlertKey(status: TodayEmotionStatus, todayAbnormalCount: number, todayPulseIds: string[]) {
+  return [
+    getTodayAlertStorageScope(),
+    toDayKey(status.generatedAt),
+    todayAbnormalCount,
+    todayPulseIds.sort().join(','),
+  ].join(':')
 }
 
-function getHeroTitle(status: TodayEmotionStatus) {
-  if (status.abnormalCount >= 3) return '今天有几条内容需要优先回应'
-  if (status.abnormalCount > 0) return '今天有一两条变化值得先看'
-  return '今天整体比较平稳'
+function getTodayAlertStorageScope() {
+  const state = getOnboardingState()
+  return [state.userId || 'guest', state.familyId || 'family', state.memberId || 'member'].join(':')
 }
 
-function toPercentLabel(ratio: number) {
-  return `${Math.round(ratio * 100)}%`
+function getViewedTodayAlertStorageKey() {
+  return `kinloop:family-today-viewed-alert:${getTodayAlertStorageScope()}`
 }
 
-function toSeverityTone(severity: string) {
-  if (severity === 'HIGH') return 'high'
-  if (severity === 'MEDIUM') return 'medium'
-  return 'low'
+function readViewedTodayAlertKey() {
+  if (typeof window === 'undefined') return ''
+  try {
+    return window.localStorage.getItem(getViewedTodayAlertStorageKey()) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function saveViewedTodayAlertKey(value: string) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(getViewedTodayAlertStorageKey(), value)
+  } catch {
+    // Ignore storage failures; the card will simply keep showing the alert color.
+  }
+}
+
+function toDayKey(timestamp: number) {
+  const date = new Date(timestamp)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }

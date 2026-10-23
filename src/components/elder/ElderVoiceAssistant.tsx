@@ -38,6 +38,7 @@ const examplePrompts = [
 type AssistantStage = 'idle' | 'recording' | 'transcribing' | 'classifying' | 'result' | 'acting'
 const AUTO_EXECUTE_CONFIDENCE = 0.78
 const WAKE_WORD = '小智小智'
+const WAKE_WORD_KEYWORD_SPEC = 'x iǎo zh ì x iǎo zh ì @小智小智'
 
 export function ElderVoiceAssistant() {
   const navigate = useNavigate()
@@ -141,43 +142,6 @@ export function ElderVoiceAssistant() {
 
   return (
     <>
-      {isConversationRoute ? (
-        <>
-          <button
-            ref={edgeButtonRef}
-            className={[
-              'global-voice-button',
-              'global-voice-button--edge',
-              isRecording ? 'is-holding' : '',
-            ].filter(Boolean).join(' ')}
-            type="button"
-            aria-label="打开 AI 助手"
-            style={edgePosition ? { left: edgePosition.x, top: edgePosition.y, right: 'auto', bottom: 'auto' } : undefined}
-            onPointerDown={handleEdgePointerDown}
-            onClick={() => void handleEdgeButtonClick()}
-          >
-            <span className="global-voice-button__mic">🎙</span>
-            <span>AI</span>
-          </button>
-        </>
-      ) : null}
-
-      {!isConversationRoute ? (
-        <button
-          className={[
-            'global-voice-button',
-            isRecording ? 'is-holding' : '',
-            isHomeRoute ? 'global-voice-button--home' : '',
-          ].filter(Boolean).join(' ')}
-          type="button"
-          aria-label={resolveButtonLabel(stage)}
-          onClick={() => void handleVoiceToggle()}
-        >
-          <span className="global-voice-button__mic">🎙</span>
-          <span>{resolveButtonLabel(stage)}</span>
-        </button>
-      ) : null}
-
       {open ? (
         <section className={['voice-sheet', isConversationRoute ? 'voice-sheet--edge' : ''].filter(Boolean).join(' ')} aria-live="polite">
           <div className="voice-sheet__header">
@@ -196,8 +160,16 @@ export function ElderVoiceAssistant() {
           {stage === 'recording' ? (
             <div className="voice-sheet__status-card">
               <strong>麦克风正在工作</strong>
-              <p>再点一次麦克风按钮结束录音并开始转写。</p>
+              <p>说完后点“结束说话”，我会把这段话转成文字。</p>
               {spokenText ? <p>{spokenText}</p> : null}
+              <div className="inline-actions">
+                <button className="primary-action" type="button" onClick={() => void finishWakeRecording()}>
+                  结束说话
+                </button>
+                <button className="ghost-action" type="button" onClick={resetAssistant}>
+                  取消
+                </button>
+              </div>
             </div>
           ) : null}
 
@@ -389,6 +361,14 @@ export function ElderVoiceAssistant() {
     spokenTextRef.current = ''
     setAssistantNotice('')
     setIsRecording(true)
+  }
+
+  async function finishWakeRecording() {
+    if (!isRecording) return
+
+    setStage('transcribing')
+    await stopRecording(true)
+    setIsRecording(false)
   }
 
   async function handleInterpret() {
@@ -614,7 +594,7 @@ export function ElderVoiceAssistant() {
   }
 
   async function startLocalWakeWordListeningIfAvailable() {
-    setWakeWordDebug('本地听小智')
+    setWakeWordDebug('本地听小智小智')
 
     const micReady = await ensureMicrophoneCapturePermission()
     if (!micReady || !wakeWordEnabledRef.current) {
@@ -630,13 +610,14 @@ export function ElderVoiceAssistant() {
 
     try {
       wakeWordSessionRef.current = await startLocalWakeWordListening({
+        keywordSpec: WAKE_WORD_KEYWORD_SPEC,
         onDetected: () => {
           setWakeWordDebug('已唤醒')
           void handleWakeWordDetected()
         },
         onStatus: (status) => {
           if (status === 'listening') {
-            setWakeWordDebug('本地听小智')
+            setWakeWordDebug('本地听小智小智')
           } else if (status === 'error') {
             setWakeWordDebug('监听失败')
           }
@@ -686,7 +667,7 @@ export function ElderVoiceAssistant() {
         return
       }
 
-      setWakeWordDebug('听小智')
+      setWakeWordDebug('听小智小智')
       wakeWordRestartTimerRef.current = window.setTimeout(() => {
         const activeWakeSession = wakeWordSessionRef.current
         wakeWordSessionRef.current = null
@@ -748,7 +729,7 @@ export function ElderVoiceAssistant() {
     setResult(null)
     setSpokenText('')
     spokenTextRef.current = ''
-    setAssistantNotice('我在，你继续说。')
+    setAssistantNotice('小智小智已唤醒，我在，你继续说。')
     const usedNativeWakeReply = await speakNativeWakeReply('我在')
     if (!usedNativeWakeReply) {
       speak('我在')
@@ -765,7 +746,7 @@ export function ElderVoiceAssistant() {
     }
 
     setIsRecording(true)
-    setAssistantNotice('我在听，你继续说。说完后再点一次按钮。')
+    setAssistantNotice('我在听，你继续说。说完后点“结束说话”。')
   }
 
   async function startRecording() {
@@ -980,7 +961,7 @@ function resolveSheetTitle(stage: AssistantStage, result: ElderVoiceIntentResult
   if (stage === 'transcribing') return '看看这句话对不对'
   if (stage === 'classifying') return '我在帮你判断该走哪条路'
   if (stage === 'acting') return '我在帮你把事情接下去'
-  return result?.promptTitle ?? '点下面的麦克风，说出你想说的话'
+  return result?.promptTitle ?? '说“小智小智”，我会出来听你说话'
 }
 
 function showConfirmAction(result: ElderVoiceIntentResult, stage: AssistantStage) {

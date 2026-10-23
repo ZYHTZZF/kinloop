@@ -110,6 +110,13 @@ function getViewerRole(request) {
   return request.auth?.membership?.role === 'elder' ? 'elder' : 'family'
 }
 
+function getViewerContext(request) {
+  return {
+    role: getViewerRole(request),
+    memberId: request.auth?.membership?.memberId ?? null,
+  }
+}
+
 const WEATHER_CODE_LABELS = {
   0: '晴',
   1: '晴间多云',
@@ -473,11 +480,16 @@ app.get('/api/members', (request, response) => {
 app.get('/api/conversations/cards', (request, response) => {
   const requestedViewer = request.query?.viewer === 'elder' ? 'elder' : request.query?.viewer === 'family' ? 'family' : getViewerRole(request)
   const viewer = getViewerRole(request) === 'elder' ? 'elder' : requestedViewer === 'family' ? 'family' : 'family'
-  response.json(listConversationCards(getFamilySpaceIdFromRequest(request), viewer))
+  response.json(listConversationCards(getFamilySpaceIdFromRequest(request), viewer, request.auth.membership.memberId))
 })
 
 app.get('/api/conversations/:conversationId', (request, response) => {
-  const conversation = getConversationDetail(request.params.conversationId, getFamilySpaceIdFromRequest(request))
+  const conversation = getConversationDetail(
+    request.params.conversationId,
+    getFamilySpaceIdFromRequest(request),
+    getViewerRole(request),
+    request.auth.membership.memberId,
+  )
 
   if (!conversation) {
     response.status(404).json({ error: 'Conversation not found' })
@@ -494,7 +506,12 @@ app.patch('/api/conversations/:conversationId/read-all', (request, response) => 
     return
   }
 
-  const conversation = getConversationDetail(request.params.conversationId, getFamilySpaceIdFromRequest(request))
+  const conversation = getConversationDetail(
+    request.params.conversationId,
+    getFamilySpaceIdFromRequest(request),
+    getViewerRole(request),
+    request.auth.membership.memberId,
+  )
   if (!conversation) {
     response.status(404).json({ error: 'Conversation not found' })
     return
@@ -504,7 +521,12 @@ app.patch('/api/conversations/:conversationId/read-all', (request, response) => 
 })
 
 app.post('/api/conversations/:conversationId/messages', (request, response) => {
-  const conversation = getConversationDetail(request.params.conversationId, getFamilySpaceIdFromRequest(request))
+  const conversation = getConversationDetail(
+    request.params.conversationId,
+    getFamilySpaceIdFromRequest(request),
+    getViewerRole(request),
+    request.auth.membership.memberId,
+  )
 
   if (!conversation) {
     response.status(404).json({ error: 'Conversation not found' })
@@ -566,15 +588,15 @@ app.post('/api/memories', (request, response) => {
 })
 
 app.get('/api/pulses/today', (request, response) => {
-  response.json(listTodayPulses(getFamilySpaceIdFromRequest(request)))
+  response.json(listTodayPulses(getFamilySpaceIdFromRequest(request), getViewerContext(request)))
 })
 
 app.get('/api/pulses/history', (request, response) => {
-  response.json(listPulseHistory(getFamilySpaceIdFromRequest(request)))
+  response.json(listPulseHistory(getFamilySpaceIdFromRequest(request), getViewerContext(request)))
 })
 
 app.get('/api/pulses/today-summary', (request, response) => {
-  response.json(getTodayEmotionSummary(getFamilySpaceIdFromRequest(request)))
+  response.json(getTodayEmotionSummary(getFamilySpaceIdFromRequest(request), getViewerContext(request)))
 })
 
 app.post('/api/emotions/analyze', async (request, response) => {
@@ -586,6 +608,17 @@ app.post('/api/emotions/analyze', async (request, response) => {
       code: 'EMOTION_INVALID_INPUT',
       message: 'conversationId/familySpaceId and at least one modality input are required.',
     })
+    return
+  }
+
+  const conversation = getConversationDetail(
+    payload.conversationId,
+    getFamilySpaceIdFromRequest(request),
+    getViewerRole(request),
+    request.auth.membership.memberId,
+  )
+  if (!conversation) {
+    response.status(404).json({ error: 'Conversation not found' })
     return
   }
 
@@ -612,7 +645,12 @@ app.post('/api/emotions/video-call-summary', (request, response) => {
     return
   }
 
-  const conversation = getConversationDetail(payload.conversationId, getFamilySpaceIdFromRequest(request))
+  const conversation = getConversationDetail(
+    payload.conversationId,
+    getFamilySpaceIdFromRequest(request),
+    getViewerRole(request),
+    request.auth.membership.memberId,
+  )
   if (!conversation) {
     response.status(404).json({ error: 'Conversation not found' })
     return

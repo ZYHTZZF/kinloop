@@ -703,18 +703,6 @@ export function ElderConversationPage() {
                 </footer>
               </article>
               <MessageAuxArea message={displayMessage} isMine={displayMessage.senderType === 'Elder'} />
-              {canExplain ? (
-                <button
-                  className="message-bridge-trigger message-bridge-trigger--outside"
-                  type="button"
-                  disabled={explainLoading}
-                  onClick={() => void handleExplainMessage(displayMessage)}
-                  title="看不懂这句话？点这里让AI解释"
-                  aria-label="代沟翻译"
-                >
-                  ?
-                </button>
-              ) : null}
               {canExplain && isBridgeOpen ? (
                 <div className="message-bridge-card">
                   <div className="message-bridge-card__header">

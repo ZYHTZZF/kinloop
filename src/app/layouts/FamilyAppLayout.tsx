@@ -17,7 +17,12 @@ export function FamilyAppLayout() {
   const onboarding = getOnboardingState()
   const familyCode = onboarding.familyCode
   const isConversationRoute = /^\/family\/chats\/[^/]+$/.test(location.pathname)
-  const showBottomNav = !isConversationRoute
+  const showBottomNav = [
+    '/family/today',
+    '/family/chats',
+    '/family/memories',
+    '/family/collaboration',
+  ].includes(location.pathname)
   const [weatherLabel, setWeatherLabel] = useState('天气加载中')
   const [temperatureLabel, setTemperatureLabel] = useState('--°C')
 

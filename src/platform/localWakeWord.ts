@@ -33,6 +33,7 @@ export async function isLocalWakeWordAvailable(): Promise<boolean> {
 }
 
 export async function startLocalWakeWordListening(options: {
+  keywordSpec?: string
   onDetected: (keyword: string) => void
   onStatus?: (status: string) => void
 }): Promise<LocalWakeWordSession> {
@@ -46,7 +47,7 @@ export async function startLocalWakeWordListening(options: {
   })
 
   try {
-    await LocalWakeWord.start()
+    await LocalWakeWord.start({ keywordSpec: options.keywordSpec })
   } catch (error) {
     await detectedListener.remove()
     await statusListener.remove()

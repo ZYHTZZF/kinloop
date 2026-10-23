@@ -23,6 +23,19 @@ function getDetailKey(conversationId: string) {
   return `kinloop:conversation-detail:${getCacheScope()}:${conversationId}`
 }
 
+function filterCardsForViewer(viewer: 'elder' | 'family', cards: ConversationCard[]) {
+  if (viewer !== 'family') {
+    return cards
+  }
+
+  const memberId = getOnboardingState().memberId
+  if (!memberId) {
+    return cards
+  }
+
+  return cards.filter((card) => card.familyMemberId === memberId || card.memberId === memberId)
+}
+
 function readEnvelope<T>(key: string): CacheEnvelope<T> | null {
   if (typeof window === 'undefined') return null
 
@@ -47,11 +60,11 @@ function writeEnvelope<T>(key: string, data: T) {
 }
 
 export function getCachedConversationCards(viewer: 'elder' | 'family') {
-  return readEnvelope<ConversationCard[]>(getCardsKey(viewer))?.data ?? []
+  return filterCardsForViewer(viewer, readEnvelope<ConversationCard[]>(getCardsKey(viewer))?.data ?? [])
 }
 
 export function saveConversationCards(viewer: 'elder' | 'family', cards: ConversationCard[]) {
-  writeEnvelope(getCardsKey(viewer), cards)
+  writeEnvelope(getCardsKey(viewer), filterCardsForViewer(viewer, cards))
 }
 
 export function getCachedConversationDetail(conversationId: string) {

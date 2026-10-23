@@ -1,34 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600&display=swap');
 
 :root {
-  --color-bg: #f7f3ee;
-  --color-card: #fcfaf7;
-  --color-card-muted: #f6f1eb;
-  --color-card-alt: #fbf8f4;
-  --color-brand: #e6c7a6;
-  --color-brand-strong: #d9b389;
-  --color-support: #a7b59f;
-  --color-risk: #c97b6b;
-  --color-pill-warm: #f1e2d1;
-  --color-ink: #40352e;
-  --color-body: #5a4d45;
-  --color-soft: #8a786a;
-  --color-muted: #9a8879;
-  --color-border: #e7ded3;
-  --shadow-sm: 0 8px 20px rgba(64, 53, 46, 0.05);
-  --shadow-md: 0 12px 28px rgba(64, 53, 46, 0.07);
-  --radius-xl: 28px;
+  --color-bg: #f4f7fa;
+  --color-card: #ffffff;
+  --color-card-muted: #f1f5f8;
+  --color-card-alt: #f8fbfd;
+  --color-brand: #5f8fb8;
+  --color-brand-strong: #316b99;
+  --color-support: #6e8495;
+  --color-risk: #b85c52;
+  --color-pill-warm: #e9f4fb;
+  --color-ink: #1f2a33;
+  --color-body: #4c5a66;
+  --color-soft: #768592;
+  --color-muted: #9aa6b2;
+  --color-border: #dde6ee;
+  --shadow-sm: 0 6px 18px rgba(31, 42, 51, 0.06);
+  --shadow-md: 0 14px 36px rgba(31, 42, 51, 0.08);
+  --radius-xl: 20px;
   --font-sans:
     'Noto Sans SC',
     'PingFang SC',
     'Hiragino Sans GB',
     'Microsoft YaHei',
     sans-serif;
-  --font-display:
-    'Noto Serif SC',
-    'Songti SC',
-    'STSong',
-    serif;
+  --font-display: var(--font-sans);
 
   font-family: var(--font-sans);
   line-height: 1.5;
@@ -55,7 +51,7 @@ body {
   margin: 0;
   min-width: 320px;
   background:
-    linear-gradient(180deg, #fbf8f2 0%, #f4eee4 100%);
+    linear-gradient(180deg, #f8fbfd 0%, #f2f6f9 48%, #eef4f8 100%);
   color: var(--color-body);
 }
 
@@ -92,5 +88,5 @@ ol {
 }
 
 ::selection {
-  background: rgba(230, 199, 166, 0.5);
+  background: rgba(95, 143, 184, 0.2);
 }

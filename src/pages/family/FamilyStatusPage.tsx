@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import { closureActions, followupTasks } from '../../domain/content/followupGuidance'
 import { createFollowup, listFollowups, listPulseHistory } from '../../services/api'
@@ -7,6 +7,7 @@ import type { FollowupRecord, Pulse } from '../../services/api'
 import { formatShortDateTime } from '../../utils/dateTime'
 
 export function FamilyStatusPage() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [pulses, setPulses] = useState<Pulse[]>([])
   const [followups, setFollowups] = useState<FollowupRecord[]>([])
@@ -67,7 +68,10 @@ export function FamilyStatusPage() {
   return (
     <section className="screen screen--family-status">
       <section className="surface-card">
-        <div className="section-heading">
+        <div className="section-heading family-subpage-heading">
+          <button className="back-link family-subpage-back" type="button" onClick={() => navigate(-1)}>
+            ‹ 返回
+          </button>
           <div>
             <p className="surface-card__eyebrow">状态与跟进</p>
             <h2>把已经看到的变化，变成一次具体回应。</h2>

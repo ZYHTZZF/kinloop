@@ -148,6 +148,7 @@ export type Pulse = {
   sourceExcerpt?: string | null
   emotionSource?: string | null
   emotionLabel?: string | null
+  canViewSourceConversation?: boolean
   status: string
   createdAt: number
   resolvedAt: number | null
@@ -176,6 +177,7 @@ export type TodayEmotionAbnormalCard = {
   sourceConversationId: string | null
   sourceMessageId: string | null
   sourceExcerpt: string | null
+  canViewSourceConversation?: boolean
   attentionSuggestion: string
   actionSuggestion: string
   status: string

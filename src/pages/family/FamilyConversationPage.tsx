@@ -40,6 +40,7 @@ import VoiceCall from '../../components/chat/VoiceCall'
 import VideoCall from '../../components/chat/VideoCall'
 import { buildPreSendSuggestion } from '../../domain/content/preSendSuggestions'
 import { useVideoCallEmotionSummary } from '../../utils/hooks/useVideoCallEmotionSummary'
+import { getOnboardingState } from '../../app/onboardingStorage'
 
 const STATIC_EMOJIS = ['😀', '😁', '😂', '😃', '😉', '😏', '😝', '🙂', '😊', '😶', '😨', '👍', '🙏', '❤️', '🎉']
 
@@ -61,9 +62,9 @@ export function FamilyConversationPage() {
   const { conversationId, userId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const targetId = userId || conversationId || ''
-  const [conversation, setConversation] = useState<ConversationDetail | null>(() => (targetId ? readCachedConversationDetail(targetId) : null))
+  const [conversation, setConversation] = useState<ConversationDetail | null>(() => (targetId ? readAuthorizedCachedConversation(targetId) : null))
   const [familySpaceId, setFamilySpaceId] = useState('fs_demo')
-  const [loading, setLoading] = useState(() => !(targetId && readCachedConversationDetail(targetId)))
+  const [loading, setLoading] = useState(() => !(targetId && readAuthorizedCachedConversation(targetId)))
   const [error, setError] = useState('')
   const [composerText, setComposerText] = useState('')
   const [showEmojiPanel, setShowEmojiPanel] = useState(false)
@@ -139,7 +140,7 @@ export function FamilyConversationPage() {
 
   useEffect(() => {
     if (!targetId) return
-    const cachedConversation = readCachedConversationDetail(targetId)
+    const cachedConversation = readAuthorizedCachedConversation(targetId)
     if (cachedConversation) {
       setConversation(cachedConversation)
       setLoading(false)
@@ -547,7 +548,7 @@ export function FamilyConversationPage() {
       <section className="surface-card">
         <div className="family-chat-header">
           <Link className="family-chat-header__back" to="/family/chats" aria-label="返回聊天列表">
-            {'<'}
+            <span aria-hidden="true">‹</span>
           </Link>
           <h2>{conversation?.elderDisplayName ?? '家人'}</h2>
           <div className="family-chat-header__spacer" aria-hidden="true" />
@@ -1485,6 +1486,16 @@ function toSeverityTone(severity: string) {
   if (severity === 'HIGH') return 'high'
   if (severity === 'MEDIUM') return 'medium'
   return 'low'
+}
+
+function readAuthorizedCachedConversation(conversationId: string) {
+  const cachedConversation = readCachedConversationDetail(conversationId)
+  if (!cachedConversation) {
+    return null
+  }
+
+  const currentMemberId = getOnboardingState().memberId
+  return cachedConversation.familyMemberId === currentMemberId ? cachedConversation : null
 }
 
 function getEmotionSourceLabel(source: string | null | undefined) {

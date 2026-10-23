@@ -7,12 +7,27 @@ import {
   saveConversationCards,
   saveConversationDetail,
 } from './conversationCache'
+import { getOnboardingState } from '../../app/onboardingStorage'
+
+function filterCardsForViewer(viewer: 'elder' | 'family', cards: ConversationCard[]) {
+  if (viewer !== 'family') {
+    return cards
+  }
+
+  const memberId = getOnboardingState().memberId
+  if (!memberId) {
+    return cards
+  }
+
+  return cards.filter((card) => card.familyMemberId === memberId || card.memberId === memberId)
+}
 
 export function listConversationCards(viewer: 'elder' | 'family' = 'elder') {
   const query = viewer === 'elder' ? '' : `?viewer=${viewer}`
   return apiGet<ConversationCard[]>(`/conversations/cards${query}`).then((cards) => {
-    saveConversationCards(viewer, cards)
-    return cards
+    const visibleCards = filterCardsForViewer(viewer, cards)
+    saveConversationCards(viewer, visibleCards)
+    return visibleCards
   })
 }
 

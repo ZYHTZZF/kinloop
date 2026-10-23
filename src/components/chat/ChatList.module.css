@@ -2,26 +2,27 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: white;
+  background: #ffffff;
 }
 
 .searchContainer {
   padding: 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #dde6ee;
+  background: linear-gradient(180deg, #ffffff, #f8fbfd);
 }
 
 .searchInput {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  border: 1px solid #dde6ee;
+  border-radius: 999px;
   font-size: 14px;
   outline: none;
 }
 
 .searchInput:focus {
-  border-color: #0084ff;
-  box-shadow: 0 0 0 3px rgba(0, 132, 255, 0.1);
+  border-color: #5f8fb8;
+  box-shadow: 0 0 0 4px rgba(95, 143, 184, 0.14);
 }
 
 .conversationList {
@@ -34,7 +35,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #999;
+  color: #9aa6b2;
   font-size: 14px;
 }
 
@@ -42,18 +43,18 @@
   display: flex;
   gap: 12px;
   padding: 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #dde6ee;
   cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
 }
 
 .conversationItem:hover {
-  background-color: #f9f9f9;
+  background-color: #f8fbfd;
 }
 
 .conversationItem.selected {
-  background-color: #f0f0f0;
+  background-color: #e9f4fb;
 }
 
 .normalStyle .conversationItem {
@@ -93,8 +94,9 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(180deg, #fafdff, #dcecf6);
+  color: #316b99;
+  border: 1px solid rgba(95, 143, 184, 0.16);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -119,7 +121,7 @@
 
 .name {
   font-weight: 600;
-  color: #000;
+  color: #1f2a33;
   flex-shrink: 0;
 }
 
@@ -133,7 +135,7 @@
 
 .time {
   font-size: 12px;
-  color: #999;
+  color: #9aa6b2;
   margin-left: 8px;
   flex-shrink: 0;
 }
@@ -148,7 +150,7 @@
 .lastMessage {
   flex: 1;
   font-size: 12px;
-  color: #666;
+  color: #768592;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

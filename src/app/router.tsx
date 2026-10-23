@@ -7,6 +7,7 @@ import { ElderContactsPage } from '../pages/elder/ElderContactsPage'
 import { ElderConversationPage } from '../pages/elder/ElderConversationPage'
 import { ElderHelpPage } from '../pages/elder/ElderHelpPage'
 import { FamilyTodayPage } from '../pages/family/FamilyTodayPage'
+import { FamilyEmotionDayPage, FamilyTodayEmotionPage, FamilyWeeklyEmotionPage } from '../pages/family/FamilyEmotionDetailPages'
 import { FamilyStatusPage } from '../pages/family/FamilyStatusPage'
 import { FamilyChatsPage } from '../pages/family/FamilyChatsPage'
 import { FamilyConversationPage } from '../pages/family/FamilyConversationPage'
@@ -53,6 +54,9 @@ export const router = createBrowserRouter([
             children: [
               { index: true, element: <Navigate to="/family/today" replace /> },
               { path: 'today', element: <FamilyTodayPage /> },
+              { path: 'today/alerts', element: <FamilyTodayEmotionPage /> },
+              { path: 'today/week', element: <FamilyWeeklyEmotionPage /> },
+              { path: 'today/day/:dayKey', element: <FamilyEmotionDayPage /> },
               { path: 'status', element: <FamilyStatusPage /> },
               { path: 'chats', element: <FamilyChatsPage /> },
               { path: 'chats/:conversationId', element: <FamilyConversationPage /> },
