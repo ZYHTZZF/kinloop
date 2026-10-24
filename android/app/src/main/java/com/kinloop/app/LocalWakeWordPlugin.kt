@@ -3,8 +3,10 @@ package com.kinloop.app
 import android.Manifest
 import android.content.pm.PackageManager
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.core.app.ActivityCompat
@@ -63,14 +65,12 @@ class LocalWakeWordPlugin : Plugin() {
                 return
             }
 
-            val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-            audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                sampleRate,
-                channelConfig,
-                audioFormat,
-                minBufferSize * 2,
-            )
+            audioRecord = createBestAudioRecord()
+            if (audioRecord == null) {
+                createdStream.release()
+                call.reject("audio-record-unavailable")
+                return
+            }
 
             stream = createdStream
             listening = true
@@ -163,6 +163,68 @@ class LocalWakeWordPlugin : Plugin() {
         audioRecord = null
     }
 
+    private fun createBestAudioRecord(): AudioRecord? {
+        val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+        if (minBufferSize <= 0) {
+            Log.w(TAG, "Unable to resolve min buffer size: $minBufferSize")
+            return null
+        }
+
+        val bufferSize = minBufferSize * 2
+        val audioSources = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                add(MediaRecorder.AudioSource.UNPROCESSED)
+            }
+            add(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+            add(MediaRecorder.AudioSource.MIC)
+            add(MediaRecorder.AudioSource.DEFAULT)
+        }.distinct()
+
+        for (source in audioSources) {
+            try {
+                val candidate = AudioRecord(
+                    source,
+                    sampleRate,
+                    channelConfig,
+                    audioFormat,
+                    bufferSize,
+                )
+
+                if (candidate.state == AudioRecord.STATE_INITIALIZED) {
+                    try {
+                        candidate.preferredDevice = null
+                    } catch (_: Throwable) {
+                    }
+                    try {
+                        candidate.setPreferredMicrophoneDirection(AudioRecord.MIC_DIRECTION_TOWARDS_USER)
+                    } catch (_: Throwable) {
+                    }
+                    Log.i(TAG, "Using audio source: ${describeAudioSource(source)}")
+                    return candidate
+                }
+
+                Log.w(TAG, "Audio source not initialized: ${describeAudioSource(source)}")
+                candidate.release()
+            } catch (error: Throwable) {
+                Log.w(TAG, "Audio source failed: ${describeAudioSource(source)}", error)
+            }
+        }
+
+        return null
+    }
+
+    private fun describeAudioSource(source: Int): String {
+        return when (source) {
+            MediaRecorder.AudioSource.UNPROCESSED -> "UNPROCESSED"
+            MediaRecorder.AudioSource.VOICE_RECOGNITION -> "VOICE_RECOGNITION"
+            MediaRecorder.AudioSource.MIC -> "MIC"
+            MediaRecorder.AudioSource.DEFAULT -> "DEFAULT"
+            MediaRecorder.AudioSource.CAMCORDER -> "CAMCORDER"
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION -> "VOICE_COMMUNICATION"
+            else -> source.toString()
+        }
+    }
+
     private fun notifyStatus(status: String) {
         notifyListeners("wakeWordStatus", statusPayload(status))
     }
@@ -192,6 +254,21 @@ class LocalWakeWordPlugin : Plugin() {
 
     companion object {
         private const val TAG = "LocalWakeWord"
-        private const val DEFAULT_KEYWORD_SPEC = "x i\u01ceo zh \u00ec x i\u01ceo zh \u00ec @\u5c0f\u667a\u5c0f\u667a"
+        private val DEFAULT_KEYWORD_SPEC = """
+            x iǎo zh ì x iǎo zh ì @小智小智
+            x iǎo zh ì t óng x ué @小智同学
+            x iǎo zh ì @小智
+            x iǎo zh ī t óng x ué @小知同学
+            x iǎo zh ī x iǎo zh ī @小知小知
+            x iǎo zh ī @小知
+            x iǎo zh ì t óng x ué @小志同学
+            x iǎo zh ì x iǎo zh ì @小志小志
+            x iǎo zh ì @小志
+            x iǎo zh ì t óng x ué @晓智同学
+            x iǎo zh ì x iǎo zh ì @晓智晓智
+            x iǎo zh ì @晓智
+            x iǎo zh ì x iǎo zh ì @小智小志
+            x iǎo zh ì x iǎo zh ì @小志小智
+        """.trimIndent()
     }
 }

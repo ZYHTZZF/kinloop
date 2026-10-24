@@ -187,6 +187,20 @@ function fetchConversationRows(db, familySpaceId) {
   `).all(familySpaceId)
 }
 
+function canViewerAccessConversation(conversation, viewer, memberId) {
+  if (!conversation) {
+    return false
+  }
+
+  if (viewer === 'elder') {
+    return true
+  }
+
+  return conversation.conversationType !== 'AI_ASSISTANT'
+    && Boolean(memberId)
+    && conversation.familyMemberId === memberId
+}
+
 function fetchConversationMessages(db, conversationId) {
   const messages = db.prepare(`
     select
@@ -286,10 +300,10 @@ function fetchConversationMessages(db, conversationId) {
   }))
 }
 
-export function listConversationCards(familySpaceId, viewer = 'elder') {
+export function listConversationCards(familySpaceId, viewer = 'elder', memberId = null) {
   const db = getDatabase()
   const conversations = fetchConversationRows(db, familySpaceId)
-    .filter((conversation) => !(viewer === 'family' && conversation.conversationType === 'AI_ASSISTANT'))
+    .filter((conversation) => canViewerAccessConversation(conversation, viewer, memberId))
     .sort((a, b) => {
       if (viewer === 'elder') {
         const aAi = a.conversationType === 'AI_ASSISTANT' ? 1 : 0
@@ -322,7 +336,7 @@ export function listConversationCards(familySpaceId, viewer = 'elder') {
   })
 }
 
-export function getConversationDetail(conversationId, familySpaceId) {
+export function getConversationDetail(conversationId, familySpaceId, viewer = 'elder', memberId = null) {
   const db = getDatabase()
   const conversation = db.prepare(`
     select
@@ -343,6 +357,10 @@ export function getConversationDetail(conversationId, familySpaceId) {
   `).get(conversationId, familySpaceId)
 
   if (!conversation) {
+    return null
+  }
+
+  if (!canViewerAccessConversation(conversation, viewer, memberId)) {
     return null
   }
 

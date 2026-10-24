@@ -36,6 +36,8 @@ export interface StartSpeechRecognitionOptions {
   onFinalResult?: (text: string) => void
   onError?: (message: string) => void
   onListeningStateChange?: (listening: boolean) => void
+  autoStopAfterSilenceMs?: number
+  maxRecordingMs?: number
 }
 
 interface AudioCaptureSession {
@@ -134,6 +136,8 @@ export async function startRecordedSpeechRecognition(
   }
 
   let session: AudioCaptureSession | null = null
+  let stopPromise: Promise<void> | null = null
+  let stopMonitor: (() => Promise<void>) | null = null
 
   try {
     const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -161,10 +165,58 @@ export async function startRecordedSpeechRecognition(
     session = { mediaStream, recorder, chunks }
     recorder.start(250)
     options.onListeningStateChange?.(true)
+
+    if (options.autoStopAfterSilenceMs && options.autoStopAfterSilenceMs > 0) {
+      stopMonitor = startSilenceAutoStopMonitor(mediaStream, {
+        silenceMs: options.autoStopAfterSilenceMs,
+        maxRecordingMs: options.maxRecordingMs,
+        onSilence: () => {
+          void stopSession()
+        },
+      })
+    }
   } catch (error) {
     options.onError?.(error instanceof Error ? error.message : '麦克风启动失败')
     stopAudioCaptureSession(session)
+    await stopMonitor?.()
     return null
+  }
+
+  const stopSession = async () => {
+    if (stopPromise) {
+      await stopPromise
+      return
+    }
+
+    stopPromise = (async () => {
+      if (!session) return
+      const finishedSession = session
+      session = null
+
+      try {
+        await stopMonitor?.()
+        const audioBlob = await stopAndCollectRecording(finishedSession)
+        const wavBlob = await convertBlobToWav(audioBlob)
+        const result = await transcribeRecordedAudioWithRetry(wavBlob)
+        const text = String(result.text ?? '').trim()
+
+        if (text) {
+          options.onFinalResult?.(text)
+        } else {
+          options.onError?.('刚才没有识别到清晰内容')
+        }
+      } catch (error) {
+        options.onError?.(error instanceof Error ? error.message : '语音转写失败')
+      } finally {
+        options.onListeningStateChange?.(false)
+      }
+    })()
+
+    await stopPromise
+  }
+
+  return {
+    stop: stopSession,
   }
 
   return {
@@ -266,10 +318,45 @@ function startBrowserSpeechRecognition(
   return new Promise((resolve) => {
     let finalText = ''
     let stopped = false
+    let heardSpeech = false
+    let silenceTimer: number | null = null
+    let maxTimer: number | null = null
+    let initialTimer: number | null = null
     const recognition = new speechRecognitionCtor()
     recognition.lang = options.language ?? 'zh-CN'
     recognition.continuous = true
     recognition.interimResults = true
+
+    const clearSilenceTimer = () => {
+      if (silenceTimer !== null) {
+        window.clearTimeout(silenceTimer)
+        silenceTimer = null
+      }
+    }
+
+    const stopRecognition = () => {
+      if (stopped) return
+      stopped = true
+      clearSilenceTimer()
+      if (initialTimer !== null) {
+        window.clearTimeout(initialTimer)
+        initialTimer = null
+      }
+      if (maxTimer !== null) {
+        window.clearTimeout(maxTimer)
+        maxTimer = null
+      }
+      recognition.stop()
+    }
+
+    const scheduleSilenceStop = () => {
+      if (!options.autoStopAfterSilenceMs || !heardSpeech) return
+      clearSilenceTimer()
+      silenceTimer = window.setTimeout(() => {
+        stopRecognition()
+      }, options.autoStopAfterSilenceMs)
+    }
+
     recognition.onresult = (event) => {
       let nextFinal = finalText
       let interimText = ''
@@ -287,6 +374,12 @@ function startBrowserSpeechRecognition(
       finalText = nextFinal
       const liveText = `${nextFinal}${interimText}`.trim()
       if (liveText) {
+        heardSpeech = true
+        if (initialTimer !== null) {
+          window.clearTimeout(initialTimer)
+          initialTimer = null
+        }
+        scheduleSilenceStop()
         options.onPartialResult?.(liveText)
       }
     }
@@ -297,6 +390,15 @@ function startBrowserSpeechRecognition(
       }
     }
     recognition.onend = () => {
+      clearSilenceTimer()
+      if (initialTimer !== null) {
+        window.clearTimeout(initialTimer)
+        initialTimer = null
+      }
+      if (maxTimer !== null) {
+        window.clearTimeout(maxTimer)
+        maxTimer = null
+      }
       options.onListeningStateChange?.(false)
       const transcript = finalText.trim()
       if (transcript) {
@@ -307,11 +409,18 @@ function startBrowserSpeechRecognition(
     try {
       recognition.start()
       options.onListeningStateChange?.(true)
+      const initialTimeoutMs = Math.min(options.maxRecordingMs ?? 12000, 5000)
+      initialTimer = window.setTimeout(() => {
+        stopRecognition()
+      }, initialTimeoutMs)
+      if (options.maxRecordingMs) {
+        maxTimer = window.setTimeout(() => {
+          stopRecognition()
+        }, options.maxRecordingMs)
+      }
       resolve({
         stop: async () => {
-          if (stopped) return
-          stopped = true
-          recognition.stop()
+          stopRecognition()
         },
       })
     } catch (error) {
@@ -385,6 +494,90 @@ function stopAudioCaptureSession(session: AudioCaptureSession | null) {
   session?.mediaStream.getTracks().forEach((track) => track.stop())
 }
 
+function startSilenceAutoStopMonitor(
+  mediaStream: MediaStream,
+  options: {
+    silenceMs: number
+    maxRecordingMs?: number
+    onSilence: () => void
+  },
+) {
+  const speechRmsThreshold = 0.012
+  const initialSpeechTimeoutMs = Math.min(options.maxRecordingMs ?? 12000, 5000)
+  const AudioContextCtor = window.AudioContext
+    || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+
+  if (!AudioContextCtor) {
+    return async () => {}
+  }
+
+  const audioContext = new AudioContextCtor()
+  const analyser = audioContext.createAnalyser()
+  analyser.fftSize = 2048
+  analyser.smoothingTimeConstant = 0.85
+
+  const source = audioContext.createMediaStreamSource(mediaStream)
+  source.connect(analyser)
+
+  const data = new Uint8Array(analyser.fftSize)
+  const startedAt = Date.now()
+  let lastSpeechAt = startedAt
+  let heardSpeech = false
+  let stopped = false
+
+  void audioContext.resume().catch(() => {})
+
+  const timer = window.setInterval(() => {
+    if (stopped) return
+
+    analyser.getByteTimeDomainData(data)
+    let energy = 0
+
+    for (let index = 0; index < data.length; index += 1) {
+      const sample = (data[index] - 128) / 128
+      energy += sample * sample
+    }
+
+    const rms = Math.sqrt(energy / data.length)
+    const now = Date.now()
+
+    if (rms >= speechRmsThreshold) {
+      heardSpeech = true
+      lastSpeechAt = now
+      return
+    }
+
+    if (heardSpeech && now - lastSpeechAt >= options.silenceMs) {
+      stopped = true
+      window.clearInterval(timer)
+      options.onSilence()
+      return
+    }
+
+    if (!heardSpeech && now - startedAt >= initialSpeechTimeoutMs) {
+      stopped = true
+      window.clearInterval(timer)
+      options.onSilence()
+      return
+    }
+
+    if (options.maxRecordingMs && now - startedAt >= options.maxRecordingMs) {
+      stopped = true
+      window.clearInterval(timer)
+      options.onSilence()
+    }
+  }, 120)
+
+  return async () => {
+    window.clearInterval(timer)
+    if (stopped) return
+    stopped = true
+    source.disconnect()
+    analyser.disconnect()
+    await audioContext.close().catch(() => {})
+  }
+}
+
 async function convertBlobToWav(sourceBlob: Blob) {
   const audioBuffer = await decodeAudioBlob(sourceBlob)
   const monoData = mergeToMono(audioBuffer)
@@ -393,6 +586,24 @@ async function convertBlobToWav(sourceBlob: Blob) {
     ? monoData
     : resamplePcm(monoData, audioBuffer.sampleRate, targetSampleRate)
   return encodeWavBlob(resampled, targetSampleRate)
+}
+
+async function transcribeRecordedAudioWithRetry(audioBlob: Blob, retries = 1) {
+  let lastError: unknown = null
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await transcribeRecordedAudio(audioBlob)
+    } catch (error) {
+      lastError = error
+      if (attempt >= retries) {
+        break
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 260))
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('ASR transcribe failed')
 }
 
 async function decodeAudioBlob(sourceBlob: Blob) {

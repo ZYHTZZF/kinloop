@@ -702,6 +702,18 @@ export function ElderConversationPage() {
                   {displayMessage.aiDrafted && !isAiAssistantConversation ? <span className="status-pill">已帮你整理</span> : null}
                 </footer>
               </article>
+              {canExplain ? (
+                <button
+                  className="message-bridge-trigger message-bridge-trigger--outside"
+                  type="button"
+                  disabled={explainLoading}
+                  onClick={() => void handleExplainMessage(displayMessage)}
+                  title="看不懂这句话？点这里让AI解释"
+                  aria-label="代沟翻译"
+                >
+                  ?
+                </button>
+              ) : null}
               <MessageAuxArea message={displayMessage} isMine={displayMessage.senderType === 'Elder'} />
               {canExplain && isBridgeOpen ? (
                 <div className="message-bridge-card">

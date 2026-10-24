@@ -12,6 +12,39 @@ const TEXT = {
   fallbackMeme: '',
 }
 
+const SLANG_BRIDGE_RULES = [
+  {
+    keywords: ['emo', 'emo了', '好emo', '有点emo', '很emo'],
+    explanation: '对方是在说自己这会儿情绪低落、心里闷闷的，带一点伤感和丧气。',
+    followUpSuggestion: '你是不是最近有点难受？如果你愿意，可以跟我多说一点。',
+    memeExplanation: '“emo”是网络上常说的情绪低落、突然很伤感的意思。',
+  },
+  {
+    keywords: ['破防', '破防了'],
+    explanation: '对方是说自己被这句话戳到了，情绪上有点绷不住了。',
+    followUpSuggestion: '是不是我这句话让你有点难受了？你可以直接告诉我你的感受。',
+    memeExplanation: '“破防”原本像是心理防线被打破，现在常用来表示被触动、被刺痛了。',
+  },
+  {
+    keywords: ['上头', '太上头了'],
+    explanation: '对方是在说这件事让自己情绪很投入，越想越停不下来。',
+    followUpSuggestion: '听起来这件事对你影响挺大，你愿意再跟我说说吗？',
+    memeExplanation: '“上头”就是一下子特别投入，情绪或注意力被带起来了。',
+  },
+  {
+    keywords: ['yyds'],
+    explanation: '对方是在夸你或者夸这件事特别好，意思接近“太厉害了”或“最好”。',
+    followUpSuggestion: '你这么说我还挺开心的，谢谢你。',
+    memeExplanation: '“yyds”是“永远的神”的缩写，表示特别认可、特别佩服。',
+  },
+  {
+    keywords: ['绝绝子'],
+    explanation: '对方是在说这件事特别好、特别绝，语气里带着夸赞。',
+    followUpSuggestion: '你这么夸我，我都有点不好意思了。',
+    memeExplanation: '“绝绝子”是网络上的夸奖说法，意思接近“太棒了”“真绝了”。',
+  },
+]
+
 export function registerGenerationBridgeRoutes(app) {
   app.post('/api/ai/generation-bridge/explain', async (req, res) => {
     try {
@@ -27,7 +60,7 @@ export function registerGenerationBridgeRoutes(app) {
       }
 
       if (!LLM_API_KEY || !LLM_MODEL) {
-        res.json(buildFallbackPayload())
+        res.json(buildFallbackPayload(messageText))
         return
       }
 
@@ -36,7 +69,7 @@ export function registerGenerationBridgeRoutes(app) {
         res.json(result)
       } catch (error) {
         console.warn('[GenerationBridge] LLM failed, fallback:', error)
-        res.json(buildFallbackPayload())
+        res.json(buildFallbackPayload(messageText))
       }
     } catch (error) {
       console.error('[GenerationBridge] request failed:', error)
@@ -216,7 +249,15 @@ function guessMimeFromPath(path) {
   return 'image/png'
 }
 
-function buildFallbackPayload() {
+function buildFallbackPayload(messageText = '') {
+  const ruleBased = explainByRules(messageText)
+  if (ruleBased) {
+    return {
+      ...ruleBased,
+      mode: 'fallback',
+    }
+  }
+
   return {
     explanation: TEXT.fallbackExplain,
     followUpSuggestion: TEXT.fallbackSuggest,
@@ -227,9 +268,33 @@ function buildFallbackPayload() {
   }
 }
 
+function explainByRules(messageText) {
+  const normalized = normalizeRuleText(messageText)
+  if (!normalized) return null
+
+  const matchedRule = SLANG_BRIDGE_RULES.find((rule) =>
+    rule.keywords.some((keyword) => normalized.includes(normalizeRuleText(keyword))),
+  )
+
+  if (!matchedRule) return null
+
+  return {
+    explanation: matchedRule.explanation,
+    followUpSuggestion: matchedRule.followUpSuggestion,
+    hasMeme: Boolean(matchedRule.memeExplanation),
+    memeExplanation: matchedRule.memeExplanation || null,
+    glossary: [],
+  }
+}
+
 function normalizeText(value) {
   if (typeof value !== 'string') return ''
   return value.trim()
+}
+
+function normalizeRuleText(value) {
+  if (typeof value !== 'string') return ''
+  return value.trim().toLowerCase()
 }
 
 function normalizeRole(value) {

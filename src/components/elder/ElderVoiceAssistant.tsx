@@ -38,7 +38,39 @@ const examplePrompts = [
 type AssistantStage = 'idle' | 'recording' | 'transcribing' | 'classifying' | 'result' | 'acting'
 const AUTO_EXECUTE_CONFIDENCE = 0.78
 const WAKE_WORD = '小智小智'
-const WAKE_WORD_KEYWORD_SPEC = 'x iǎo zh ì x iǎo zh ì @小智小智'
+const SECONDARY_WAKE_WORD = '小智同学'
+const WAKE_WORD_ALIASES = [
+  '小智小智',
+  '小智同学',
+  '小智',
+  '小知同学',
+  '小知小知',
+  '小知',
+  '小志同学',
+  '小志小志',
+  '小志',
+  '晓智同学',
+  '晓智晓智',
+  '晓智',
+  '小智小志',
+  '小志小智',
+]
+const WAKE_WORD_KEYWORD_SPEC = [
+  'x iǎo zh ì x iǎo zh ì @小智小智',
+  'x iǎo zh ì t óng x ué @小智同学',
+  'x iǎo zh ì @小智',
+  'x iǎo zh ī t óng x ué @小知同学',
+  'x iǎo zh ī x iǎo zh ī @小知小知',
+  'x iǎo zh ī @小知',
+  'x iǎo zh ì t óng x ué @小志同学',
+  'x iǎo zh ì x iǎo zh ì @小志小志',
+  'x iǎo zh ì @小志',
+  'x iǎo zh ì t óng x ué @晓智同学',
+  'x iǎo zh ì x iǎo zh ì @晓智晓智',
+  'x iǎo zh ì @晓智',
+  'x iǎo zh ì x iǎo zh ì @小智小志',
+  'x iǎo zh ì x iǎo zh ì @小志小智',
+].join('\n')
 
 export function ElderVoiceAssistant() {
   const navigate = useNavigate()
@@ -67,6 +99,7 @@ export function ElderVoiceAssistant() {
   const wakeWordRestartTimerRef = useRef<number | null>(null)
   const wakeWordEnabledRef = useRef(false)
   const wakeWordTriggeredRef = useRef(false)
+  const recordingFinishingRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioObjectUrlRef = useRef<string | null>(null)
   const spokenTextRef = useRef('')
@@ -142,6 +175,26 @@ export function ElderVoiceAssistant() {
 
   return (
     <>
+      {!open && wakeWordDebug ? (
+        <div
+          style={{
+            position: 'fixed',
+            right: isConversationRoute ? 20 : 16,
+            bottom: isConversationRoute ? 108 : 24,
+            zIndex: 60,
+            maxWidth: 260,
+            padding: '8px 12px',
+            borderRadius: 12,
+            background: 'rgba(15, 23, 42, 0.82)',
+            color: '#fff',
+            fontSize: 12,
+            lineHeight: 1.4,
+            boxShadow: '0 10px 30px rgba(15, 23, 42, 0.18)',
+          }}
+        >
+          {wakeWordDebug}
+        </div>
+      ) : null}
       {open ? (
         <section className={['voice-sheet', isConversationRoute ? 'voice-sheet--edge' : ''].filter(Boolean).join(' ')} aria-live="polite">
           <div className="voice-sheet__header">
@@ -160,7 +213,7 @@ export function ElderVoiceAssistant() {
           {stage === 'recording' ? (
             <div className="voice-sheet__status-card">
               <strong>麦克风正在工作</strong>
-              <p>说完后点“结束说话”，我会把这段话转成文字。</p>
+              <p>说完我会自动继续，你也可以点“结束说话”提前提交。</p>
               {spokenText ? <p>{spokenText}</p> : null}
               <div className="inline-actions">
                 <button className="primary-action" type="button" onClick={() => void finishWakeRecording()}>
@@ -371,17 +424,22 @@ export function ElderVoiceAssistant() {
     setIsRecording(false)
   }
 
-  async function handleInterpret() {
-    if (!spokenText.trim()) return
+  async function handleInterpret(inputText = spokenText) {
+    const normalizedInput = inputText.trim()
+    if (!normalizedInput) return
 
     setStage('classifying')
     setError('')
     setFeedback('')
     setAssistantNotice('')
-    await appendAiLog(spokenText.trim(), 'Elder', elderMemberId)
+    if (normalizedInput !== spokenText) {
+      setSpokenText(normalizedInput)
+      spokenTextRef.current = normalizedInput
+    }
+    await appendAiLog(normalizedInput, 'Elder', elderMemberId)
 
     await delay(420)
-    const nextResult = await resolveIntent(spokenText)
+    const nextResult = await resolveIntent(normalizedInput)
     setResult(nextResult)
     setStage('result')
 
@@ -410,38 +468,13 @@ export function ElderVoiceAssistant() {
       setStage('acting')
       setError('')
       if (nextResult.nextAction === 'open_conversation' && nextResult.targetConversationId) {
-        const shouldSendNow = Boolean(nextResult.autoSendMessage)
-        const messageText = nextResult.draftText.trim()
-
-        if (shouldSendNow && messageText) {
-          await sendMessage(nextResult.targetConversationId, {
-            senderType: 'Elder',
-            senderMemberId: elderMemberId,
-            messageType: 'Text',
-            textContent: messageText,
-            aiDrafted: true,
-            isLowInformation: false,
-          })
-          await loadDirectory()
-          setFeedback(`已经帮你把“${messageText}”发给${nextResult.targetMemberLabel ?? '家人'}了。`)
-          await delay(280)
-          navigate(`/elder/conversations/${nextResult.targetConversationId}`, {
-            state: {
-              elderVoiceResult: nextResult,
-              prefillDraft: '',
-              autoSendMessage: false,
-            },
-          })
-          return
-        }
-
         setFeedback(`我这就带你去找${nextResult.targetMemberLabel ?? '家人'}。`)
         await delay(280)
         navigate(`/elder/conversations/${nextResult.targetConversationId}`, {
           state: {
             elderVoiceResult: nextResult,
             prefillDraft: nextResult.draftText,
-            autoSendMessage: false,
+            autoSendMessage: Boolean(nextResult.autoSendMessage) || shouldAutoExecute(nextResult),
           },
         })
         return
@@ -543,6 +576,7 @@ export function ElderVoiceAssistant() {
     setError('')
     setAssistantNotice('')
     setIsRecording(false)
+    wakeWordTriggeredRef.current = false
   }
 
   async function startWakeWordListening() {
@@ -556,45 +590,11 @@ export function ElderVoiceAssistant() {
       return
     }
 
-    const micReady = await ensureMicrophoneReady({ silent: true })
-    if (!micReady) return
-
-    const supportStatus = await getSpeechRecognitionSupportStatus()
-    if (!supportStatus.supported) {
-      console.warn('[Voice Assistant] wake word disabled:', supportStatus.reason)
-      return
-    }
-
-    try {
-      wakeWordSessionRef.current = await startSpeechRecognition({
-        language: 'zh-CN',
-        onPartialResult: (text) => {
-          if (containsWakeWord(text)) {
-            void handleWakeWordDetected()
-          }
-        },
-        onFinalResult: (text) => {
-          if (containsWakeWord(text)) {
-            void handleWakeWordDetected()
-          }
-        },
-        onListeningStateChange: (listening) => {
-          if (!listening) {
-            wakeWordSessionRef.current = null
-            wakeWordTriggeredRef.current = false
-            if (wakeWordEnabledRef.current) {
-              scheduleWakeWordRestart()
-            }
-          }
-        },
-      })
-    } catch {
-      wakeWordSessionRef.current = null
-    }
+    await startCloudWakeWordListening()
   }
 
   async function startLocalWakeWordListeningIfAvailable() {
-    setWakeWordDebug('本地听小智小智')
+    setWakeWordDebug(`本地听${WAKE_WORD} / ${SECONDARY_WAKE_WORD}`)
 
     const micReady = await ensureMicrophoneCapturePermission()
     if (!micReady || !wakeWordEnabledRef.current) {
@@ -617,9 +617,17 @@ export function ElderVoiceAssistant() {
         },
         onStatus: (status) => {
           if (status === 'listening') {
-            setWakeWordDebug('本地听小智小智')
+            setWakeWordDebug(`本地听${WAKE_WORD} / ${SECONDARY_WAKE_WORD}`)
           } else if (status === 'error') {
             setWakeWordDebug('监听失败')
+            const activeWakeSession = wakeWordSessionRef.current
+            wakeWordSessionRef.current = null
+            void (async () => {
+              await activeWakeSession?.stop()
+              if (wakeWordEnabledRef.current && !wakeWordTriggeredRef.current) {
+                scheduleWakeWordRestart(1200)
+              }
+            })()
           }
         },
       })
@@ -667,7 +675,7 @@ export function ElderVoiceAssistant() {
         return
       }
 
-      setWakeWordDebug('听小智小智')
+      setWakeWordDebug(`听${WAKE_WORD} / ${SECONDARY_WAKE_WORD}`)
       wakeWordRestartTimerRef.current = window.setTimeout(() => {
         const activeWakeSession = wakeWordSessionRef.current
         wakeWordSessionRef.current = null
@@ -729,7 +737,7 @@ export function ElderVoiceAssistant() {
     setResult(null)
     setSpokenText('')
     spokenTextRef.current = ''
-    setAssistantNotice('小智小智已唤醒，我在，你继续说。')
+    setAssistantNotice(`${WAKE_WORD} / ${SECONDARY_WAKE_WORD} 已唤醒，我在，你继续说。`)
     const usedNativeWakeReply = await speakNativeWakeReply('我在')
     if (!usedNativeWakeReply) {
       speak('我在')
@@ -739,6 +747,7 @@ export function ElderVoiceAssistant() {
 
     const started = await startRecording()
     if (!started) {
+      wakeWordTriggeredRef.current = false
       setIsRecording(false)
       setStage('transcribing')
       setAssistantNotice('我在。你可以直接把想说的话补充进去。')
@@ -746,7 +755,7 @@ export function ElderVoiceAssistant() {
     }
 
     setIsRecording(true)
-    setAssistantNotice('我在听，你继续说。说完后点“结束说话”。')
+    setAssistantNotice('我在听，你继续说。说完后我会自动继续。')
   }
 
   async function startRecording() {
@@ -768,6 +777,8 @@ export function ElderVoiceAssistant() {
 
       speechSessionRef.current = await startSession({
         language: 'zh-CN',
+        autoStopAfterSilenceMs: 2200,
+        maxRecordingMs: 12000,
         onPartialResult: (text) => {
           if (text.trim()) {
             const normalizedText = text.trim()
@@ -788,7 +799,20 @@ export function ElderVoiceAssistant() {
         },
         onListeningStateChange: (listening) => {
           if (!listening) {
-            setIsRecording(false)
+            if (recordingFinishingRef.current) {
+              setIsRecording(false)
+              return
+            }
+
+            if (!speechSessionRef.current) {
+              setIsRecording(false)
+              return
+            }
+
+            recordingFinishingRef.current = true
+            void finalizeRecording(true).finally(() => {
+              recordingFinishingRef.current = false
+            })
           }
         },
       })
@@ -798,7 +822,7 @@ export function ElderVoiceAssistant() {
         return false
       }
 
-      setAssistantNotice(Capacitor.isNativePlatform() ? '已经开始录音，你说完后再点一次按钮。' : '已经准备好了，你可以直接说。')
+      setAssistantNotice(Capacitor.isNativePlatform() ? '已经开始录音，说完后我会自动继续。' : '已经准备好了，你可以直接说。说完后我会自动继续。')
       setError('')
       return true
     } catch (recordError) {
@@ -808,18 +832,31 @@ export function ElderVoiceAssistant() {
   }
 
   async function stopRecording(shouldTranscribe: boolean) {
+    if (recordingFinishingRef.current) return
+    recordingFinishingRef.current = true
+
     try {
       await speechSessionRef.current?.stop()
+      await finalizeRecording(shouldTranscribe)
     } finally {
-      speechSessionRef.current = null
-      setIsRecording(false)
-      if (shouldTranscribe) {
-        if (spokenTextRef.current.trim()) {
-          setAssistantNotice('已经帮你记下来了，看看这句话对不对。')
-          setError('')
-        } else {
-          setError('没有识别到有效语音，请再说一次')
-        }
+      recordingFinishingRef.current = false
+    }
+  }
+
+  async function finalizeRecording(shouldTranscribe: boolean) {
+    speechSessionRef.current = null
+    setIsRecording(false)
+    if (shouldTranscribe) {
+      setStage('transcribing')
+      if (spokenTextRef.current.trim()) {
+        const transcript = spokenTextRef.current.trim()
+        setAssistantNotice('已经帮你记下来了，马上开始理解。')
+        setError('')
+        await delay(240)
+        await handleInterpret(transcript)
+      } else {
+        setAssistantNotice('我先把刚才的录音再整理一下。')
+        setError('没有识别到有效语音，请再说一次')
       }
     }
   }
@@ -961,7 +998,7 @@ function resolveSheetTitle(stage: AssistantStage, result: ElderVoiceIntentResult
   if (stage === 'transcribing') return '看看这句话对不对'
   if (stage === 'classifying') return '我在帮你判断该走哪条路'
   if (stage === 'acting') return '我在帮你把事情接下去'
-  return result?.promptTitle ?? '说“小智小智”，我会出来听你说话'
+  return result?.promptTitle ?? `说“${WAKE_WORD}”或“${SECONDARY_WAKE_WORD}”，我会出来听你说话`
 }
 
 function showConfirmAction(result: ElderVoiceIntentResult, stage: AssistantStage) {
@@ -984,13 +1021,9 @@ function delay(ms: number) {
 
 function containsWakeWord(text: string) {
   const normalized = normalizeWakeWordText(text)
-  return [
-    WAKE_WORD,
-    '小知小知',
-    '小志小志',
-    '小智小志',
-    '小志小智',
-  ].some((candidate) => normalized.includes(candidate))
+  if (!normalized) return false
+
+  return WAKE_WORD_ALIASES.some((candidate) => normalized.includes(candidate))
 }
 
 function normalizeWakeWordText(text: string) {

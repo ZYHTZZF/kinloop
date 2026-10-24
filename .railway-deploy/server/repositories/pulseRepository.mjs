@@ -5,6 +5,10 @@ const WINDOW_DAYS = 7
 const EMOTION_WINDOW_MS = WINDOW_DAYS * DAY_MS
 
 function mapPulse(row) {
+  const canViewSourceConversation = row.canViewSourceConversation !== undefined
+    ? Boolean(row.canViewSourceConversation)
+    : true
+
   return {
     id: row.id,
     familySpaceId: row.familySpaceId,
@@ -12,20 +16,33 @@ function mapPulse(row) {
     pulseType: row.pulseType,
     severity: row.severity,
     summary: row.summary,
-    sourceConversationId: row.sourceConversationId,
-    sourceMessageId: row.sourceMessageId,
-    sourceExcerpt: row.sourceExcerpt,
+    sourceConversationId: canViewSourceConversation ? row.sourceConversationId : null,
+    sourceMessageId: canViewSourceConversation ? row.sourceMessageId : null,
+    sourceExcerpt: canViewSourceConversation ? row.sourceExcerpt : null,
     emotionSource: row.emotionSource,
     emotionLabel: row.emotionLabel,
     emotionMode: row.emotionMode,
     sourceSenderType: row.sourceSenderType ?? null,
+    canViewSourceConversation,
     status: row.status,
     createdAt: row.createdAt,
     resolvedAt: row.resolvedAt,
   }
 }
 
-export function listTodayPulses(familySpaceId) {
+function canViewerAccessPulseSource(row, viewer) {
+  if (!row.sourceConversationId) {
+    return true
+  }
+
+  if (viewer?.role === 'elder') {
+    return true
+  }
+
+  return Boolean(viewer?.memberId) && row.sourceFamilyMemberId === viewer.memberId
+}
+
+export function listTodayPulses(familySpaceId, viewer = { role: 'elder', memberId: null }) {
   const db = getDatabase()
   return db.prepare(`
     select
@@ -42,22 +59,27 @@ export function listTodayPulses(familySpaceId) {
       pulses.emotion_label as emotionLabel,
       pulses.emotion_mode as emotionMode,
       messages.sender_type as sourceSenderType,
+      conversations.family_member_id as sourceFamilyMemberId,
       pulses.status as status,
       pulses.created_at as createdAt,
       pulses.resolved_at as resolvedAt
     from pulses
     left join messages on messages.id = pulses.source_message_id
+    left join conversations on conversations.id = pulses.source_conversation_id
     where pulses.family_space_id = ?
     order by pulses.created_at desc
-  `).all(familySpaceId).map(mapPulse)
+  `).all(familySpaceId).map((row) => mapPulse({
+    ...row,
+    canViewSourceConversation: canViewerAccessPulseSource(row, viewer),
+  }))
 }
 
-export function listPulseHistory(familySpaceId) {
-  return listTodayPulses(familySpaceId)
+export function listPulseHistory(familySpaceId, viewer = { role: 'elder', memberId: null }) {
+  return listTodayPulses(familySpaceId, viewer)
 }
 
-export function getTodayEmotionSummary(familySpaceId) {
-  const emotionPulses = listPulseHistory(familySpaceId).filter((pulse) => pulse.pulseType === 'Emotion')
+export function getTodayEmotionSummary(familySpaceId, viewer = { role: 'elder', memberId: null }) {
+  const emotionPulses = listPulseHistory(familySpaceId, viewer).filter((pulse) => pulse.pulseType === 'Emotion')
   const now = Date.now()
   const threshold = now - EMOTION_WINDOW_MS
   const weeklyEmotionPulses = emotionPulses.filter((pulse) => Number(pulse.createdAt ?? 0) >= threshold)
@@ -209,6 +231,7 @@ function buildAbnormalCard(pulse) {
     sourceConversationId: pulse.sourceConversationId ?? null,
     sourceMessageId: pulse.sourceMessageId ?? null,
     sourceExcerpt: pulse.sourceExcerpt ?? null,
+    canViewSourceConversation: pulse.canViewSourceConversation,
     attentionSuggestion: buildAttentionSuggestion(pulse),
     actionSuggestion: buildActionSuggestion(pulse),
     status: pulse.status,

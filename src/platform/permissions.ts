@@ -31,12 +31,21 @@ export async function ensureSpeechRecognitionPermission() {
       if (status.state === 'denied') {
         return false
       }
+      if (status.state === 'granted') {
+        return true
+      }
     }
   } catch {
     // ignore browser differences
   }
 
-  return true
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    stream.getTracks().forEach((track) => track.stop())
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function ensureMicrophoneCapturePermission() {
@@ -58,12 +67,21 @@ export async function ensureMicrophoneCapturePermission() {
       if (status.state === 'denied') {
         return false
       }
+      if (status.state === 'granted') {
+        return true
+      }
     }
   } catch {
     // ignore browser differences
   }
 
-  return true
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    stream.getTracks().forEach((track) => track.stop())
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function ensureCallMediaPermission(callType: 'voice' | 'video') {

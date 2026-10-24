@@ -1,4 +1,4 @@
-﻿import { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } from '../config.mjs'
+import { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } from '../config.mjs'
 
 const INTENT_TYPES = ['companion', 'chat', 'support', 'memory', 'clarify']
 const NEXT_ACTIONS = ['stay', 'open_conversation', 'trigger_alert', 'save_memory', 'open_memories', 'clarify']
@@ -32,7 +32,6 @@ export function registerAiIntentRoutes(app) {
       const ruleResult = classifyByRules(spokenText, members, conversations)
 
       if (!LLM_API_KEY || !LLM_MODEL) {
-        // No LLM config: still provide a usable result from local rules.
         res.json({ ok: true, result: ruleResult })
         return
       }
@@ -44,7 +43,8 @@ export function registerAiIntentRoutes(app) {
         const finalized = postProcessForPrecision(merged, spokenText, members, conversations, ruleResult)
         res.json({ ok: true, result: finalized })
       } catch (llmError) {
-        console.warn('[AI Intent] LLM failed, fallback to rules:', llmError)
+        const message = llmError instanceof Error ? llmError.message : String(llmError)
+        console.warn(`[AI Intent] fallback to local rules: ${message}`)
         res.json({ ok: true, result: ruleResult })
       }
     } catch (error) {
@@ -155,7 +155,6 @@ async function inferElderIntentWithLlm({ spokenText, members, conversations }) {
         const text = await safeText(response)
         const unsupportedJsonObject = /response_format|json_object/i.test(text)
         if (unsupportedJsonObject) {
-          // Some Volcano models do not support `response_format: json_object`.
           response = await fetchWithTimeout(
             `${LLM_BASE_URL}/chat/completions`,
             {
@@ -409,7 +408,6 @@ function classifyByRules(spokenText, members, conversations) {
 function mergeRuleGuard(llm, rule) {
   const normalizedText = llm.normalizedText || normalizeText(llm.spokenText)
 
-  // Keep a hard safety rail only for emergency expressions.
   if (containsAny(normalizedText, emergencyKeywords)) {
     return {
       ...rule,
@@ -417,7 +415,6 @@ function mergeRuleGuard(llm, rule) {
     }
   }
 
-  // Prefer LLM output for normal routing.
   const merged = { ...llm }
 
   if (merged.nextAction === 'open_conversation' && merged.targetMemberId && !merged.targetConversationId) {
@@ -433,8 +430,11 @@ function postProcessForPrecision(result, spokenText, members, conversations, rul
   const normalizedText = normalizeText(spokenText)
   const merged = { ...result }
 
-  const targetById = (members || []).find((m) => m?.id === merged.targetMemberId) ?? null
-  const inferredTarget = targetById || matchMember(normalizedText, members, conversations)
+  const targetById = (members || []).find((member) => member?.id === merged.targetMemberId) ?? null
+  const targetByLabel = !targetById && merged.targetMemberLabel
+    ? matchMemberByLabel(merged.targetMemberLabel, members, conversations)
+    : null
+  const inferredTarget = targetById || targetByLabel || matchMember(normalizedText, members, conversations)
 
   if (merged.nextAction === 'open_conversation' && !merged.targetMemberId && inferredTarget) {
     merged.targetMemberId = inferredTarget.memberId
@@ -443,12 +443,14 @@ function postProcessForPrecision(result, spokenText, members, conversations, rul
   }
 
   if (merged.nextAction === 'open_conversation' && merged.targetMemberId && !merged.targetConversationId) {
-    const conv = (conversations || []).find((c) => c?.memberId === merged.targetMemberId)
-    merged.targetConversationId = conv?.id ?? merged.targetConversationId
+    const conversation = (conversations || []).find((item) => item?.memberId === merged.targetMemberId)
+    merged.targetConversationId = conversation?.id ?? merged.targetConversationId
   }
 
   if (merged.nextAction === 'open_conversation') {
-    merged.autoSendMessage = Boolean(merged.autoSendMessage || containsAny(normalizedText, autoSendKeywords) || hasAutoSendRegexSignal(normalizedText))
+    merged.autoSendMessage = Boolean(
+      merged.autoSendMessage || containsAny(normalizedText, autoSendKeywords) || hasAutoSendRegexSignal(normalizedText),
+    )
     merged.draftText = cleanDraftForSend(merged.draftText || spokenText, inferredTarget?.aliases || [])
   }
 
@@ -464,7 +466,6 @@ function postProcessForPrecision(result, spokenText, members, conversations, rul
     if (merged.nextAction === 'stay') merged.promptTitle = '我来回答你'
   }
 
-  // Avoid over-clarify when sentence is clearly actionable.
   const actionable = isClearlyActionable(normalizedText)
   if (merged.nextAction === 'clarify' && actionable && ruleResult.nextAction !== 'clarify') {
     return {
@@ -489,33 +490,40 @@ function isClearlyActionable(normalizedText) {
 
 function matchMember(normalizedText, members, conversations) {
   if (!Array.isArray(members) || members.length === 0) return null
-  const conversationByMember = new Map((conversations ?? []).map((c) => [c.memberId, c]))
+  const conversationByMember = new Map((conversations ?? []).map((conversation) => [conversation.memberId, conversation]))
 
   const candidates = members
-    .filter((m) => m.role !== 'Elder' && m.role !== 'AI')
-    .map((m) => {
-      const aliases = buildAliasesForMember(m)
+    .filter((member) => member.role !== 'Elder' && member.role !== 'AI')
+    .map((member) => {
+      const aliases = buildAliasesForMember(member)
       return {
-        memberId: m.id,
-        memberLabel: m.elderAlias || m.displayName || '家人',
+        memberId: member.id,
+        memberLabel: member.elderAlias || member.displayName || '家人',
         aliases,
-        conversationId: conversationByMember.get(m.id)?.id ?? null,
+        conversationId: conversationByMember.get(member.id)?.id ?? null,
       }
     })
 
   let best = null
-  for (const c of candidates) {
-    for (const alias of c.aliases) {
+  for (const candidate of candidates) {
+    for (const alias of candidate.aliases) {
       if (!alias) continue
       if (normalizedText.includes(alias)) {
         if (!best || alias.length > best.aliasLen) {
-          best = { ...c, aliasLen: alias.length }
+          best = { ...candidate, aliasLen: alias.length }
         }
       }
     }
   }
 
   return best
+}
+
+function matchMemberByLabel(targetMemberLabel, members, conversations) {
+  const normalizedLabel = normalizeText(targetMemberLabel)
+  if (!normalizedLabel) return null
+
+  return matchMember(normalizedLabel, members, conversations)
 }
 
 function buildAliasesForMember(member) {
@@ -526,7 +534,7 @@ function buildAliasesForMember(member) {
   if ((member.displayName || '').includes('儿')) raw.push('儿子')
   if ((member.displayName || '').includes('女')) raw.push('女儿')
 
-  return Array.from(new Set(raw.filter(Boolean).map((x) => normalizeText(String(x)))))
+  return Array.from(new Set(raw.filter(Boolean).map((value) => normalizeText(String(value)))))
 }
 
 function cleanDraftForSend(input, aliases) {

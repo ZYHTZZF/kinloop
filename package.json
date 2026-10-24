@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:web": "vite",
-    "dev:api": "node server/index.mjs",
+    "dev:api": "node --no-warnings server/index.mjs",
     "build": "tsc -b && vite build",
     "build:web": "npm run build",
     "build:android": "npm run build && npx cap sync android",

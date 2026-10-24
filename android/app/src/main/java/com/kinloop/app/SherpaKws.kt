@@ -134,8 +134,8 @@ fun createKinloopKwsConfig(): KeywordSpotterConfig {
             modelType = "zipformer2",
         ),
         keywordsFile = "$modelDir/keywords.txt",
-        keywordsScore = 2.0f,
-        keywordsThreshold = 0.35f,
+        keywordsScore = 1.0f,
+        keywordsThreshold = 0.12f,
         numTrailingBlanks = 2,
     )
 }
