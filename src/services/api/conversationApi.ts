@@ -3,6 +3,8 @@ import type { ConversationCard, ConversationDetail, MarkConversationReadRequest,
 import {
   getCachedConversationCards,
   getCachedConversationDetail,
+  normalizeConversationCard,
+  normalizeConversationDetail,
   patchCachedConversationCard,
   saveConversationCards,
   saveConversationDetail,
@@ -19,13 +21,13 @@ function filterCardsForViewer(viewer: 'elder' | 'family', cards: ConversationCar
     return cards
   }
 
-  return cards.filter((card) => card.familyMemberId === memberId || card.memberId === memberId)
+  return cards.filter((card) => card.isGroup || card.familyMemberId === memberId || card.memberId === memberId)
 }
 
 export function listConversationCards(viewer: 'elder' | 'family' = 'elder') {
   const query = viewer === 'elder' ? '' : `?viewer=${viewer}`
   return apiGet<ConversationCard[]>(`/conversations/cards${query}`).then((cards) => {
-    const visibleCards = filterCardsForViewer(viewer, cards)
+    const visibleCards = filterCardsForViewer(viewer, cards.map(normalizeConversationCard))
     saveConversationCards(viewer, visibleCards)
     return visibleCards
   })
@@ -33,24 +35,31 @@ export function listConversationCards(viewer: 'elder' | 'family' = 'elder') {
 
 export function getConversationDetail(conversationId: string) {
   return apiGet<ConversationDetail>(`/conversations/${conversationId}`).then((detail) => {
-    saveConversationDetail(detail)
-    return detail
+    const normalizedDetail = normalizeConversationDetail(detail)
+    saveConversationDetail(normalizedDetail)
+    return normalizedDetail
   })
 }
 
 export function sendMessage(conversationId: string, payload: Record<string, unknown>) {
   return apiPost<ConversationDetail>(`/conversations/${conversationId}/messages`, payload).then((detail) => {
-    saveConversationDetail(detail)
-    patchCachedConversationCard(payload.senderType === 'Family' ? 'family' : 'elder', detail)
-    return detail
+    const normalizedDetail = normalizeConversationDetail(detail)
+    saveConversationDetail(normalizedDetail)
+    patchCachedConversationCard(payload.senderType === 'Family' ? 'family' : 'elder', normalizedDetail)
+    return normalizedDetail
   })
 }
 
 export function markConversationRead(conversationId: string, payload: MarkConversationReadRequest) {
   return apiPatch<MarkConversationReadResponse>(`/conversations/${conversationId}/read-all`, payload).then((result) => {
     if (result.conversation) {
-      saveConversationDetail(result.conversation)
-      patchCachedConversationCard(payload.requesterRole, result.conversation)
+      const normalizedConversation = normalizeConversationDetail(result.conversation)
+      saveConversationDetail(normalizedConversation)
+      patchCachedConversationCard(payload.requesterRole, normalizedConversation)
+      return {
+        ...result,
+        conversation: normalizedConversation,
+      }
     }
     return result
   })

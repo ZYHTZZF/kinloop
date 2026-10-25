@@ -28,7 +28,12 @@ export type StoredAuthState = {
   completedAt: number | null
 }
 
+type AuthScope = 'elder' | 'family' | 'global'
+
 const STORAGE_KEY = 'kinloop-auth-session-v1'
+const STORAGE_KEY_ELDER = `${STORAGE_KEY}:elder`
+const STORAGE_KEY_FAMILY = `${STORAGE_KEY}:family`
+const STORAGE_KEY_ACTIVE_SCOPE = `${STORAGE_KEY}:active-scope`
 
 const DEFAULT_STATE: StoredAuthState = {
   token: '',
@@ -60,25 +65,127 @@ function mapMembership(membership: AuthMembership | null | undefined): StoredAut
   }
 }
 
-export function getStoredAuthToken() {
-  return getOnboardingState().token
+function getStorageKey(scope: AuthScope) {
+  if (scope === 'elder') return STORAGE_KEY_ELDER
+  if (scope === 'family') return STORAGE_KEY_FAMILY
+  return STORAGE_KEY
 }
 
-export function getOnboardingState(): StoredAuthState {
+function readStoredState(key: string): StoredAuthState | null {
   if (typeof window === 'undefined') {
-    return DEFAULT_STATE
+    return null
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return DEFAULT_STATE
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return null
     return {
       ...DEFAULT_STATE,
       ...(JSON.parse(raw) as Partial<StoredAuthState>),
     }
   } catch {
-    return DEFAULT_STATE
+    return null
   }
+}
+
+function writeStoredState(key: string, state: StoredAuthState) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(state))
+}
+
+function getScopeFromRole(role: OnboardingRole | null | undefined): AuthScope {
+  return role === 'elder' ? 'elder' : role === 'family' || role === 'caregiver' ? 'family' : 'global'
+}
+
+function isStateCompatibleWithScope(state: StoredAuthState | null, scope: AuthScope) {
+  if (!state?.role) {
+    return false
+  }
+
+  if (scope === 'elder') {
+    return state.role === 'elder'
+  }
+
+  if (scope === 'family') {
+    return state.role === 'family' || state.role === 'caregiver'
+  }
+
+  return true
+}
+
+function getRouteScope(): AuthScope {
+  if (typeof window === 'undefined') {
+    return 'global'
+  }
+
+  const pathname = window.location.pathname || '/'
+  if (pathname.startsWith('/elder')) {
+    return 'elder'
+  }
+
+  if (pathname.startsWith('/family')) {
+    return 'family'
+  }
+
+  return 'global'
+}
+
+function getActiveScope() {
+  if (typeof window === 'undefined') {
+    return 'global'
+  }
+
+  const storedScope = window.localStorage.getItem(STORAGE_KEY_ACTIVE_SCOPE)
+  return storedScope === 'elder' || storedScope === 'family' ? storedScope : 'global'
+}
+
+function setActiveScope(scope: AuthScope) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  if (scope === 'elder' || scope === 'family') {
+    window.localStorage.setItem(STORAGE_KEY_ACTIVE_SCOPE, scope)
+    return
+  }
+
+  window.localStorage.removeItem(STORAGE_KEY_ACTIVE_SCOPE)
+}
+
+function getFallbackStateForScope(scope: AuthScope) {
+  const scopedState = readStoredState(getStorageKey(scope))
+  if (isStateCompatibleWithScope(scopedState, scope)) {
+    return scopedState
+  }
+
+  const globalState = readStoredState(STORAGE_KEY)
+  if (scope !== 'global' && globalState && isStateCompatibleWithScope(globalState, scope)) {
+    writeStoredState(getStorageKey(scope), globalState)
+    return globalState
+  }
+
+  return scope === 'global' ? globalState : null
+}
+
+function resolveScopedState() {
+  const routeScope = getRouteScope()
+  if (routeScope !== 'global') {
+    return getFallbackStateForScope(routeScope) ?? DEFAULT_STATE
+  }
+
+  const activeScope = getActiveScope()
+  return getFallbackStateForScope(activeScope) ?? readStoredState(STORAGE_KEY) ?? DEFAULT_STATE
+}
+
+export function getStoredAuthToken() {
+  return getOnboardingState().token
+}
+
+export function getOnboardingState(): StoredAuthState {
+  return resolveScopedState()
 }
 
 export function saveAuthSession(session: AuthSession) {
@@ -95,7 +202,10 @@ export function saveAuthSession(session: AuthSession) {
     completedAt: Date.now(),
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState))
+  const scope = getScopeFromRole(nextState.role)
+  writeStoredState(STORAGE_KEY, nextState)
+  writeStoredState(getStorageKey(scope), nextState)
+  setActiveScope(scope)
   window.dispatchEvent(new CustomEvent('kinloop:onboarding-updated'))
 }
 
@@ -104,7 +214,46 @@ export function clearOnboardingState() {
     return
   }
 
-  window.localStorage.removeItem(STORAGE_KEY)
+  const routeScope = getRouteScope()
+  const targetKey = getStorageKey(routeScope)
+  const currentState = readStoredState(targetKey)
+
+  if (routeScope !== 'global') {
+    window.localStorage.removeItem(targetKey)
+  } else {
+    window.localStorage.removeItem(STORAGE_KEY)
+  }
+
+  const globalState = readStoredState(STORAGE_KEY)
+  if (
+    globalState
+    && currentState
+    && globalState.token
+    && globalState.token === currentState.token
+  ) {
+    const siblingScope = routeScope === 'elder' ? 'family' : routeScope === 'family' ? 'elder' : 'global'
+    const siblingState = siblingScope === 'global' ? null : readStoredState(getStorageKey(siblingScope))
+    if (siblingState?.token) {
+      writeStoredState(STORAGE_KEY, siblingState)
+      setActiveScope(siblingScope)
+    } else {
+      window.localStorage.removeItem(STORAGE_KEY)
+      setActiveScope('global')
+    }
+  } else if (routeScope === 'global') {
+    const elderState = readStoredState(STORAGE_KEY_ELDER)
+    const familyState = readStoredState(STORAGE_KEY_FAMILY)
+    if (elderState?.token) {
+      writeStoredState(STORAGE_KEY, elderState)
+      setActiveScope('elder')
+    } else if (familyState?.token) {
+      writeStoredState(STORAGE_KEY, familyState)
+      setActiveScope('family')
+    } else {
+      setActiveScope('global')
+    }
+  }
+
   window.dispatchEvent(new CustomEvent('kinloop:onboarding-updated'))
 }
 

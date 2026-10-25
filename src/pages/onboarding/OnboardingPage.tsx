@@ -5,7 +5,6 @@ import {
   type OnboardingAuthMode,
   type OnboardingFamilyMode,
   type OnboardingRole,
-  getPreferredHomePath,
   getStoredAuthToken,
   saveAuthSession,
 } from '../../app/onboardingStorage'
@@ -20,6 +19,27 @@ const familyModeCards: Array<{ id: OnboardingFamilyMode; title: string; descript
   { id: 'create', title: '创建家庭', description: '我是第一个加入的人，先创建一个新的家庭空间。' },
   { id: 'join', title: '加入家庭', description: '我已经拿到家庭加入码，直接加入现有家庭。' },
 ]
+
+function isPathAllowedForRole(path: string | null, role: OnboardingRole | null | undefined) {
+  if (!path) return false
+  if (path.startsWith('/elder')) return role === 'elder'
+  if (path.startsWith('/family')) return role === 'family' || role === 'caregiver'
+  return true
+}
+
+function resolvePostAuthPath(nextPath: string | null, homePath: string | null | undefined, role: OnboardingRole | null | undefined): string {
+  if (isPathAllowedForRole(nextPath, role)) {
+    return nextPath ?? '/'
+  }
+
+  if (homePath && isPathAllowedForRole(homePath, role)) {
+    return homePath
+  }
+
+  if (role === 'elder') return '/elder/home'
+  if (role === 'caregiver') return '/family/collaboration'
+  return '/family/today'
+}
 
 function toFriendlyError(error: unknown, fallback: string) {
   if (!(error instanceof Error) || !error.message.trim()) {
@@ -76,7 +96,7 @@ export function OnboardingPage() {
       try {
         const session = await getCurrentSession()
         saveAuthSession(session)
-        navigate(nextPath || session.homePath || getPreferredHomePath(), { replace: true })
+        navigate(resolvePostAuthPath(nextPath, session.homePath, session.membership.role), { replace: true })
       } catch {
         // Ignore stale token.
       }
@@ -120,7 +140,7 @@ export function OnboardingPage() {
     try {
       const session = await loginAccount({ email: email.trim(), password })
       saveAuthSession(session)
-      navigate(nextPath || session.homePath || getPreferredHomePath(), { replace: true })
+      navigate(resolvePostAuthPath(nextPath, session.homePath, session.membership.role), { replace: true })
     } catch (loginError) {
       setNotice('', toFriendlyError(loginError, '登录失败，请检查后重试。'))
     } finally {
@@ -169,7 +189,7 @@ export function OnboardingPage() {
         relationLabel: relationLabel.trim() || undefined,
       })
       saveAuthSession(session)
-      navigate(nextPath || session.homePath || getPreferredHomePath(), { replace: true })
+      navigate(resolvePostAuthPath(nextPath, session.homePath, session.membership.role), { replace: true })
     } catch (registerError) {
       setNotice('', toFriendlyError(registerError, '注册失败，请稍后再试。'))
     } finally {
@@ -200,7 +220,7 @@ export function OnboardingPage() {
         newPassword: password,
       })
       saveAuthSession(session)
-      navigate(nextPath || session.homePath || getPreferredHomePath(), { replace: true })
+      navigate(resolvePostAuthPath(nextPath, session.homePath, session.membership.role), { replace: true })
     } catch (resetError) {
       setNotice('', toFriendlyError(resetError, '重置密码失败，请稍后再试。'))
     } finally {

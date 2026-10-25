@@ -6,6 +6,8 @@ type CacheEnvelope<T> = {
   data: T
 }
 
+const FORCED_FAMILY_GROUP_NAME = '相亲相爱一家人'
+
 function getCacheScope() {
   const state = getOnboardingState()
   return [
@@ -33,7 +35,7 @@ function filterCardsForViewer(viewer: 'elder' | 'family', cards: ConversationCar
     return cards
   }
 
-  return cards.filter((card) => card.familyMemberId === memberId || card.memberId === memberId)
+  return cards.filter((card) => card.isGroup || card.familyMemberId === memberId || card.memberId === memberId)
 }
 
 function readEnvelope<T>(key: string): CacheEnvelope<T> | null {
@@ -59,42 +61,115 @@ function writeEnvelope<T>(key: string, data: T) {
   window.localStorage.setItem(key, JSON.stringify(value))
 }
 
+function isFamilyGroupConversation(conversation: {
+  conversationType?: string
+  isGroup?: boolean
+}) {
+  return conversation.conversationType === 'FAMILY_GROUP' || conversation.isGroup === true
+}
+
+function getFallbackParticipantCount(conversation: {
+  participantCount?: number
+  participants?: Array<{ id: string }>
+  elderMemberId?: string | null
+  familyMemberId?: string | null
+  messages?: Array<{ senderMemberId: string | null }>
+}) {
+  if (typeof conversation.participantCount === 'number' && conversation.participantCount > 0) {
+    return conversation.participantCount
+  }
+
+  if ((conversation.participants?.length ?? 0) > 0) {
+    return conversation.participants?.length ?? 0
+  }
+
+  const participantIds = new Set<string>()
+  if (conversation.elderMemberId) {
+    participantIds.add(conversation.elderMemberId)
+  }
+  if (conversation.familyMemberId) {
+    participantIds.add(conversation.familyMemberId)
+  }
+  for (const message of conversation.messages ?? []) {
+    if (message.senderMemberId) {
+      participantIds.add(message.senderMemberId)
+    }
+  }
+
+  return participantIds.size
+}
+
+export function normalizeConversationCard(card: ConversationCard): ConversationCard {
+  if (!isFamilyGroupConversation(card)) {
+    return card
+  }
+
+  return {
+    ...card,
+    isGroup: true,
+    name: FORCED_FAMILY_GROUP_NAME,
+    groupName: FORCED_FAMILY_GROUP_NAME,
+    participantCount: getFallbackParticipantCount(card),
+  }
+}
+
+export function normalizeConversationDetail(detail: ConversationDetail): ConversationDetail {
+  if (!isFamilyGroupConversation(detail)) {
+    return detail
+  }
+
+  return {
+    ...detail,
+    isGroup: true,
+    name: FORCED_FAMILY_GROUP_NAME,
+    groupName: FORCED_FAMILY_GROUP_NAME,
+    participantCount: getFallbackParticipantCount(detail),
+  }
+}
+
 export function getCachedConversationCards(viewer: 'elder' | 'family') {
-  return filterCardsForViewer(viewer, readEnvelope<ConversationCard[]>(getCardsKey(viewer))?.data ?? [])
+  const cards = readEnvelope<ConversationCard[]>(getCardsKey(viewer))?.data ?? []
+  return filterCardsForViewer(viewer, cards.map(normalizeConversationCard))
 }
 
 export function saveConversationCards(viewer: 'elder' | 'family', cards: ConversationCard[]) {
-  writeEnvelope(getCardsKey(viewer), filterCardsForViewer(viewer, cards))
+  writeEnvelope(getCardsKey(viewer), filterCardsForViewer(viewer, cards.map(normalizeConversationCard)))
 }
 
 export function getCachedConversationDetail(conversationId: string) {
-  return readEnvelope<ConversationDetail>(getDetailKey(conversationId))?.data ?? null
+  const detail = readEnvelope<ConversationDetail>(getDetailKey(conversationId))?.data ?? null
+  return detail ? normalizeConversationDetail(detail) : null
 }
 
 export function saveConversationDetail(detail: ConversationDetail) {
-  writeEnvelope(getDetailKey(detail.id), detail)
+  writeEnvelope(getDetailKey(detail.id), normalizeConversationDetail(detail))
 }
 
 export function patchCachedConversationCard(viewer: 'elder' | 'family', nextDetail: ConversationDetail) {
-  const cards = getCachedConversationCards(viewer)
-  const latestMessage = nextDetail.messages.at(-1) ?? null
+  const normalizedDetail = normalizeConversationDetail(nextDetail)
+  const cards = getCachedConversationCards(viewer).map(normalizeConversationCard)
+  const latestMessage = normalizedDetail.messages.at(-1) ?? null
+  const currentMemberId = getOnboardingState().memberId || null
   const nextCards = cards.map((card) => {
-    if (card.id !== nextDetail.id) return card
-    return {
+    if (card.id !== normalizedDetail.id) return card
+    return normalizeConversationCard({
       ...card,
+      name: normalizedDetail.name,
       lastActivityAt: latestMessage?.createdAt ?? card.lastActivityAt,
+      participants: normalizedDetail.participants,
+      participantCount: normalizedDetail.participantCount,
+      isGroup: normalizedDetail.isGroup,
+      groupName: normalizedDetail.groupName,
       primaryMessage: latestMessage
         ? {
             id: latestMessage.id,
             type: normalizeMessageType(latestMessage.messageType),
-            preview: latestMessage.textContent ?? latestMessage.transcript ?? card.primaryMessage?.preview ?? '',
+            preview: buildCardPreview(latestMessage, normalizedDetail),
             mediaLabel: latestMessage.mediaUrl ?? null,
           }
         : card.primaryMessage,
-      unreadCount: viewer === 'family'
-        ? nextDetail.messages.filter((message) => message.senderType === 'Elder' && !message.consumedAt && !message.recalledAt).length
-        : nextDetail.messages.filter((message) => message.senderType === 'Family' && !message.consumedAt && !message.recalledAt).length,
-    }
+      unreadCount: countUnreadMessages(viewer, normalizedDetail, currentMemberId),
+    })
   })
 
   saveConversationCards(viewer, nextCards)
@@ -106,4 +181,27 @@ function normalizeMessageType(messageType: string): 'text' | 'image' | 'voice' |
   if (normalized === 'voice') return 'voice'
   if (normalized === 'video') return 'video'
   return 'text'
+}
+
+function buildCardPreview(message: ConversationDetail['messages'][number], detail: ConversationDetail) {
+  const preview = message.textContent ?? message.transcript ?? ''
+  if (detail.isGroup && message.senderDisplayName) {
+    return `${message.senderDisplayName}: ${preview || '新消息'}`
+  }
+
+  return preview
+}
+
+function countUnreadMessages(viewer: 'elder' | 'family', detail: ConversationDetail, currentMemberId: string | null) {
+  return detail.messages.filter((message) => {
+    if (message.consumedAt || message.recalledAt || message.senderType === 'System') {
+      return false
+    }
+
+    if (currentMemberId) {
+      return message.senderMemberId !== currentMemberId
+    }
+
+    return viewer === 'family' ? message.senderType === 'Elder' : message.senderType === 'Family'
+  }).length
 }

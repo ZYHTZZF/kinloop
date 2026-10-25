@@ -38,6 +38,7 @@ import * as chatApi from '../../services/api/chatApi'
 import VoiceCall from '../../components/chat/VoiceCall'
 import VideoCall from '../../components/chat/VideoCall'
 import { useVideoCallEmotionSummary } from '../../utils/hooks/useVideoCallEmotionSummary'
+import { getOnboardingState } from '../../app/onboardingStorage'
 
 const STATIC_EMOJIS = ['😀', '😁', '😂', '😃', '😉', '😏', '😝', '🙂', '😊', '😶', '😨', '👍', '🙏', '❤️', '🎉']
 
@@ -116,8 +117,10 @@ export function ElderConversationPage() {
     }
   }
 
-  const currentUserId = conversation?.elderMemberId ?? null
-  const otherUserId = conversation?.familyMemberId ?? null
+  const currentMemberId = getOnboardingState().memberId || null
+  const currentUserId = conversation?.elderMemberId ?? currentMemberId
+  const isGroupConversation = conversation?.isGroup === true
+  const otherUserId = isGroupConversation ? null : conversation?.familyMemberId ?? null
   const isAiAssistantConversation = conversation?.conversationType === 'AI_ASSISTANT'
   const { finishSummary: finishVideoEmotionSummary } = useVideoCallEmotionSummary({
     enabled: isCallActive && callState === 'connected' && callType === 'video',
@@ -188,7 +191,7 @@ export function ElderConversationPage() {
     try {
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Elder',
-        senderMemberId: conversation.elderMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Text',
         textContent: type === 'video' ? '发起了视频通话' : '发起了语音通话',
         aiDrafted: false,
@@ -205,7 +208,7 @@ export function ElderConversationPage() {
     try {
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'System',
-        senderMemberId: conversation.memberId,
+        senderMemberId: currentUserId,
         messageType: 'Text',
         textContent: content,
         aiDrafted: false,
@@ -218,7 +221,7 @@ export function ElderConversationPage() {
   }
 
   useEffect(() => {
-    if (!conversation || !currentUserId || !otherUserId) {
+    if (!conversation || !currentUserId) {
       return
     }
 
@@ -232,6 +235,18 @@ export function ElderConversationPage() {
       }
     }
     void initWS()
+
+    chatApi.setConversationUpdateHandler(async (payload) => {
+      if (payload.conversationId !== conversation.id) return
+      await syncConversation()
+    })
+
+    if (!otherUserId) {
+      return () => {
+        chatApi.setConversationUpdateHandler(null)
+        chatApi.setWebrtcSignalHandler(null)
+      }
+    }
 
     webrtcManager.setSignalingClient(async (signal) => {
       chatApi.sendWebrtcSignal({ ...signal, to: otherUserId, from: currentUserId })
@@ -277,11 +292,6 @@ export function ElderConversationPage() {
         setRemoteCallStream(null)
         setTimeout(() => setCallState('idle'), 500)
       }
-    })
-
-    chatApi.setConversationUpdateHandler(async (payload) => {
-      if (payload.conversationId !== conversation.id) return
-      await syncConversation()
     })
 
     const unsubscribeConnected = webrtcManager.on('connection-state-changed', (data) => {
@@ -522,7 +532,7 @@ export function ElderConversationPage() {
 
   const messages = conversation?.messages ?? []
   const unreadCount = messages.filter((message) => (
-    message.senderType === 'Family'
+    isIncomingMessageForMember(message, currentUserId)
     && !message.consumedAt
     && !message.recalledAt
   )).length
@@ -555,13 +565,13 @@ export function ElderConversationPage() {
           <Link className="family-chat-header__back" to="/elder/inbox" aria-label="返回聊天列表">
             {'<'}
           </Link>
-          <h2>{conversation?.name ?? '家人'}</h2>
+          <h2>{getConversationHeaderTitle(conversation)}</h2>
           <div className="family-chat-header__spacer" aria-hidden="true" />
         </div>
 
         {isCallActive && callType === 'voice' && (
           <VoiceCall
-            remoteUser={{ id: otherUserId ?? '', name: conversation?.name || '家人', avatar: conversation?.avatar }}
+            remoteUser={{ id: otherUserId ?? '', name: getRemoteConversationName(conversation), avatar: conversation?.avatar }}
             callState={callState}
             duration={callDuration}
             isIncoming={isIncomingCall}
@@ -578,7 +588,7 @@ export function ElderConversationPage() {
 
         {isCallActive && callType === 'video' && (
           <VideoCall
-            remoteUser={{ id: otherUserId ?? '', name: conversation?.name || '家人', avatar: conversation?.avatar }}
+            remoteUser={{ id: otherUserId ?? '', name: getRemoteConversationName(conversation), avatar: conversation?.avatar }}
             remoteStream={remoteCallStream}
             localStream={localCallStream}
             callState={callState}
@@ -618,7 +628,10 @@ export function ElderConversationPage() {
                 ? (displayMessage.textContent ?? displayMessage.transcript ?? '语音消息')
                 : null
             const explainImageUrl = displayMessage.messageType === 'Image' ? displayMessage.mediaUrl ?? null : null
-            const isIncomingMessage = displayMessage.senderType === 'Family'
+            const isMine = isAiAssistantConversation
+              ? displayMessage.senderType === 'Elder'
+              : isOwnMessage(displayMessage, currentUserId)
+            const isIncomingMessage = !isMine && displayMessage.senderType !== 'System'
             const canExplain = Boolean((messageText || explainImageUrl) && isIncomingMessage)
             const bridgeState = generationBridgeByMessageId[displayMessage.id]
             const isBridgeOpen = bridgeState?.isOpen ?? false
@@ -628,13 +641,13 @@ export function ElderConversationPage() {
             return (
             <div
               key={displayMessage.id}
-              className={`message-thread message-thread--${displayMessage.senderType === 'Elder' ? 'self' : 'peer'}${isActionLog ? ' message-thread--ai-log' : ''}`}
+              className={`message-thread message-thread--${isMine ? 'self' : 'peer'}${isActionLog ? ' message-thread--ai-log' : ''}`}
             >
               <article
-                className={`message-bubble message-bubble--${isActionLog ? 'ai-log' : displayMessage.senderType === 'Elder' ? 'elder' : 'family'}${isActionLog && aiLogKind ? ` message-bubble--ai-log-${aiLogKind}` : ''}`}
+                className={`message-bubble message-bubble--${isActionLog ? 'ai-log' : isMine ? 'elder' : 'family'}${isActionLog && aiLogKind ? ` message-bubble--ai-log-${aiLogKind}` : ''}`}
               >
                 <span className="message-bubble__sender">
-                  {getSenderLabel(displayMessage, conversation?.name ?? '家人', isAiAssistantConversation)}
+                  {getSenderLabel(displayMessage, getRemoteConversationName(conversation), currentUserId, isAiAssistantConversation)}
                   {isActionLog && aiLogKind ? (
                     <span className={`status-pill status-pill--ai-log status-pill--ai-log-${aiLogKind}`}>
                       {getAiLogKindLabel(aiLogKind)}
@@ -689,7 +702,7 @@ export function ElderConversationPage() {
                 ) : null}
                 <footer className="message-bubble__footer">
                   <span>{formatClock(displayMessage.createdAt)}</span>
-                  {displayMessage.senderType === 'Family' ? (
+                  {isIncomingMessage ? (
                     <button
                       className="text-action"
                       type="button"
@@ -704,21 +717,21 @@ export function ElderConversationPage() {
               </article>
               {canExplain ? (
                 <button
-                  className="message-bridge-trigger message-bridge-trigger--outside"
+                  className="message-bridge-trigger message-bridge-trigger--below"
                   type="button"
                   disabled={explainLoading}
                   onClick={() => void handleExplainMessage(displayMessage)}
-                  title="看不懂这句话？点这里让AI解释"
-                  aria-label="代沟翻译"
+                  title="看不懂这句话？点这里让 AI 解释"
+                  aria-label="查看这条消息的 AI 解释"
                 >
                   ?
                 </button>
               ) : null}
-              <MessageAuxArea message={displayMessage} isMine={displayMessage.senderType === 'Elder'} />
+              <MessageAuxArea message={displayMessage} isMine={isMine} />
               {canExplain && isBridgeOpen ? (
                 <div className="message-bridge-card">
                   <div className="message-bridge-card__header">
-                    <span className="surface-card__eyebrow">AI解释</span>
+                    <span className="surface-card__eyebrow">AI 解释</span>
                     <button
                       type="button"
                       className="message-bridge-close"
@@ -732,22 +745,26 @@ export function ElderConversationPage() {
                   {explainError ? <p className="state-note state-note--error">{explainError}</p> : null}
                   {explainResult ? (
                     <>
-                      <p><strong>1. 这句话的意思：</strong>{explainResult.explanation}</p>
-                      <p className="message-bridge-followup">
-                        <strong>2. 建议回复：</strong>
-                        {explainResult.followUpSuggestion ?? '我懂了，你再说详细一点。'}
-                        <button
-                          type="button"
-                          className="ghost-action"
-                          style={{ marginLeft: '10px' }}
-                          onClick={() => handleApplyBridgeSuggestion(explainResult.followUpSuggestion)}
-                        >
-                          自动输入
-                        </button>
-                      </p>
+                      <p><strong>这句话的意思：</strong>{explainResult.explanation}</p>
                       {explainResult.hasMeme && explainResult.memeExplanation ? (
-                        <p className="message-bridge-followup"><strong>3. 这句话里的梗：</strong>{explainResult.memeExplanation}</p>
+                        <p className="message-bridge-followup">
+                          <strong>这句话里的梗：</strong>
+                          {explainResult.memeExplanation}
+                        </p>
                       ) : null}
+                      <p className="message-bridge-followup">
+                        <strong>建议回复：</strong>
+                        {explainResult.followUpSuggestion ?? '我懂了，你再说详细一点。'}
+                        {explainResult.followUpSuggestion ? (
+                          <button
+                            type="button"
+                            className="ghost-action message-bridge-card__reply-action"
+                            onClick={() => handleApplyBridgeSuggestion(explainResult.followUpSuggestion)}
+                          >
+                            自动填入
+                          </button>
+                        ) : null}
+                      </p>
                     </>
                   ) : null}
                 </div>
@@ -893,28 +910,32 @@ export function ElderConversationPage() {
                 >
                   {markingRead ? '处理中...' : '一键已读'}
                 </button>
-                <button
-                  className="ghost-action attachment-menu__button"
-                  type="button"
-                  disabled={sending || isRecordingVoice}
-                  onClick={() => {
-                    setShowAttachmentOptions(false)
-                    void handleInitiateVoiceCall()
-                  }}
-                >
-                  语音通话
-                </button>
-                <button
-                  className="ghost-action attachment-menu__button"
-                  type="button"
-                  disabled={sending || isRecordingVoice}
-                  onClick={() => {
-                    setShowAttachmentOptions(false)
-                    void handleInitiateVideoCall()
-                  }}
-                >
-                  视频通话
-                </button>
+                {!isGroupConversation ? (
+                  <button
+                    className="ghost-action attachment-menu__button"
+                    type="button"
+                    disabled={sending || isRecordingVoice}
+                    onClick={() => {
+                      setShowAttachmentOptions(false)
+                      void handleInitiateVoiceCall()
+                    }}
+                  >
+                    语音通话
+                  </button>
+                ) : null}
+                {!isGroupConversation ? (
+                  <button
+                    className="ghost-action attachment-menu__button"
+                    type="button"
+                    disabled={sending || isRecordingVoice}
+                    onClick={() => {
+                      setShowAttachmentOptions(false)
+                      void handleInitiateVideoCall()
+                    }}
+                  >
+                    视频通话
+                  </button>
+                ) : null}
               </div>
             ) : null}
             {isDraggingImage ? <p className="composer-drop-tip">松手后直接发送图片或视频</p> : null}
@@ -978,7 +999,7 @@ export function ElderConversationPage() {
       setSending(true)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Elder',
-        senderMemberId: conversation.elderMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Text',
         textContent: draftText.trim(),
         aiDrafted: true,
@@ -1043,7 +1064,7 @@ export function ElderConversationPage() {
       const mediaUrl = await readVoiceBlobAsDataUrl(blob)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Elder',
-        senderMemberId: conversation.elderMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Voice',
         textContent: null,
         mediaUrl,
@@ -1077,7 +1098,7 @@ export function ElderConversationPage() {
       const mediaUrl = await readFileAsDataUrl(imageFile)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Elder',
-        senderMemberId: conversation.elderMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Image',
         textContent: null,
         mediaUrl,
@@ -1109,7 +1130,7 @@ export function ElderConversationPage() {
       const mediaUrl = await readFileAsDataUrl(videoFile)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Elder',
-        senderMemberId: conversation.elderMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Video',
         textContent: null,
         mediaUrl,
@@ -1190,7 +1211,7 @@ export function ElderConversationPage() {
         sourceMsgId: message.id,
         addedByMemberId: currentUserId ?? conversation.elderMemberId,
         memoryType: toMemoryType(message.messageType),
-        title: buildFamilyMemoryTitle(conversation.name, message),
+        title: buildFamilyMemoryTitle(message.senderDisplayName ?? getRemoteConversationName(conversation), message),
         description: message.textContent ?? message.transcript ?? 'A meaningful message',
         mediaUrl: message.mediaUrl,
       })
@@ -1279,7 +1300,7 @@ export function ElderConversationPage() {
         imageUrl: imageUrl || undefined,
         requesterRole: 'elder',
         requesterName: conversation?.elderDisplayName || '长辈',
-        peerName: conversation?.name || '家人',
+        peerName: message.senderDisplayName || getRemoteConversationName(conversation),
       })
       setGenerationBridgeByMessageId((prev) => ({
         ...prev,
@@ -1453,16 +1474,25 @@ function isCallEndedPayload(data: unknown): data is { duration?: number } {
   return typeof data === 'object' && data !== null
 }
 
-function getSenderLabel(message: Message, familyName: string, isAiAssistantConversation?: boolean) {
+function getSenderLabel(
+  message: Message,
+  familyName: string,
+  currentMemberId: string | null,
+  isAiAssistantConversation?: boolean,
+) {
   if (isAiAssistantConversation && message.senderType === 'System') {
     return '语音助手'
   }
 
-  if (message.senderType === 'Family') {
-    return familyName
+  if ((isAiAssistantConversation && message.senderType === 'Elder') || isOwnMessage(message, currentMemberId)) {
+    return '我'
   }
 
-  return 'Me'
+  if (message.senderType === 'System') {
+    return message.senderDisplayName ?? '系统'
+  }
+
+  return message.senderDisplayName ?? familyName
 }
 
 function normalizeMessageForAiAssistant(message: Message, isAiAssistantConversation: boolean): Message | null {
@@ -1498,6 +1528,67 @@ function normalizeMessageForAiAssistant(message: Message, isAiAssistantConversat
   }
 
   return message
+}
+
+function getConversationHeaderTitle(conversation: ConversationDetail | null) {
+  if (!conversation) {
+    return '家人'
+  }
+
+  if (conversation.isGroup) {
+    return `${conversation.groupName ?? conversation.name} · ${getConversationParticipantCount(conversation)}人`
+  }
+
+  return conversation.name || '家人'
+}
+
+function getRemoteConversationName(conversation: ConversationDetail | null) {
+  if (!conversation) {
+    return '家人'
+  }
+
+  if (conversation.isGroup) {
+    return conversation.groupName ?? conversation.name
+  }
+
+  return conversation.name || '家人'
+}
+
+function getConversationParticipantCount(conversation: ConversationDetail) {
+  if ((conversation.participantCount ?? 0) > 0) {
+    return conversation.participantCount ?? 0
+  }
+
+  if ((conversation.participants?.length ?? 0) > 0) {
+    return conversation.participants?.length ?? 0
+  }
+
+  const participantIds = new Set<string>()
+  if (conversation.elderMemberId) {
+    participantIds.add(conversation.elderMemberId)
+  }
+  if (conversation.familyMemberId) {
+    participantIds.add(conversation.familyMemberId)
+  }
+  for (const message of conversation.messages) {
+    if (message.senderMemberId) {
+      participantIds.add(message.senderMemberId)
+    }
+  }
+
+  return participantIds.size
+}
+
+function isOwnMessage(message: Message, currentMemberId: string | null) {
+  return Boolean(currentMemberId && message.senderMemberId === currentMemberId)
+}
+
+function isIncomingMessageForMember(message: Message, currentMemberId: string | null) {
+  if (message.senderType === 'System') {
+    return false
+  }
+
+  return !isOwnMessage(message, currentMemberId)
 }
 
 type AiLogKind = 'user' | 'understand' | 'clarify' | 'execute' | 'result'

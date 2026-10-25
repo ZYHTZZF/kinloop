@@ -118,8 +118,10 @@ export function FamilyConversationPage() {
     }
   }
 
-  const currentUserId = conversation?.familyMemberId ?? null
-  const otherUserId = conversation?.elderMemberId ?? null
+  const currentMemberId = getOnboardingState().memberId || null
+  const currentUserId = resolveFamilyViewerMemberId(conversation, currentMemberId)
+  const isGroupConversation = conversation?.isGroup === true
+  const otherUserId = isGroupConversation ? null : conversation?.elderMemberId ?? null
   const { finishSummary: finishVideoEmotionSummary } = useVideoCallEmotionSummary({
     enabled: isCallActive && callState === 'connected' && callType === 'video',
     conversationId: conversation?.id ?? null,
@@ -153,7 +155,7 @@ export function FamilyConversationPage() {
     try {
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Family',
-        senderMemberId: conversation.familyMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Text',
         textContent: type === 'video' ? '发起了视频通话' : '发起了语音通话',
         aiDrafted: false,
@@ -170,7 +172,7 @@ export function FamilyConversationPage() {
     try {
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'System',
-        senderMemberId: conversation.familyMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Text',
         textContent: content,
         aiDrafted: false,
@@ -183,7 +185,7 @@ export function FamilyConversationPage() {
   }
 
   useEffect(() => {
-    if (!conversation || !currentUserId || !otherUserId) {
+    if (!conversation || !currentUserId) {
       return
     }
 
@@ -197,6 +199,18 @@ export function FamilyConversationPage() {
       }
     }
     void initWS()
+
+    chatApi.setConversationUpdateHandler(async (payload) => {
+      if (payload.conversationId !== conversation.id) return
+      await syncConversation()
+    })
+
+    if (!otherUserId) {
+      return () => {
+        chatApi.setConversationUpdateHandler(null)
+        chatApi.setWebrtcSignalHandler(null)
+      }
+    }
 
     webrtcManager.setSignalingClient(async (signal) => {
       chatApi.sendWebrtcSignal({ ...signal, to: otherUserId, from: currentUserId })
@@ -242,11 +256,6 @@ export function FamilyConversationPage() {
         setRemoteCallStream(null)
         setTimeout(() => setCallState('idle'), 500)
       }
-    })
-
-    chatApi.setConversationUpdateHandler(async (payload) => {
-      if (payload.conversationId !== conversation.id) return
-      await syncConversation()
     })
 
     const unsubscribeConnected = webrtcManager.on('connection-state-changed', (data) => {
@@ -452,7 +461,7 @@ export function FamilyConversationPage() {
   const messages = conversation?.messages ?? []
   const requestedMessageId = searchParams.get('messageId')
   const unreadCount = messages.filter((message) => (
-    message.senderType === 'Elder'
+    isIncomingMessageForMember(message, currentUserId)
     && !message.consumedAt
     && !message.recalledAt
   )).length
@@ -550,13 +559,13 @@ export function FamilyConversationPage() {
           <Link className="family-chat-header__back" to="/family/chats" aria-label="返回聊天列表">
             <span aria-hidden="true">‹</span>
           </Link>
-          <h2>{conversation?.elderDisplayName ?? '家人'}</h2>
+          <h2>{getConversationHeaderTitle(conversation)}</h2>
           <div className="family-chat-header__spacer" aria-hidden="true" />
         </div>
 
         {isCallActive && callType === 'voice' && (
           <VoiceCall
-            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || '家人', avatar: conversation?.avatar }}
+            remoteUser={{ id: otherUserId ?? '', name: getRemoteConversationName(conversation), avatar: conversation?.avatar }}
             callState={callState}
             duration={callDuration}
             isIncoming={isIncomingCall}
@@ -573,7 +582,7 @@ export function FamilyConversationPage() {
 
         {isCallActive && callType === 'video' && (
           <VideoCall
-            remoteUser={{ id: otherUserId ?? '', name: conversation?.elderDisplayName || '家人', avatar: conversation?.avatar }}
+            remoteUser={{ id: otherUserId ?? '', name: getRemoteConversationName(conversation), avatar: conversation?.avatar }}
             remoteStream={remoteCallStream}
             localStream={localCallStream}
             callState={callState}
@@ -608,7 +617,8 @@ export function FamilyConversationPage() {
                 ? (message.textContent ?? message.transcript ?? '语音消息')
                 : null
             const explainImageUrl = message.messageType === 'Image' ? message.mediaUrl ?? null : null
-            const isIncomingMessage = message.senderType === 'Elder'
+            const isMine = isOwnMessage(message, currentUserId)
+            const isIncomingMessage = !isMine && message.senderType !== 'System'
             const canExplain = Boolean((messageText || explainImageUrl) && isIncomingMessage)
             const bridgeState = generationBridgeByMessageId[message.id]
             const isBridgeOpen = bridgeState?.isOpen ?? false
@@ -626,12 +636,12 @@ export function FamilyConversationPage() {
                     messageElementMapRef.current.delete(message.id)
                   }
                 }}
-                className={`message-thread message-thread--${message.senderType === 'Family' ? 'self' : 'peer'}`}
+                className={`message-thread message-thread--${isMine ? 'self' : 'peer'}`}
               >
                 <article
-                  className={`message-bubble message-bubble--${message.senderType === 'Family' ? 'self' : 'peer'}${focusedMessageId === message.id ? ' message-bubble--focused' : ''}`}
+                  className={`message-bubble message-bubble--${isMine ? 'self' : 'peer'}${focusedMessageId === message.id ? ' message-bubble--focused' : ''}`}
                 >
-                  <span className="message-bubble__sender">{getSenderLabel(message, conversation)}</span>
+                  <span className="message-bubble__sender">{getSenderLabel(message, conversation, currentUserId)}</span>
                   {message.messageType === 'Image' ? (
                     <div className="message-media">
                       {message.mediaUrl ? (
@@ -691,6 +701,59 @@ export function FamilyConversationPage() {
                     {message.aiDrafted ? <span className="status-pill">已帮你整理</span> : null}
                   </footer>
                 </article>
+                {canExplain ? (
+                  <button
+                    className="message-bridge-trigger message-bridge-trigger--below"
+                    type="button"
+                    disabled={explainLoading}
+                    onClick={() => void handleExplainMessage(message)}
+                    title="看不懂这句话？点这里让 AI 解释"
+                    aria-label="查看这条消息的 AI 解释"
+                  >
+                    ?
+                  </button>
+                ) : null}
+                {canExplain && isBridgeOpen ? (
+                  <div className="message-bridge-card">
+                    <div className="message-bridge-card__header">
+                      <span className="surface-card__eyebrow">AI 解释</span>
+                      <button
+                        type="button"
+                        className="message-bridge-close"
+                        onClick={() => handleCloseExplainMessage(message.id)}
+                        aria-label="收起解释"
+                      >
+                        收起
+                      </button>
+                    </div>
+                    {explainLoading ? <p>AI 正在解释这句话...</p> : null}
+                    {explainError ? <p className="state-note state-note--error">{explainError}</p> : null}
+                    {explainResult ? (
+                      <>
+                        <p><strong>这句话的意思：</strong>{explainResult.explanation}</p>
+                        {explainResult.hasMeme && explainResult.memeExplanation ? (
+                          <p className="message-bridge-followup">
+                            <strong>这句话里的梗：</strong>
+                            {explainResult.memeExplanation}
+                          </p>
+                        ) : null}
+                        <p className="message-bridge-followup">
+                          <strong>建议回复：</strong>
+                          {explainResult.followUpSuggestion ?? '我明白了，你可以再跟我多说一点。'}
+                          {explainResult.followUpSuggestion ? (
+                            <button
+                              type="button"
+                              className="ghost-action message-bridge-card__reply-action"
+                              onClick={() => handleApplyBridgeSuggestion(explainResult.followUpSuggestion)}
+                            >
+                              自动填入
+                            </button>
+                          ) : null}
+                        </p>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
                 {focusedMessageHintId === message.id ? (
                   <div className="message-focus-hint">已定位到相关消息</div>
                 ) : null}
@@ -842,28 +905,32 @@ export function FamilyConversationPage() {
               >
                 未读摘要
               </button>
-              <button
-                className="ghost-action attachment-menu__button"
-                type="button"
-                disabled={sending || isRecordingVoice}
-                onClick={() => {
-                  setShowAttachmentOptions(false)
-                  void handleInitiateVoiceCall()
-                }}
-              >
-                语音通话
-              </button>
-              <button
-                className="ghost-action attachment-menu__button"
-                type="button"
-                disabled={sending || isRecordingVoice}
-                onClick={() => {
-                  setShowAttachmentOptions(false)
-                  void handleInitiateVideoCall()
-                }}
-              >
-                视频通话
-              </button>
+              {!isGroupConversation ? (
+                <button
+                  className="ghost-action attachment-menu__button"
+                  type="button"
+                  disabled={sending || isRecordingVoice}
+                  onClick={() => {
+                    setShowAttachmentOptions(false)
+                    void handleInitiateVoiceCall()
+                  }}
+                >
+                  语音通话
+                </button>
+              ) : null}
+              {!isGroupConversation ? (
+                <button
+                  className="ghost-action attachment-menu__button"
+                  type="button"
+                  disabled={sending || isRecordingVoice}
+                  onClick={() => {
+                    setShowAttachmentOptions(false)
+                    void handleInitiateVideoCall()
+                  }}
+                >
+                  视频通话
+                </button>
+              ) : null}
             </div>
           ) : null}
           <div className="inline-actions">
@@ -910,7 +977,7 @@ export function FamilyConversationPage() {
       setSending(true)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Family',
-        senderMemberId: conversation.familyMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Text',
         textContent: nextText,
         aiDrafted: false,
@@ -976,7 +1043,7 @@ export function FamilyConversationPage() {
       const mediaUrl = await readVoiceBlobAsDataUrl(blob)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Family',
-        senderMemberId: conversation.familyMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Voice',
         textContent: null,
         mediaUrl,
@@ -1010,7 +1077,7 @@ export function FamilyConversationPage() {
       const mediaUrl = await readFileAsDataUrl(imageFile)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Family',
-        senderMemberId: conversation.familyMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Image',
         textContent: null,
         mediaUrl,
@@ -1049,7 +1116,7 @@ export function FamilyConversationPage() {
       const mediaUrl = await readFileAsDataUrl(videoFile)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Family',
-        senderMemberId: conversation.familyMemberId,
+        senderMemberId: currentUserId,
         messageType: 'Video',
         textContent: null,
         mediaUrl,
@@ -1123,7 +1190,7 @@ export function FamilyConversationPage() {
         sourceMsgId: message.id,
         addedByMemberId: currentUserId ?? conversation.familyMemberId,
         memoryType: toMemoryType(message.messageType),
-        title: buildMemoryTitle(conversation.elderDisplayName, message),
+        title: buildMemoryTitle(message.senderDisplayName ?? getRemoteConversationName(conversation), message),
         description: buildMemoryDescription(message),
         mediaUrl: message.mediaUrl,
       })
@@ -1181,7 +1248,7 @@ export function FamilyConversationPage() {
         imageUrl: imageUrl || undefined,
         requesterRole: 'family',
         requesterName: conversation?.familyDisplayName || '家人',
-        peerName: conversation?.elderDisplayName || '长辈',
+        peerName: message.senderDisplayName || getRemoteConversationName(conversation),
       })
       setGenerationBridgeByMessageId((prev) => ({
         ...prev,
@@ -1424,12 +1491,16 @@ function isCallEndedPayload(data: unknown): data is { duration?: number } {
   return typeof data === 'object' && data !== null
 }
 
-function getSenderLabel(message: Message, conversation: ConversationDetail | null) {
-  if (message.senderType === 'Family') {
-    return conversation?.familyDisplayName ?? '我'
+function getSenderLabel(message: Message, conversation: ConversationDetail | null, currentMemberId: string | null) {
+  if (isOwnMessage(message, currentMemberId)) {
+    return '我'
   }
 
-  return conversation?.elderDisplayName ?? '长辈'
+  if (message.senderType === 'System') {
+    return message.senderDisplayName ?? '系统'
+  }
+
+  return message.senderDisplayName ?? getRemoteConversationName(conversation)
 }
 
 function isLowInformation(input: string) {
@@ -1466,16 +1537,16 @@ function toMemoryType(messageType: string) {
   return 'Text'
 }
 
-function buildMemoryTitle(elderName: string, message: Message) {
+function buildMemoryTitle(senderName: string, message: Message) {
   if (message.messageType === 'Image') {
-    return `${elderName} image message`
+    return `${senderName} image message`
   }
 
   if (message.messageType === 'Voice') {
-    return `${elderName} voice message`
+    return `${senderName} voice message`
   }
 
-  return `${elderName} text message`
+  return `${senderName} text message`
 }
 
 function buildMemoryDescription(message: Message) {
@@ -1495,7 +1566,84 @@ function readAuthorizedCachedConversation(conversationId: string) {
   }
 
   const currentMemberId = getOnboardingState().memberId
+  if (cachedConversation.isGroup) {
+    if (!currentMemberId || currentMemberId === cachedConversation.elderMemberId) {
+      return null
+    }
+
+    return (cachedConversation.participants ?? []).some((participant) => participant.id === currentMemberId) ? cachedConversation : null
+  }
+
   return cachedConversation.familyMemberId === currentMemberId ? cachedConversation : null
+}
+
+function getConversationHeaderTitle(conversation: ConversationDetail | null) {
+  if (!conversation) {
+    return '家人'
+  }
+
+  if (conversation.isGroup) {
+    return `${conversation.groupName ?? conversation.name} · ${getConversationParticipantCount(conversation)}人`
+  }
+
+  return conversation.elderDisplayName || conversation.name
+}
+
+function getRemoteConversationName(conversation: ConversationDetail | null) {
+  if (!conversation) {
+    return '家人'
+  }
+
+  if (conversation.isGroup) {
+    return conversation.groupName ?? conversation.name
+  }
+
+  return conversation.elderDisplayName || conversation.name || '家人'
+}
+
+function resolveFamilyViewerMemberId(conversation: ConversationDetail | null, currentMemberId: string | null) {
+  if (conversation?.elderMemberId && currentMemberId === conversation.elderMemberId) {
+    return conversation.familyMemberId ?? null
+  }
+
+  return currentMemberId ?? conversation?.familyMemberId ?? null
+}
+
+function getConversationParticipantCount(conversation: ConversationDetail) {
+  if ((conversation.participantCount ?? 0) > 0) {
+    return conversation.participantCount ?? 0
+  }
+
+  if ((conversation.participants?.length ?? 0) > 0) {
+    return conversation.participants?.length ?? 0
+  }
+
+  const participantIds = new Set<string>()
+  if (conversation.elderMemberId) {
+    participantIds.add(conversation.elderMemberId)
+  }
+  if (conversation.familyMemberId) {
+    participantIds.add(conversation.familyMemberId)
+  }
+  for (const message of conversation.messages) {
+    if (message.senderMemberId) {
+      participantIds.add(message.senderMemberId)
+    }
+  }
+
+  return participantIds.size
+}
+
+function isOwnMessage(message: Message, currentMemberId: string | null) {
+  return Boolean(currentMemberId && message.senderMemberId === currentMemberId)
+}
+
+function isIncomingMessageForMember(message: Message, currentMemberId: string | null) {
+  if (message.senderType === 'System') {
+    return false
+  }
+
+  return !isOwnMessage(message, currentMemberId)
 }
 
 function getEmotionSourceLabel(source: string | null | undefined) {
