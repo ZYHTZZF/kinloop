@@ -28,7 +28,7 @@ export function FamilyChatsPage() {
         }
       } catch {
         if (!cancelled) {
-          setError('聊天列表暂时没有更新出来，请稍后再试。')
+          setError('聊天列表暂时没有刷新出来，请稍后再试。')
         }
       } finally {
         if (!cancelled) {
@@ -66,7 +66,7 @@ export function FamilyChatsPage() {
               <div className="list-row__main">
                 <span className="avatar-badge">{getContactInitial(card)}</span>
                 <div>
-                  <strong>{card.elderDisplayName}</strong>
+                  <strong>{getConversationDisplayName(card)}</strong>
                   <p>{card.primaryMessage?.preview ?? '暂时还没有新内容'}</p>
                 </div>
               </div>
@@ -83,6 +83,10 @@ export function FamilyChatsPage() {
 }
 
 function getContactInitial(card: ConversationCard) {
-  const displayName = card.elderDisplayName || card.avatar || ''
-  return displayName.trim().charAt(0) || '亲'
+  const displayName = getConversationDisplayName(card) || card.avatar || ''
+  return displayName.trim().charAt(0) || '家'
+}
+
+function getConversationDisplayName(card: ConversationCard) {
+  return card.isGroup ? (card.groupName ?? card.name) : card.elderDisplayName
 }

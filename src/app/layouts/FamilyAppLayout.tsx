@@ -7,6 +7,7 @@ import { clearOnboardingState, getOnboardingState } from '../onboardingStorage'
 const familyNavItems = [
   { to: '/family/today', label: '今日' },
   { to: '/family/chats', label: '聊天' },
+  { to: '/family/hearts', label: '心语' },
   { to: '/family/memories', label: '回忆' },
   { to: '/family/collaboration', label: '协作' },
 ]
@@ -20,10 +21,11 @@ export function FamilyAppLayout() {
   const showBottomNav = [
     '/family/today',
     '/family/chats',
+    '/family/hearts',
     '/family/memories',
     '/family/collaboration',
   ].includes(location.pathname)
-  const [weatherLabel, setWeatherLabel] = useState('天气加载中')
+  const [weatherLabel, setWeatherLabel] = useState('天气加载中...')
   const [temperatureLabel, setTemperatureLabel] = useState('--°C')
 
   useEffect(() => {

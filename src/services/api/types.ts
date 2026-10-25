@@ -56,12 +56,21 @@ export type Member = {
   status: string
 }
 
+export type ConversationParticipant = {
+  id: string
+  role: string
+  displayName: string
+  relationLabel: string | null
+  elderAlias: string | null
+  avatar: string
+}
+
 export type ConversationCard = {
   id: string
-  conversationType: 'FAMILY_CHAT' | 'AI_ASSISTANT'
-  memberId: string
-  familyMemberId: string
-  elderMemberId: string
+  conversationType: 'FAMILY_CHAT' | 'AI_ASSISTANT' | 'FAMILY_GROUP'
+  memberId: string | null
+  familyMemberId: string | null
+  elderMemberId: string | null
   name: string
   familyDisplayName: string
   elderDisplayName: string
@@ -75,6 +84,10 @@ export type ConversationCard = {
     preview: string
     mediaLabel: string | null
   } | null
+  participants?: ConversationParticipant[]
+  participantCount?: number
+  isGroup?: boolean
+  groupName?: string | null
 }
 
 export type Message = {
@@ -82,6 +95,8 @@ export type Message = {
   conversationId: string
   senderType: string
   senderMemberId: string | null
+  senderDisplayName?: string | null
+  senderRole?: string | null
   messageType: string
   textContent: string | null
   mediaUrl: string | null
@@ -108,14 +123,18 @@ export type Message = {
 
 export type ConversationDetail = {
   id: string
-  conversationType: 'FAMILY_CHAT' | 'AI_ASSISTANT'
-  memberId: string
-  familyMemberId: string
-  elderMemberId: string
+  conversationType: 'FAMILY_CHAT' | 'AI_ASSISTANT' | 'FAMILY_GROUP'
+  memberId: string | null
+  familyMemberId: string | null
+  elderMemberId: string | null
   name: string
   familyDisplayName: string
   elderDisplayName: string
   avatar: string
+  participants?: ConversationParticipant[]
+  participantCount?: number
+  isGroup?: boolean
+  groupName?: string | null
   messages: Message[]
 }
 
@@ -132,6 +151,36 @@ export type MemoryEntry = {
   mediaUrl: string | null
   status: string
   visibleScope: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type HeartPostComment = {
+  id: string
+  heartPostId: string
+  authorMemberId: string
+  authorDisplayName: string
+  authorRole: string
+  authorRelationLabel: string | null
+  content: string
+  status: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type HeartPost = {
+  id: string
+  familySpaceId: string
+  authorMemberId: string
+  authorDisplayName: string
+  authorRole: string
+  authorRelationLabel: string | null
+  content: string
+  imageUrl: string | null
+  status: string
+  likeCount: number
+  likedByViewer: boolean
+  comments: HeartPostComment[]
   createdAt: number
   updatedAt: number
 }

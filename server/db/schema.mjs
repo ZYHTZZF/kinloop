@@ -63,6 +63,13 @@ export const schemaSql = `
     created_at integer not null
   );
 
+  create table if not exists conversation_participants (
+    id text primary key,
+    conversation_id text not null,
+    member_id text not null,
+    joined_at integer not null
+  );
+
   create table if not exists messages (
     id text primary key,
     conversation_id text not null,
@@ -83,6 +90,14 @@ export const schemaSql = `
     recalled_at integer
   );
 
+  create table if not exists message_receipts (
+    id text primary key,
+    message_id text not null,
+    member_id text not null,
+    consumed_at integer,
+    created_at integer not null
+  );
+
   create table if not exists memory_entries (
     id text primary key,
     family_space_id text not null,
@@ -96,6 +111,34 @@ export const schemaSql = `
     media_url text,
     status text not null,
     visible_scope text not null,
+    created_at integer not null,
+    updated_at integer not null
+  );
+
+  create table if not exists heart_posts (
+    id text primary key,
+    family_space_id text not null,
+    author_member_id text not null,
+    content text,
+    image_url text,
+    status text not null,
+    created_at integer not null,
+    updated_at integer not null
+  );
+
+  create table if not exists heart_post_likes (
+    id text primary key,
+    heart_post_id text not null,
+    member_id text not null,
+    created_at integer not null
+  );
+
+  create table if not exists heart_post_comments (
+    id text primary key,
+    heart_post_id text not null,
+    member_id text not null,
+    content text not null,
+    status text not null,
     created_at integer not null,
     updated_at integer not null
   );
@@ -184,6 +227,7 @@ export function initializeSchema(db) {
     'alter table family_spaces add column created_by_user_id text',
     'alter table members add column user_id text',
     'alter table members add column relation_label text',
+    'alter table heart_posts add column image_url text',
   ]) {
     try {
       db.exec(statement)
@@ -198,6 +242,13 @@ export function initializeSchema(db) {
     'create index if not exists idx_members_user_id on members(user_id)',
     'create index if not exists idx_auth_codes_email_purpose on auth_codes(email, purpose)',
     'create index if not exists idx_auth_sessions_user_id on auth_sessions(user_id)',
+    'create unique index if not exists idx_conversation_participants_unique on conversation_participants(conversation_id, member_id)',
+    'create index if not exists idx_conversation_participants_member_id on conversation_participants(member_id)',
+    'create unique index if not exists idx_message_receipts_unique on message_receipts(message_id, member_id)',
+    'create index if not exists idx_message_receipts_member_id on message_receipts(member_id, consumed_at)',
+    'create index if not exists idx_heart_posts_family_space_id on heart_posts(family_space_id, created_at desc)',
+    'create unique index if not exists idx_heart_post_likes_post_member on heart_post_likes(heart_post_id, member_id)',
+    'create index if not exists idx_heart_post_comments_post_id on heart_post_comments(heart_post_id, created_at asc)',
   ]) {
     db.exec(statement)
   }
