@@ -21,10 +21,7 @@ import {
 } from '../../platform/localWakeWord'
 import { ensureMicrophoneCapturePermission, ensureSpeechRecognitionPermission } from '../../platform/permissions'
 import {
-  getSpeechRecognitionSupportStatus,
-  isSpeechRecognitionSupported,
   startRecordedSpeechRecognition,
-  startSpeechRecognition,
   type SpeechSession,
 } from '../../platform/speech'
 
@@ -38,17 +35,24 @@ const examplePrompts = [
 type AssistantStage = 'idle' | 'recording' | 'transcribing' | 'classifying' | 'result' | 'acting'
 const AUTO_EXECUTE_CONFIDENCE = 0.78
 const WAKE_WORD = '小智小智'
-const SECONDARY_WAKE_WORD = '小智同学'
+const SECONDARY_WAKE_WORD = '阿智'
 const WAKE_WORD_ALIASES = [
   '小智小智',
   '小智同学',
   '小智',
+  '喂小智',
+  '阿智阿智',
+  '阿智',
+  '喂阿智',
   '小知同学',
   '小知小知',
   '小知',
+  '喂小知',
   '小志同学',
   '小志小志',
   '小志',
+  '阿知',
+  '阿志',
   '晓智同学',
   '晓智晓智',
   '晓智',
@@ -59,12 +63,15 @@ const WAKE_WORD_KEYWORD_SPEC = [
   'x iǎo zh ì x iǎo zh ì @小智小智',
   'x iǎo zh ì t óng x ué @小智同学',
   'x iǎo zh ì @小智',
+  'ā zh ì @阿智',
   'x iǎo zh ī t óng x ué @小知同学',
   'x iǎo zh ī x iǎo zh ī @小知小知',
   'x iǎo zh ī @小知',
+  'ā zh ī @阿知',
   'x iǎo zh ì t óng x ué @小志同学',
   'x iǎo zh ì x iǎo zh ì @小志小志',
   'x iǎo zh ì @小志',
+  'ā zh ì @阿志',
   'x iǎo zh ì t óng x ué @晓智同学',
   'x iǎo zh ì x iǎo zh ì @晓智晓智',
   'x iǎo zh ì @晓智',
@@ -652,7 +659,7 @@ export function ElderVoiceAssistant() {
 
     try {
       wakeWordSessionRef.current = await startRecordedSpeechRecognition({
-        language: 'zh-CN',
+        language: 'zh-HK',
         onFinalResult: (text) => {
           latestWakeTranscript = text.trim()
           if (containsWakeWord(latestWakeTranscript)) {
@@ -761,22 +768,9 @@ export function ElderVoiceAssistant() {
   async function startRecording() {
     let startupErrorMessage = ''
 
-    if (!Capacitor.isNativePlatform()) {
-      const supportStatus = await getSpeechRecognitionSupportStatus()
-
-      if (!supportStatus.supported) {
-        setError(resolveSpeechRecognitionError(supportStatus.reason))
-        return false
-      }
-    }
-
     try {
-      const startSession = Capacitor.isNativePlatform()
-        ? startRecordedSpeechRecognition
-        : startSpeechRecognition
-
-      speechSessionRef.current = await startSession({
-        language: 'zh-CN',
+      speechSessionRef.current = await startRecordedSpeechRecognition({
+        language: 'zh-HK',
         autoStopAfterSilenceMs: 2200,
         maxRecordingMs: 12000,
         onPartialResult: (text) => {
@@ -822,7 +816,7 @@ export function ElderVoiceAssistant() {
         return false
       }
 
-      setAssistantNotice(Capacitor.isNativePlatform() ? '已经开始录音，说完后我会自动继续。' : '已经准备好了，你可以直接说。说完后我会自动继续。')
+      setAssistantNotice('已經準備好，你可以直接講。講完之後我會自動繼續。')
       setError('')
       return true
     } catch (recordError) {
@@ -934,7 +928,7 @@ export function ElderVoiceAssistant() {
     }
     window.speechSynthesis.cancel()
     const utterance = new SpeechSynthesisUtterance(content)
-    utterance.lang = 'zh-CN'
+    utterance.lang = 'zh-HK'
     utterance.rate = 1
     utterance.onerror = () => {
       setAssistantNotice('已经收到，但这台设备暂时没能把语音播出来。')
@@ -998,7 +992,7 @@ function resolveSheetTitle(stage: AssistantStage, result: ElderVoiceIntentResult
   if (stage === 'transcribing') return '看看这句话对不对'
   if (stage === 'classifying') return '我在帮你判断该走哪条路'
   if (stage === 'acting') return '我在帮你把事情接下去'
-  return result?.promptTitle ?? `说“${WAKE_WORD}”或“${SECONDARY_WAKE_WORD}”，我会出来听你说话`
+  return result?.promptTitle ?? `講「${WAKE_WORD}」或「${SECONDARY_WAKE_WORD}」，我會出嚟聽你講嘢`
 }
 
 function showConfirmAction(result: ElderVoiceIntentResult, stage: AssistantStage) {

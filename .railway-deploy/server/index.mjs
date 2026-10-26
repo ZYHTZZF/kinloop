@@ -1,5 +1,7 @@
 import express from 'express'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
+import { resolve } from 'node:path'
 import { API_HOST, API_PORT, AUTH_DEV_EXPOSE_CODES, DB_PATH, UPLOADS_DIR } from './config.mjs'
 import { WebSocketServer } from 'ws'
 import { getDatabase } from './db/index.mjs'
@@ -7,6 +9,12 @@ import { acknowledgeAlert, createAlert, listActiveAlerts, resolveAlert } from '.
 import { createMessage, getConversationDetail, listConversationCards, markConversationUnreadAsRead } from './repositories/conversationRepository.mjs'
 import { getFamilySpaceById } from './repositories/familySpaceRepository.mjs'
 import { createFollowup, listFollowups } from './repositories/followupRepository.mjs'
+import {
+  createHeartPost,
+  createHeartPostComment,
+  listHeartPosts,
+  toggleHeartPostLike,
+} from './repositories/heartPostRepository.mjs'
 import { approveInviteCode, listInviteCodes } from './repositories/inviteRepository.mjs'
 import { listMembers } from './repositories/memberRepository.mjs'
 import { createMemoryEntry, listMemories } from './repositories/memoryRepository.mjs'
@@ -44,6 +52,7 @@ import {
   resetUserPassword,
 } from './repositories/authRepository.mjs'
 import { sendAuthCodeEmail } from './services/auth/emailService.mjs'
+import { generateAiCompanionReply } from './services/aiCompanion/chatService.mjs'
 
 getDatabase()
 
@@ -56,6 +65,13 @@ app.use('/uploads', express.static(UPLOADS_DIR))
 const server = createServer(app)
 const wss = new WebSocketServer({ server })
 const realtimeClients = new Map()
+const HEART_POST_IMAGE_MAX_SIZE = 8 * 1024 * 1024
+const HEART_POST_IMAGE_EXTENSIONS = {
+  'image/gif': 'gif',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
 
 function sendJson(ws, payload) {
   if (ws.readyState === 1) {
@@ -66,7 +82,10 @@ function sendJson(ws, payload) {
 function notifyConversationMembers(conversation, payload) {
   if (!conversation) return
 
-  const targets = [conversation.familyMemberId, conversation.elderMemberId].filter(Boolean)
+  const targets = Array.isArray(conversation.participants) && conversation.participants.length > 0
+    ? conversation.participants.map((participant) => participant.id).filter(Boolean)
+    : [conversation.familyMemberId, conversation.elderMemberId].filter(Boolean)
+
   for (const memberId of targets) {
     const client = realtimeClients.get(memberId)
     if (client) {
@@ -114,6 +133,46 @@ function getViewerContext(request) {
   return {
     role: getViewerRole(request),
     memberId: request.auth?.membership?.memberId ?? null,
+  }
+}
+
+function parseHeartPostImageDataUrl(dataUrl) {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(`${dataUrl ?? ''}`.trim())
+  if (!match) {
+    throw new Error('请选择一张有效的图片。')
+  }
+
+  const mimeType = match[1].toLowerCase()
+  const extension = HEART_POST_IMAGE_EXTENSIONS[mimeType]
+  if (!extension) {
+    throw new Error('目前只支持 JPG、PNG、WEBP 或 GIF 图片。')
+  }
+
+  const buffer = Buffer.from(match[2], 'base64')
+  if (!buffer.length) {
+    throw new Error('图片读取失败，请重新选择。')
+  }
+
+  if (buffer.length > HEART_POST_IMAGE_MAX_SIZE) {
+    throw new Error('图片不能超过 8MB。')
+  }
+
+  return { buffer, extension }
+}
+
+function saveHeartPostImageUpload(dataUrl, request) {
+  const { buffer, extension } = parseHeartPostImageDataUrl(dataUrl)
+  const targetDir = resolve(UPLOADS_DIR, 'heart-posts')
+  const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`
+
+  mkdirSync(targetDir, { recursive: true })
+  writeFileSync(resolve(targetDir, fileName), buffer)
+
+  const protocol = request.protocol || 'http'
+  const host = request.get('host') || `127.0.0.1:${API_PORT}`
+
+  return {
+    imageUrl: `${protocol}://${host}/uploads/heart-posts/${fileName}`,
   }
 }
 
@@ -477,6 +536,67 @@ app.get('/api/members', (request, response) => {
   response.json(listMembers(getFamilySpaceIdFromRequest(request)))
 })
 
+app.get('/api/heart-posts', (request, response) => {
+  response.json(listHeartPosts(
+    getFamilySpaceIdFromRequest(request),
+    request.auth.membership.memberId,
+  ))
+})
+
+app.post('/api/heart-posts/upload-image', (request, response) => {
+  try {
+    response.status(201).json(saveHeartPostImageUpload(request.body?.dataUrl, request))
+  } catch (error) {
+    response.status(400).json({
+      error: error instanceof Error ? error.message : '上传图片失败',
+    })
+  }
+})
+
+app.post('/api/heart-posts', (request, response) => {
+  try {
+    response.status(201).json(createHeartPost(
+      request.body,
+      getFamilySpaceIdFromRequest(request),
+      request.auth.membership.memberId,
+      request.auth.membership.memberId,
+    ))
+  } catch (error) {
+    response.status(400).json({
+      error: error instanceof Error ? error.message : '发布心语失败',
+    })
+  }
+})
+
+app.post('/api/heart-posts/:postId/likes/toggle', (request, response) => {
+  try {
+    response.json(toggleHeartPostLike(
+      request.params.postId,
+      getFamilySpaceIdFromRequest(request),
+      request.auth.membership.memberId,
+    ))
+  } catch (error) {
+    response.status(400).json({
+      error: error instanceof Error ? error.message : '点赞失败',
+    })
+  }
+})
+
+app.post('/api/heart-posts/:postId/comments', (request, response) => {
+  try {
+    response.status(201).json(createHeartPostComment(
+      request.params.postId,
+      request.body,
+      getFamilySpaceIdFromRequest(request),
+      request.auth.membership.memberId,
+    ))
+  } catch (error) {
+    response.status(400).json({
+      error: error instanceof Error ? error.message : '评论失败',
+    })
+  }
+})
+
 app.get('/api/conversations/cards', (request, response) => {
   const requestedViewer = request.query?.viewer === 'elder' ? 'elder' : request.query?.viewer === 'family' ? 'family' : getViewerRole(request)
   const viewer = getViewerRole(request) === 'elder' ? 'elder' : requestedViewer === 'family' ? 'family' : 'family'
@@ -517,10 +637,15 @@ app.patch('/api/conversations/:conversationId/read-all', (request, response) => 
     return
   }
 
-  response.json(markConversationUnreadAsRead(request.params.conversationId, getFamilySpaceIdFromRequest(request), viewer))
+  response.json(markConversationUnreadAsRead(
+    request.params.conversationId,
+    getFamilySpaceIdFromRequest(request),
+    viewer,
+    request.auth.membership.memberId,
+  ))
 })
 
-app.post('/api/conversations/:conversationId/messages', (request, response) => {
+app.post('/api/conversations/:conversationId/messages', async (request, response) => {
   const conversation = getConversationDetail(
     request.params.conversationId,
     getFamilySpaceIdFromRequest(request),
@@ -533,14 +658,41 @@ app.post('/api/conversations/:conversationId/messages', (request, response) => {
     return
   }
 
-  const nextConversation = createMessage(request.params.conversationId, getFamilySpaceIdFromRequest(request), request.body)
+  const isAiAssistantConversation = conversation.conversationType === 'AI_ASSISTANT'
+  const nextConversation = createMessage(
+    request.params.conversationId,
+    getFamilySpaceIdFromRequest(request),
+    request.body,
+    getViewerRole(request),
+    request.auth.membership.memberId,
+  )
   const createdMessage = nextConversation.messages.at(-1) ?? null
-  response.status(201).json(nextConversation)
-  notifyConversationMembers(nextConversation, {
+  let responseConversation = nextConversation
+
+  if (isAiAssistantConversation && createdMessage?.senderType === 'Elder') {
+    const aiReply = await generateAiCompanionReply(nextConversation)
+    responseConversation = createMessage(
+      request.params.conversationId,
+      getFamilySpaceIdFromRequest(request),
+      {
+        senderType: 'System',
+        senderMemberId: nextConversation.familyMemberId,
+        messageType: 'Text',
+        textContent: aiReply,
+        aiDrafted: false,
+        isLowInformation: false,
+      },
+      getViewerRole(request),
+      request.auth.membership.memberId,
+    )
+  }
+
+  response.status(201).json(responseConversation)
+  notifyConversationMembers(responseConversation, {
     type: 'conversation-updated',
     data: {
-      conversationId: nextConversation.id,
-      conversation: nextConversation,
+      conversationId: responseConversation.id,
+      conversation: responseConversation,
     },
     timestamp: Date.now(),
   })
@@ -657,14 +809,20 @@ app.post('/api/emotions/video-call-summary', (request, response) => {
   }
 
   const summaryResult = buildVideoCallEmotionSummary(payload)
-  const nextConversation = createMessage(payload.conversationId, getFamilySpaceIdFromRequest(request), {
-    senderType: 'System',
-    senderMemberId: null,
-    messageType: 'Text',
-    textContent: summaryResult.summary,
-    aiDrafted: false,
-    isLowInformation: false,
-  })
+  const nextConversation = createMessage(
+    payload.conversationId,
+    getFamilySpaceIdFromRequest(request),
+    {
+      senderType: 'System',
+      senderMemberId: null,
+      messageType: 'Text',
+      textContent: summaryResult.summary,
+      aiDrafted: false,
+      isLowInformation: false,
+    },
+    getViewerRole(request),
+    request.auth.membership.memberId,
+  )
   const createdMessage = nextConversation.messages.at(-1) ?? null
 
   notifyConversationMembers(nextConversation, {

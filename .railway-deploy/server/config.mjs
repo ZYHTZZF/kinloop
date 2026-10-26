@@ -30,12 +30,12 @@ export const TENCENT_TTS_SECRET_ID = process.env.KINLOOP_TENCENT_TTS_SECRET_ID ?
 export const TENCENT_TTS_SECRET_KEY = process.env.KINLOOP_TENCENT_TTS_SECRET_KEY ?? ''
 export const TENCENT_TTS_REGION = process.env.KINLOOP_TENCENT_TTS_REGION ?? 'ap-guangzhou'
 export const TENCENT_TTS_ENDPOINT = process.env.KINLOOP_TENCENT_TTS_ENDPOINT ?? 'tts.tencentcloudapi.com'
-export const TENCENT_TTS_VOICE_TYPE = Number(process.env.KINLOOP_TENCENT_TTS_VOICE_TYPE ?? 101001)
+export const TENCENT_TTS_VOICE_TYPE = Number(process.env.KINLOOP_TENCENT_TTS_VOICE_TYPE ?? 101019)
 export const TENCENT_ASR_SECRET_ID = process.env.KINLOOP_TENCENT_ASR_SECRET_ID ?? TENCENT_TTS_SECRET_ID
 export const TENCENT_ASR_SECRET_KEY = process.env.KINLOOP_TENCENT_ASR_SECRET_KEY ?? TENCENT_TTS_SECRET_KEY
 export const TENCENT_ASR_REGION = process.env.KINLOOP_TENCENT_ASR_REGION ?? TENCENT_TTS_REGION
 export const TENCENT_ASR_ENDPOINT = process.env.KINLOOP_TENCENT_ASR_ENDPOINT ?? 'asr.tencentcloudapi.com'
-export const TENCENT_ASR_ENGINE_MODEL_TYPE = process.env.KINLOOP_TENCENT_ASR_ENGINE_MODEL_TYPE ?? '16k_zh'
+export const TENCENT_ASR_ENGINE_MODEL_TYPE = process.env.KINLOOP_TENCENT_ASR_ENGINE_MODEL_TYPE ?? '16k_yue'
 
 // LLM intent parsing (OpenAI-compatible chat/completions endpoint)
 export const LLM_API_KEY = process.env.KINLOOP_LLM_API_KEY ?? process.env.KINLOOP_VOLCANO_API_KEY ?? ''

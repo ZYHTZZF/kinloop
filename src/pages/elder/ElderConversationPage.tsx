@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
@@ -12,6 +12,8 @@ import {
   getUnreadSummary,
   getWebSocketUrl,
   sendMessage,
+  synthesizeSpeech,
+  transcribeRecordedAudio,
 } from '../../services/api'
 import type { ConversationDetail, GenerationBridgeExplainResponse, Message, UnreadSummaryResponse } from '../../services/api'
 import type { ICallSignal } from '../../services/api/types'
@@ -109,6 +111,9 @@ export function ElderConversationPage() {
   const draftInputRef = useRef<HTMLInputElement | null>(null)
   const voiceSessionRef = useRef<VoiceRecordingSession | null>(null)
   const voiceTimerRef = useRef<number>(0)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioObjectUrlRef = useRef<string | null>(null)
+  const lastSpokenAiMessageIdRef = useRef<string | null>(null)
 
   const clearVoiceTimer = () => {
     if (voiceTimerRef.current) {
@@ -130,17 +135,64 @@ export function ElderConversationPage() {
     shouldSubmit: isCallerRef.current,
   })
 
-  const speakActionNotice = (text: string) => {
+  const speakActionNotice = useCallback((text: string) => {
     if (typeof window === 'undefined') return
     if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return
     const content = text.trim()
     if (!content) return
     window.speechSynthesis.cancel()
     const utterance = new SpeechSynthesisUtterance(content)
-    utterance.lang = 'zh-CN'
+    utterance.lang = 'zh-HK'
     utterance.rate = 1
     window.speechSynthesis.speak(utterance)
-  }
+  }, [])
+
+  const speakWithRemoteTtsFallback = useCallback(async (text: string) => {
+    const content = text.trim()
+    if (!content || typeof window === 'undefined') return
+
+    try {
+      const result = await synthesizeSpeech(content)
+      const audio = audioRef.current ?? new Audio()
+      const audioUrl = base64AudioToObjectUrl(result.audioBase64, result.mimeType)
+
+      if (audioObjectUrlRef.current) {
+        URL.revokeObjectURL(audioObjectUrlRef.current)
+      }
+
+      audioObjectUrlRef.current = audioUrl
+      audio.pause()
+      audio.src = audioUrl
+      audio.preload = 'auto'
+      audio.setAttribute('playsinline', 'true')
+      audioRef.current = audio
+      await audio.play()
+      return
+    } catch (ttsError) {
+      console.warn('[AI Conversation] remote TTS fallback to system speech:', ttsError)
+    }
+
+    speakActionNotice(content)
+  }, [speakActionNotice])
+
+  const speakLatestAiReply = useCallback((nextConversation: ConversationDetail) => {
+    if (nextConversation.conversationType !== 'AI_ASSISTANT') return
+
+    const latestReply = [...nextConversation.messages]
+      .reverse()
+      .find((message) => message.senderType === 'System' && (message.textContent ?? '').trim())
+
+    if (!latestReply || latestReply.id === lastSpokenAiMessageIdRef.current) {
+      return
+    }
+
+    lastSpokenAiMessageIdRef.current = latestReply.id
+    const displayMessage = normalizeMessageForAiAssistant(latestReply, true)
+    const replyText = (displayMessage?.textContent ?? latestReply.textContent ?? '').trim()
+    if (replyText) {
+      void speakWithRemoteTtsFallback(replyText)
+    }
+  }, [speakWithRemoteTtsFallback])
 
   const speakGenerationBridge = (
     explanation: string,
@@ -356,7 +408,11 @@ export function ElderConversationPage() {
         setConversation(nextConversation)
         const sentText = draftText.trim()
         setDraftText('')
-        speakActionNotice(`已打开${conversation.name}的聊天页面，并发送：${sentText}`)
+        if (isAiAssistantConversation) {
+          speakLatestAiReply(nextConversation)
+        } else {
+          speakActionNotice(`已打开${conversation.name}的聊天页面，并发送：${sentText}`)
+        }
         setError('')
       } catch (submitError) {
         autoSendOnceRef.current = false
@@ -365,7 +421,7 @@ export function ElderConversationPage() {
         setSending(false)
       }
     })()
-  }, [autoSendMessage, conversation, draftText])
+  }, [autoSendMessage, conversation, draftText, isAiAssistantConversation, speakActionNotice, speakLatestAiReply])
 
   useEffect(() => {
     let cancelled = false
@@ -554,6 +610,14 @@ export function ElderConversationPage() {
 
       if (voiceSessionRef.current) {
         cancelVoiceRecording(voiceSessionRef.current)
+      }
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+      }
+      if (audioObjectUrlRef.current) {
+        URL.revokeObjectURL(audioObjectUrlRef.current)
+        audioObjectUrlRef.current = null
       }
     }
   }, [])
@@ -774,7 +838,7 @@ export function ElderConversationPage() {
           })}
         </div>
 
-        {conversation && !isAiAssistantConversation ? (
+        {conversation ? (
           <form
             className={`composer-card ${isDraggingImage ? 'composer-card--dragging' : ''}`}
             onSubmit={handleSubmitReply}
@@ -790,16 +854,18 @@ export function ElderConversationPage() {
                 value={draftText}
                 onChange={(event) => setDraftText(event.target.value)}
               />
-              <button
-                className="ghost-action composer-plus-button"
-                type="button"
-                onClick={() => setShowAttachmentOptions((prev) => !prev)}
-                disabled={sending || isRecordingVoice}
-                aria-label="选择附件"
-                title="发送图片或视频"
-              >
-                +
-              </button>
+              {!isAiAssistantConversation ? (
+                <button
+                  className="ghost-action composer-plus-button"
+                  type="button"
+                  onClick={() => setShowAttachmentOptions((prev) => !prev)}
+                  disabled={sending || isRecordingVoice}
+                  aria-label="选择附件"
+                  title="发送图片或视频"
+                >
+                  +
+                </button>
+              ) : null}
             </div>
             <input
               ref={imageInputRef}
@@ -815,7 +881,7 @@ export function ElderConversationPage() {
               style={{ display: 'none' }}
               onChange={handleSelectVideo}
             />
-            {unreadSummaryState.isOpen ? (
+            {unreadSummaryState.isOpen && !isAiAssistantConversation ? (
               <div className="unread-summary-overlay" role="dialog" aria-modal="true" aria-label="未读消息摘要">
                 <section className="unread-summary-dialog">
                   <div className="unread-summary-dialog__header">
@@ -867,7 +933,7 @@ export function ElderConversationPage() {
                 </section>
               </div>
             ) : null}
-            {showAttachmentOptions ? (
+            {showAttachmentOptions && !isAiAssistantConversation ? (
               <div className="attachment-menu">
                 <button
                   className="ghost-action attachment-menu__button"
@@ -938,7 +1004,7 @@ export function ElderConversationPage() {
                 ) : null}
               </div>
             ) : null}
-            {isDraggingImage ? <p className="composer-drop-tip">松手后直接发送图片或视频</p> : null}
+            {isDraggingImage && !isAiAssistantConversation ? <p className="composer-drop-tip">松手后直接发送图片或视频</p> : null}
             {showEmojiPanel ? (
               <div className="family-chat-emoji-panel">
                 {STATIC_EMOJIS.map((emoji) => (
@@ -957,14 +1023,16 @@ export function ElderConversationPage() {
               <button className="ghost-action family-chat-composer__emoji" type="button" onClick={() => setShowEmojiPanel((prev) => !prev)}>
                 {'\u{1F600}'}
               </button>
-              <button
-                className="ghost-action"
-                type="button"
-                disabled={savingAiMemory || !draftText.trim()}
-                onClick={() => void handleAddAiMemory()}
-              >
-                  {savingAiMemory ? '保存中...' : '加入回忆'}
-              </button>
+              {!isAiAssistantConversation ? (
+                <button
+                  className="ghost-action"
+                  type="button"
+                  disabled={savingAiMemory || !draftText.trim()}
+                  onClick={() => void handleAddAiMemory()}
+                >
+                    {savingAiMemory ? '保存中...' : '加入回忆'}
+                </button>
+              ) : null}
               <button className="primary-action" type="submit" disabled={sending || isRecordingVoice || !draftText.trim()}>
                 {sending ? '发送中...' : '发送'}
               </button>
@@ -978,11 +1046,6 @@ export function ElderConversationPage() {
               </button>
             </div>
           </form>
-        ) : conversation ? (
-          <section className="state-note">
-            <strong>语音助手对话</strong>
-            <p>请使用底部语音按钮继续说话，我会帮你把过程记下来。</p>
-          </section>
         ) : null}
       </section>
     </section>
@@ -1006,13 +1069,17 @@ export function ElderConversationPage() {
         isLowInformation: isLowInformation(draftText),
       })
       setConversation(nextConversation)
-        const sentText = draftText.trim()
-        setDraftText('')
-        if (draftInputRef.current) {
-          draftInputRef.current.value = ''
-        }
+      const sentText = draftText.trim()
+      setDraftText('')
+      if (draftInputRef.current) {
+        draftInputRef.current.value = ''
+      }
+      if (isAiAssistantConversation) {
+        speakLatestAiReply(nextConversation)
+      } else {
         speakActionNotice(`已发送给${conversation.name}：${sentText}`)
-        setError('')
+      }
+      setError('')
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '这条消息暂时没有发出去，请稍后再试。')
     } finally {
@@ -1061,6 +1128,12 @@ export function ElderConversationPage() {
       setSending(true)
       setError('')
       const { blob, durationMs } = await stopVoiceRecording(session)
+      const transcript = isAiAssistantConversation
+        ? (await transcribeRecordedAudio(blob)).text.trim()
+        : null
+      if (isAiAssistantConversation && !transcript) {
+        throw new Error('刚才没有识别到清晰内容，请再说一次。')
+      }
       const mediaUrl = await readVoiceBlobAsDataUrl(blob)
       const nextConversation = await sendMessage(conversation.id, {
         senderType: 'Elder',
@@ -1069,12 +1142,15 @@ export function ElderConversationPage() {
         textContent: null,
         mediaUrl,
         voiceDurationSec: Math.max(1, Math.round(durationMs / 1000)),
-        transcript: null,
+        transcript,
         transcriptConfidence: null,
         aiDrafted: false,
         isLowInformation: false,
       })
       setConversation(nextConversation)
+      if (isAiAssistantConversation) {
+        speakLatestAiReply(nextConversation)
+      }
     } catch (recordError) {
       setError(recordError instanceof Error ? recordError.message : '发送语音失败')
     } finally {
@@ -1622,4 +1698,16 @@ function buildFamilyMemoryTitle(familyName: string, message: Message) {
   }
 
   return `${familyName} 发来的话`
+}
+
+function base64AudioToObjectUrl(base64Data: string, mimeType: string) {
+  const binary = window.atob(base64Data)
+  const bytes = new Uint8Array(binary.length)
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+
+  const blob = new Blob([bytes], { type: mimeType })
+  return URL.createObjectURL(blob)
 }

@@ -52,6 +52,7 @@ import {
   resetUserPassword,
 } from './repositories/authRepository.mjs'
 import { sendAuthCodeEmail } from './services/auth/emailService.mjs'
+import { generateAiCompanionReply } from './services/aiCompanion/chatService.mjs'
 
 getDatabase()
 
@@ -644,7 +645,7 @@ app.patch('/api/conversations/:conversationId/read-all', (request, response) => 
   ))
 })
 
-app.post('/api/conversations/:conversationId/messages', (request, response) => {
+app.post('/api/conversations/:conversationId/messages', async (request, response) => {
   const conversation = getConversationDetail(
     request.params.conversationId,
     getFamilySpaceIdFromRequest(request),
@@ -657,6 +658,7 @@ app.post('/api/conversations/:conversationId/messages', (request, response) => {
     return
   }
 
+  const isAiAssistantConversation = conversation.conversationType === 'AI_ASSISTANT'
   const nextConversation = createMessage(
     request.params.conversationId,
     getFamilySpaceIdFromRequest(request),
@@ -665,12 +667,32 @@ app.post('/api/conversations/:conversationId/messages', (request, response) => {
     request.auth.membership.memberId,
   )
   const createdMessage = nextConversation.messages.at(-1) ?? null
-  response.status(201).json(nextConversation)
-  notifyConversationMembers(nextConversation, {
+  let responseConversation = nextConversation
+
+  if (isAiAssistantConversation && createdMessage?.senderType === 'Elder') {
+    const aiReply = await generateAiCompanionReply(nextConversation)
+    responseConversation = createMessage(
+      request.params.conversationId,
+      getFamilySpaceIdFromRequest(request),
+      {
+        senderType: 'System',
+        senderMemberId: nextConversation.familyMemberId,
+        messageType: 'Text',
+        textContent: aiReply,
+        aiDrafted: false,
+        isLowInformation: false,
+      },
+      getViewerRole(request),
+      request.auth.membership.memberId,
+    )
+  }
+
+  response.status(201).json(responseConversation)
+  notifyConversationMembers(responseConversation, {
     type: 'conversation-updated',
     data: {
-      conversationId: nextConversation.id,
-      conversation: nextConversation,
+      conversationId: responseConversation.id,
+      conversation: responseConversation,
     },
     timestamp: Date.now(),
   })
