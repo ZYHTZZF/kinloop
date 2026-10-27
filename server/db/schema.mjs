@@ -115,6 +115,24 @@ export const schemaSql = `
     updated_at integer not null
   );
 
+  create table if not exists memory_items (
+    id text primary key,
+    memory_entry_id text not null,
+    source_conv_id text,
+    source_msg_id text,
+    sender_member_id text,
+    sender_display_name text,
+    sender_role text,
+    message_type text not null,
+    text_content text,
+    transcript text,
+    media_url text,
+    voice_duration_sec integer,
+    sent_at integer,
+    sort_order integer not null,
+    created_at integer not null
+  );
+
   create table if not exists heart_posts (
     id text primary key,
     family_space_id text not null,
@@ -249,6 +267,7 @@ export function initializeSchema(db) {
     'create index if not exists idx_heart_posts_family_space_id on heart_posts(family_space_id, created_at desc)',
     'create unique index if not exists idx_heart_post_likes_post_member on heart_post_likes(heart_post_id, member_id)',
     'create index if not exists idx_heart_post_comments_post_id on heart_post_comments(heart_post_id, created_at asc)',
+    'create index if not exists idx_memory_items_entry_id on memory_items(memory_entry_id, sort_order asc)',
   ]) {
     db.exec(statement)
   }

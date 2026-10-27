@@ -17,7 +17,7 @@ import {
 } from './repositories/heartPostRepository.mjs'
 import { approveInviteCode, listInviteCodes } from './repositories/inviteRepository.mjs'
 import { listMembers } from './repositories/memberRepository.mjs'
-import { createMemoryEntry, listMemories } from './repositories/memoryRepository.mjs'
+import { createMemoryEntry, listMemories, removeMemoryEntry } from './repositories/memoryRepository.mjs'
 import { listPermissionPolicies } from './repositories/permissionPolicyRepository.mjs'
 import { getTodayEmotionSummary, listPulseHistory, listTodayPulses } from './repositories/pulseRepository.mjs'
 import {
@@ -737,6 +737,16 @@ app.get('/api/memories', (request, response) => {
 
 app.post('/api/memories', (request, response) => {
   response.status(201).json(createMemoryEntry(request.body, getFamilySpaceIdFromRequest(request)))
+})
+
+app.delete('/api/memories/:memoryId', (request, response) => {
+  const removed = removeMemoryEntry(request.params.memoryId, getFamilySpaceIdFromRequest(request))
+  if (!removed) {
+    response.status(404).json({ error: 'Memory not found' })
+    return
+  }
+
+  response.status(204).end()
 })
 
 app.get('/api/pulses/today', (request, response) => {

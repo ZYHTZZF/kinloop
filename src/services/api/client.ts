@@ -1,4 +1,4 @@
-import { mockApiGet, mockApiPatch, mockApiPost } from './mockApi'
+import { mockApiDelete, mockApiGet, mockApiPatch, mockApiPost } from './mockApi'
 import { buildApiUrl } from '../../platform/apiConfig'
 import { getStoredAuthToken } from '../../app/onboardingStorage'
 
@@ -83,8 +83,21 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   }
 }
 
+export async function apiDelete<T>(path: string): Promise<T> {
+  try {
+    const response = await fetch(buildApiUrl(path), {
+      method: 'DELETE',
+      headers: createApiHeaders(),
+    })
+
+    return (await parseJson(response)) as T
+  } catch (error) {
+    return handleMockFallback('DELETE', path, error)
+  }
+}
+
 async function handleMockFallback<T>(
-  method: 'GET' | 'POST' | 'PATCH',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   error: unknown,
   body?: unknown,
@@ -99,6 +112,10 @@ async function handleMockFallback<T>(
 
   if (method === 'POST') {
     return mockApiPost<T>(path, body)
+  }
+
+  if (method === 'DELETE') {
+    return mockApiDelete<T>(path)
   }
 
   return mockApiPatch<T>(path, body)

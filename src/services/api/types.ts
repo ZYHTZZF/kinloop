@@ -153,6 +153,25 @@ export type MemoryEntry = {
   visibleScope: string
   createdAt: number
   updatedAt: number
+  items?: MemoryItem[]
+}
+
+export type MemoryItem = {
+  id: string
+  memoryEntryId: string
+  sourceConvId: string | null
+  sourceMsgId: string | null
+  senderMemberId: string | null
+  senderDisplayName: string | null
+  senderRole: string | null
+  messageType: string
+  textContent: string | null
+  transcript: string | null
+  mediaUrl: string | null
+  voiceDurationSec: number | null
+  sentAt: number | null
+  sortOrder: number
+  createdAt: number
 }
 
 export type HeartPostComment = {

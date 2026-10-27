@@ -2,6 +2,7 @@ import { LLM_API_KEY, LLM_BASE_URL, LLM_MODEL } from '../config.mjs'
 import { getConversationDetail } from '../repositories/conversationRepository.mjs'
 
 const REQUEST_TIMEOUT_MS = 60000
+const FAMILY_GROUP_NAME = '相亲相爱一家人'
 
 const TEXT = {
   missingConversationId: 'conversationId is required',
@@ -26,13 +27,19 @@ export function registerUnreadSummaryRoutes(app) {
         return
       }
 
-      const conversation = getConversationDetail(conversationId, req.auth?.membership?.familySpaceId ?? null)
+      const requesterMemberId = req.auth?.membership?.memberId ?? null
+      const conversation = getConversationDetail(
+        conversationId,
+        req.auth?.membership?.familySpaceId ?? null,
+        requesterRole,
+        requesterMemberId,
+      )
       if (!conversation) {
         res.status(404).json({ error: TEXT.conversationNotFound })
         return
       }
 
-      const unreadMessages = pickUnreadMessages(conversation.messages, requesterRole)
+      const unreadMessages = pickUnreadMessages(conversation.messages, requesterRole, requesterMemberId)
       if (unreadMessages.length === 0) {
         res.json(buildEmptyPayload())
         return
@@ -62,9 +69,11 @@ export function registerUnreadSummaryRoutes(app) {
 }
 
 async function summarizeWithLlm({ conversation, unreadMessages, requesterRole }) {
-  const speakerLabel = requesterRole === 'elder'
-    ? conversation.familyDisplayName
-    : conversation.elderDisplayName
+  const speakerLabel = conversation.isGroup
+    ? FAMILY_GROUP_NAME
+    : requesterRole === 'elder'
+      ? conversation.familyDisplayName
+      : conversation.elderDisplayName
 
   const systemPrompt = [
     '你是聊天未读消息摘要助手。',
@@ -82,7 +91,7 @@ async function summarizeWithLlm({ conversation, unreadMessages, requesterRole })
     `对方姓名：${speakerLabel}`,
     `未读消息数：${unreadMessages.length}`,
     '未读消息列表：',
-    unreadMessages.map((message, index) => formatPromptMessage(message, speakerLabel, index)).join('\n'),
+    unreadMessages.map((message, index) => formatPromptMessage(message, speakerLabel, index, conversation.isGroup)).join('\n'),
   ].join('\n')
 
   const payload = {
@@ -170,9 +179,11 @@ function buildFallbackPayload(conversation, unreadMessages, requesterRole) {
 }
 
 function buildFallbackSummary(conversation, unreadMessages, requesterRole) {
-  const speakerLabel = requesterRole === 'elder'
-    ? conversation.familyDisplayName
-    : conversation.elderDisplayName
+  const speakerLabel = conversation.isGroup
+    ? FAMILY_GROUP_NAME
+    : requesterRole === 'elder'
+      ? conversation.familyDisplayName
+      : conversation.elderDisplayName
   const textCount = unreadMessages.filter((message) => message.messageType === 'Text').length
   const voiceCount = unreadMessages.filter((message) => message.messageType === 'Voice').length
   const imageCount = unreadMessages.filter((message) => message.messageType === 'Image').length
@@ -195,19 +206,19 @@ function buildFallbackHighlight(message) {
   return content.length > 48 ? `${content.slice(0, 48)}...` : content
 }
 
-function pickUnreadMessages(messages, requesterRole) {
-  const peerSenderType = requesterRole === 'elder' ? 'Family' : 'Elder'
-
+function pickUnreadMessages(messages, requesterRole, requesterMemberId) {
   return messages.filter((message) => (
-    message.senderType === peerSenderType
+    message.senderType !== 'System'
+    && (requesterMemberId ? message.senderMemberId !== requesterMemberId : message.senderType === (requesterRole === 'elder' ? 'Family' : 'Elder'))
     && !message.consumedAt
     && !message.recalledAt
   ))
 }
 
-function formatPromptMessage(message, speakerLabel, index) {
+function formatPromptMessage(message, speakerLabel, index, isGroupConversation = false) {
   const dateLabel = formatTimestamp(message.createdAt)
-  return `${index + 1}. [${dateLabel}] ${speakerLabel}：${describeMessage(message)}`
+  const senderLabel = isGroupConversation ? (message.senderDisplayName || speakerLabel) : speakerLabel
+  return `${index + 1}. [${dateLabel}] ${senderLabel}：${describeMessage(message)}`
 }
 
 function describeMessage(message) {

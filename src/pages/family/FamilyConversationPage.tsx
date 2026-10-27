@@ -1,5 +1,5 @@
 ﻿import { useEffect, useRef, useState } from 'react'
-import type { ChangeEvent, DragEvent, FormEvent } from 'react'
+import type { ChangeEvent, DragEvent, FormEvent, MouseEvent, TouchEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import {
@@ -43,6 +43,23 @@ import { useVideoCallEmotionSummary } from '../../utils/hooks/useVideoCallEmotio
 import { getOnboardingState } from '../../app/onboardingStorage'
 
 const STATIC_EMOJIS = ['😀', '😁', '😂', '😃', '😉', '😏', '😝', '🙂', '😊', '😶', '😨', '👍', '🙏', '❤️', '🎉']
+const CHAT_MESSAGE_LINE_CHAR_LIMIT = 10
+
+function wrapChatMessageText(text: string, limit = CHAT_MESSAGE_LINE_CHAR_LIMIT) {
+  return text
+    .split('\n')
+    .map((line) => {
+      const chars = Array.from(line)
+      const chunks: string[] = []
+
+      for (let index = 0; index < chars.length; index += limit) {
+        chunks.push(chars.slice(index, index + limit).join(''))
+      }
+
+      return chunks.join('\n')
+    })
+    .join('\n')
+}
 
 type GenerationBridgeViewState = {
   isOpen: boolean
@@ -57,6 +74,12 @@ type UnreadSummaryViewState = {
   error: string | null
   result: UnreadSummaryResponse | null
 }
+
+type MessageActionMenuState = {
+  messageId: string
+  x: number
+  y: number
+} | null
 
 export function FamilyConversationPage() {
   const { conversationId, userId } = useParams()
@@ -83,6 +106,9 @@ export function FamilyConversationPage() {
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
   const [focusedMessageHintId, setFocusedMessageHintId] = useState<string | null>(null)
   const [markingRead, setMarkingRead] = useState(false)
+  const [messageActionMenu, setMessageActionMenu] = useState<MessageActionMenuState>(null)
+  const [isSelectingMemoryMessages, setIsSelectingMemoryMessages] = useState(false)
+  const [selectedMemoryMessageIds, setSelectedMemoryMessageIds] = useState<Set<string>>(() => new Set())
   const [unreadSummaryState, setUnreadSummaryState] = useState<UnreadSummaryViewState>({
     isOpen: false,
     loading: false,
@@ -108,6 +134,7 @@ export function FamilyConversationPage() {
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const voiceSessionRef = useRef<VoiceRecordingSession | null>(null)
   const voiceTimerRef = useRef<number>(0)
+  const longPressTimerRef = useRef<number>(0)
   const preSendRequestRef = useRef(0)
   const messageElementMapRef = useRef(new Map<string, HTMLDivElement>())
 
@@ -459,6 +486,12 @@ export function FamilyConversationPage() {
   }, [targetId])
 
   const messages = conversation?.messages ?? []
+  const messageActionTarget = messageActionMenu
+    ? messages.find((message) => message.id === messageActionMenu.messageId) ?? null
+    : null
+  const selectedMemoryMessages = messages
+    .filter((message) => selectedMemoryMessageIds.has(message.id) && canSelectMemoryMessage(message))
+    .sort((first, second) => first.createdAt - second.createdAt)
   const requestedMessageId = searchParams.get('messageId')
   const unreadCount = messages.filter((message) => (
     isIncomingMessageForMember(message, currentUserId)
@@ -524,6 +557,9 @@ export function FamilyConversationPage() {
       if (voiceSessionRef.current) {
         cancelVoiceRecording(voiceSessionRef.current)
       }
+      if (longPressTimerRef.current) {
+        window.clearTimeout(longPressTimerRef.current)
+      }
     }
   }, [])
 
@@ -551,6 +587,79 @@ export function FamilyConversationPage() {
 
     setPreSendSuggestion(null)
   }, [composerText, conversation, dismissedSuggestionKey, isRecordingVoice, messages])
+
+  function openMessageActionMenu(message: Message, x: number, y: number) {
+    if (message.recalledAt) {
+      return
+    }
+
+    setMessageActionMenu({
+      messageId: message.id,
+      x: Math.min(x, window.innerWidth - 176),
+      y: Math.min(y, window.innerHeight - 180),
+    })
+  }
+
+  function closeMessageActionMenu() {
+    setMessageActionMenu(null)
+  }
+
+  function handleMessageContextMenu(event: MouseEvent<HTMLElement>, message: Message) {
+    event.preventDefault()
+    openMessageActionMenu(message, event.clientX, event.clientY)
+  }
+
+  function handleMessageTouchStart(event: TouchEvent<HTMLElement>, message: Message) {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+    }
+
+    const touch = event.touches[0]
+    if (!touch) return
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      openMessageActionMenu(message, touch.clientX, touch.clientY)
+    }, 520)
+  }
+
+  function clearMessageLongPressTimer() {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = 0
+    }
+  }
+
+  function startMemorySelection(message: Message) {
+    if (!canSelectMemoryMessage(message)) {
+      return
+    }
+
+    setIsSelectingMemoryMessages(true)
+    setSelectedMemoryMessageIds(new Set([message.id]))
+    closeMessageActionMenu()
+  }
+
+  function cancelMemorySelection() {
+    setIsSelectingMemoryMessages(false)
+    setSelectedMemoryMessageIds(new Set())
+    closeMessageActionMenu()
+  }
+
+  function toggleMemorySelection(message: Message) {
+    if (!canSelectMemoryMessage(message)) {
+      return
+    }
+
+    setSelectedMemoryMessageIds((current) => {
+      const next = new Set(current)
+      if (next.has(message.id)) {
+        next.delete(message.id)
+      } else {
+        next.add(message.id)
+      }
+      return next
+    })
+  }
 
   return (
     <section className="screen screen--family-conversation">
@@ -625,6 +734,8 @@ export function FamilyConversationPage() {
             const explainLoading = bridgeState?.loading ?? false
             const explainError = bridgeState?.error
             const explainResult = bridgeState?.result
+            const isMemorySelectable = canSelectMemoryMessage(message)
+            const isSelectedForMemory = selectedMemoryMessageIds.has(message.id)
 
             return (
               <div
@@ -636,10 +747,30 @@ export function FamilyConversationPage() {
                     messageElementMapRef.current.delete(message.id)
                   }
                 }}
-                className={`message-thread message-thread--${isMine ? 'self' : 'peer'}`}
+                className={`message-thread message-thread--${isMine ? 'self' : 'peer'}${isSelectingMemoryMessages ? ' message-thread--selecting' : ''}`}
               >
+                {isSelectingMemoryMessages ? (
+                  <button
+                    className={`message-select-check ${isSelectedForMemory ? 'message-select-check--active' : ''}`}
+                    type="button"
+                    disabled={!isMemorySelectable}
+                    onClick={() => toggleMemorySelection(message)}
+                    aria-label={isSelectedForMemory ? '取消选择这条消息' : '选择这条消息'}
+                  >
+                    {isSelectedForMemory ? '✓' : ''}
+                  </button>
+                ) : null}
                 <article
-                  className={`message-bubble message-bubble--${isMine ? 'self' : 'peer'}${focusedMessageId === message.id ? ' message-bubble--focused' : ''}`}
+                  className={`message-bubble message-bubble--${isMine ? 'self' : 'peer'}${focusedMessageId === message.id ? ' message-bubble--focused' : ''}${isSelectedForMemory ? ' message-bubble--selected' : ''}${!isMemorySelectable && isSelectingMemoryMessages ? ' message-bubble--disabled' : ''}`}
+                  onClick={() => {
+                    if (isSelectingMemoryMessages) {
+                      toggleMemorySelection(message)
+                    }
+                  }}
+                  onContextMenu={(event) => handleMessageContextMenu(event, message)}
+                  onTouchStart={(event) => handleMessageTouchStart(event, message)}
+                  onTouchEnd={clearMessageLongPressTimer}
+                  onTouchCancel={clearMessageLongPressTimer}
                 >
                   <span className="message-bubble__sender">{getSenderLabel(message, conversation, currentUserId)}</span>
                   {message.messageType === 'Image' ? (
@@ -685,20 +816,11 @@ export function FamilyConversationPage() {
                   ) : null}
                   {messageText ? (
                     <div className="message-bridge-inline">
-                      <p>{messageText}</p>
+                      <p>{wrapChatMessageText(messageText)}</p>
                     </div>
                   ) : null}
                   <footer className="message-bubble__footer">
                     <span>{formatClock(message.createdAt)}</span>
-                    <button
-                      className="text-action"
-                      type="button"
-                      disabled={savingMemoryId === message.id}
-                      onClick={() => void handleAddMemory(message)}
-                    >
-                      {savingMemoryId === message.id ? '保存中...' : '加入回忆'}
-                    </button>
-                    {message.aiDrafted ? <span className="status-pill">已帮你整理</span> : null}
                   </footer>
                 </article>
                 {canExplain ? (
@@ -761,6 +883,51 @@ export function FamilyConversationPage() {
             )
           })}
         </div>
+
+        {messageActionMenu && messageActionTarget ? (
+          <div className="message-action-menu" style={{ left: messageActionMenu.x, top: messageActionMenu.y }}>
+            <button
+              type="button"
+              disabled={!canSelectMemoryMessage(messageActionTarget)}
+              onClick={() => startMemorySelection(messageActionTarget)}
+            >
+              多选
+            </button>
+            <button
+              type="button"
+              disabled={!canSelectMemoryMessage(messageActionTarget) || savingMemoryId === messageActionTarget.id}
+              onClick={() => void handleAddMemory(messageActionTarget)}
+            >
+              {savingMemoryId === messageActionTarget.id ? '保存中...' : '加入回忆'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setError('转发功能稍后开放。')
+                closeMessageActionMenu()
+              }}
+            >
+              转发
+            </button>
+          </div>
+        ) : null}
+
+        {isSelectingMemoryMessages ? (
+          <div className="message-selection-bar">
+            <span>已选 {selectedMemoryMessages.length} 条</span>
+            <button
+              className="primary-action"
+              type="button"
+              disabled={selectedMemoryMessages.length === 0 || savingMemoryId === 'batch'}
+              onClick={() => void handleAddSelectedMemories()}
+            >
+              {savingMemoryId === 'batch' ? '保存中...' : '加入回忆'}
+            </button>
+            <button className="ghost-action" type="button" onClick={cancelMemorySelection}>
+              取消
+            </button>
+          </div>
+        ) : null}
 
         {showEmojiPanel ? (
           <div className="family-chat-emoji-panel">
@@ -1184,18 +1351,54 @@ export function FamilyConversationPage() {
 
     try {
       setSavingMemoryId(message.id)
+      const senderName = getSenderLabel(message, conversation, currentUserId)
       await createMemoryEntry({
         familySpaceId,
         sourceConvId: conversation.id,
         sourceMsgId: message.id,
         addedByMemberId: currentUserId ?? conversation.familyMemberId,
         memoryType: toMemoryType(message.messageType),
-        title: buildMemoryTitle(message.senderDisplayName ?? getRemoteConversationName(conversation), message),
+        title: buildMemoryTitle(senderName, message),
         description: buildMemoryDescription(message),
         mediaUrl: message.mediaUrl,
+        items: [buildMemoryItemPayload(message, conversation.id, senderName, 0)],
       })
       setMemoryFeedback('已经加入回忆。')
       setError('')
+      closeMessageActionMenu()
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '暂时没有加入回忆，请稍后再试。')
+    } finally {
+      setSavingMemoryId(null)
+    }
+  }
+
+  async function handleAddSelectedMemories() {
+    if (!conversation || selectedMemoryMessages.length === 0) {
+      return
+    }
+
+    try {
+      setSavingMemoryId('batch')
+      const title = selectedMemoryMessages.length === 1
+        ? buildMemoryTitle(getSenderLabel(selectedMemoryMessages[0], conversation, currentUserId), selectedMemoryMessages[0])
+        : `来自聊天的 ${selectedMemoryMessages.length} 条回忆`
+      await createMemoryEntry({
+        familySpaceId,
+        sourceConvId: conversation.id,
+        sourceMsgId: selectedMemoryMessages.length === 1 ? selectedMemoryMessages[0].id : null,
+        addedByMemberId: currentUserId ?? conversation.familyMemberId,
+        memoryType: selectedMemoryMessages.length > 1 ? 'Mixed' : toMemoryType(selectedMemoryMessages[0].messageType),
+        title,
+        description: selectedMemoryMessages.map(buildMemoryDescription).join('\n'),
+        mediaUrl: selectedMemoryMessages.length === 1 ? selectedMemoryMessages[0].mediaUrl : null,
+        items: selectedMemoryMessages.map((message, index) => (
+          buildMemoryItemPayload(message, conversation.id, getSenderLabel(message, conversation, currentUserId), index)
+        )),
+      })
+      setMemoryFeedback(`已经把 ${selectedMemoryMessages.length} 条消息加入回忆。`)
+      setError('')
+      cancelMemorySelection()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '暂时没有加入回忆，请稍后再试。')
     } finally {
@@ -1535,6 +1738,27 @@ function toMemoryType(messageType: string) {
   if (messageType === 'Image') return 'Image'
   if (messageType === 'Voice') return 'Voice'
   return 'Text'
+}
+
+function canSelectMemoryMessage(message: Message) {
+  return !message.recalledAt && ['Text', 'Image', 'Voice'].includes(message.messageType)
+}
+
+function buildMemoryItemPayload(message: Message, conversationId: string, senderName: string, sortOrder: number) {
+  return {
+    sourceConvId: conversationId,
+    sourceMsgId: message.id,
+    senderMemberId: message.senderMemberId,
+    senderDisplayName: senderName,
+    senderRole: message.senderRole ?? message.senderType,
+    messageType: toMemoryType(message.messageType),
+    textContent: message.textContent,
+    transcript: message.transcript,
+    mediaUrl: message.mediaUrl,
+    voiceDurationSec: message.voiceDurationSec,
+    sentAt: message.createdAt,
+    sortOrder,
+  }
 }
 
 function buildMemoryTitle(senderName: string, message: Message) {

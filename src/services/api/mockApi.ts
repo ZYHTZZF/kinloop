@@ -34,7 +34,7 @@ export async function mockApiGet<T>(path: string): Promise<T> {
   if (path === '/family-space') return state.familySpace as T
   if (path === '/members') return state.members as T
   if (path === '/conversations/cards') return buildConversationCards(state) as T
-  if (path === '/memories') return [...state.memories].sort((a, b) => b.addedAt - a.addedAt) as T
+  if (path === '/memories') return state.memories.filter((memory) => memory.status !== 'REMOVED').sort((a, b) => b.addedAt - a.addedAt) as T
   if (path === '/pulses/today') return [...state.pulses].sort((a, b) => b.createdAt - a.createdAt) as T
   if (path === '/pulses/history') return [...state.pulses].sort((a, b) => b.createdAt - a.createdAt) as T
   if (path === '/followups') return [...state.followups].sort((a, b) => b.createdAt - a.createdAt) as T
@@ -109,23 +109,60 @@ export async function mockApiPost<T>(path: string, body: unknown): Promise<T> {
   }
 
   if (path === '/memories') {
-    const payload = body as Partial<MemoryEntry>
+    const payload = body as Partial<MemoryEntry> & { items?: Array<Record<string, unknown>> }
     const now = Date.now()
+    const payloadItems = Array.isArray(payload.items) ? payload.items : []
+    const items = (payloadItems.length > 0
+      ? payloadItems
+      : [{
+          sourceConvId: payload.sourceConvId ?? null,
+          sourceMsgId: payload.sourceMsgId ?? null,
+          senderMemberId: null,
+          senderDisplayName: null,
+          senderRole: null,
+          messageType: payload.memoryType ?? 'Text',
+          textContent: payload.description ?? null,
+          transcript: null,
+          mediaUrl: payload.mediaUrl ?? null,
+          voiceDurationSec: null,
+          sentAt: now,
+        }]
+    ).map((rawItem, index) => {
+      const item = rawItem as Record<string, unknown>
+      return {
+      id: `memory_${now}_item_${index + 1}`,
+      memoryEntryId: `memory_${now}`,
+      sourceConvId: (item.sourceConvId as string | null) ?? null,
+      sourceMsgId: (item.sourceMsgId as string | null) ?? null,
+      senderMemberId: (item.senderMemberId as string | null) ?? null,
+      senderDisplayName: (item.senderDisplayName as string | null) ?? null,
+      senderRole: (item.senderRole as string | null) ?? null,
+      messageType: String(item.messageType ?? 'Text'),
+      textContent: (item.textContent as string | null) ?? null,
+      transcript: (item.transcript as string | null) ?? null,
+      mediaUrl: (item.mediaUrl as string | null) ?? null,
+      voiceDurationSec: typeof item.voiceDurationSec === 'number' ? item.voiceDurationSec : null,
+      sentAt: typeof item.sentAt === 'number' ? item.sentAt : now,
+      sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : index,
+      createdAt: now,
+      }
+    })
     const nextMemory: MemoryEntry = {
       id: `memory_${now}`,
       familySpaceId: String(payload.familySpaceId ?? state.familySpace.id),
       sourceConvId: (payload.sourceConvId as string | null) ?? null,
-      sourceMsgId: (payload.sourceMsgId as string | null) ?? null,
+      sourceMsgId: (payload.sourceMsgId as string | null) ?? (items.length === 1 ? items[0].sourceMsgId : null),
       addedByMemberId: String(payload.addedByMemberId ?? 'member_daughter'),
       addedAt: now,
-      memoryType: String(payload.memoryType ?? 'Text'),
+      memoryType: String(payload.memoryType ?? (items.length > 1 ? 'Mixed' : items[0].messageType)),
       title: (payload.title as string | null) ?? '新保存的一段内容',
       description: (payload.description as string | null) ?? null,
-      mediaUrl: (payload.mediaUrl as string | null) ?? null,
+      mediaUrl: (payload.mediaUrl as string | null) ?? (items.length === 1 ? items[0].mediaUrl : null),
       status: 'ACTIVE',
       visibleScope: 'Family',
       createdAt: now,
       updatedAt: now,
+      items,
     }
     state.memories.unshift(nextMemory)
     persist(state)
@@ -241,6 +278,22 @@ export async function mockApiPatch<T>(path: string, body: unknown): Promise<T> {
   }
 
   throw new Error(`Mock route not implemented: PATCH ${path}`)
+}
+
+export async function mockApiDelete<T>(path: string): Promise<T> {
+  const state = getState()
+
+  const memoryMatch = path.match(/^\/memories\/([^/]+)$/)
+  if (memoryMatch) {
+    const memory = state.memories.find((item) => item.id === memoryMatch[1])
+    if (!memory) throw new Error('Memory not found')
+    memory.status = 'REMOVED'
+    memory.updatedAt = Date.now()
+    persist(state)
+    return undefined as T
+  }
+
+  throw new Error(`Mock route not implemented: DELETE ${path}`)
 }
 
 function buildConversationCards(state: MockState): ConversationCard[] {

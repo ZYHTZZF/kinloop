@@ -39,6 +39,10 @@ function canViewerAccessPulseSource(row, viewer) {
     return true
   }
 
+  if (row.sourceConversationType === 'FAMILY_GROUP') {
+    return true
+  }
+
   return Boolean(viewer?.memberId) && row.sourceFamilyMemberId === viewer.memberId
 }
 
@@ -59,6 +63,7 @@ export function listTodayPulses(familySpaceId, viewer = { role: 'elder', memberI
       pulses.emotion_label as emotionLabel,
       pulses.emotion_mode as emotionMode,
       messages.sender_type as sourceSenderType,
+      conversations.conversation_type as sourceConversationType,
       conversations.family_member_id as sourceFamilyMemberId,
       pulses.status as status,
       pulses.created_at as createdAt,
