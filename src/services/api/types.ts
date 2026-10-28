@@ -3,6 +3,9 @@ export type FamilySpace = {
   name: string
   joinCode?: string
   elderDisplayName: string
+  elderBirthMonth?: number | null
+  elderBirthDay?: number | null
+  elderBirthCalendarType?: 'gregorian' | 'lunar' | null
   primaryMemberId: string
   createdAt: number
   updatedAt: number
@@ -42,6 +45,20 @@ export type CurrentWeatherSummary = {
   temperatureLabel: string
   advice: string
   fetchedAt: number
+}
+
+export type ImportantEvent = {
+  id: string
+  familySpaceId: string
+  title: string
+  eventType: 'birthday' | 'anniversary' | 'custom'
+  calendarType: 'gregorian' | 'lunar'
+  eventMonth: number
+  eventDay: number
+  note: string | null
+  status: string
+  createdAt: number
+  updatedAt: number
 }
 
 export type Member = {

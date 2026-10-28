@@ -15,6 +15,7 @@ import { FamilyConversationPage } from '../pages/family/FamilyConversationPage'
 import { FamilyHeartsPage } from '../pages/family/FamilyHeartsPage'
 import { FamilyMemoriesPage } from '../pages/family/FamilyMemoriesPage'
 import { FamilyCollaborationPage } from '../pages/family/FamilyCollaborationPage'
+import { FamilyImportantEventsPage } from '../pages/family/FamilyImportantEventsPage'
 import { OnboardingPage } from '../pages/onboarding/OnboardingPage'
 
 export const router = createBrowserRouter([
@@ -66,6 +67,7 @@ export const router = createBrowserRouter([
               { path: 'hearts', element: <FamilyHeartsPage /> },
               { path: 'memories', element: <FamilyMemoriesPage /> },
               { path: 'collaboration', element: <FamilyCollaborationPage /> },
+              { path: 'collaboration/events', element: <FamilyImportantEventsPage /> },
             ],
           },
         ],

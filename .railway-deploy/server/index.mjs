@@ -7,7 +7,7 @@ import { WebSocketServer } from 'ws'
 import { getDatabase } from './db/index.mjs'
 import { acknowledgeAlert, createAlert, listActiveAlerts, resolveAlert } from './repositories/alertRepository.mjs'
 import { createMessage, getConversationDetail, listConversationCards, markConversationUnreadAsRead } from './repositories/conversationRepository.mjs'
-import { getFamilySpaceById } from './repositories/familySpaceRepository.mjs'
+import { getFamilySpaceById, updateElderProfile } from './repositories/familySpaceRepository.mjs'
 import { createFollowup, listFollowups } from './repositories/followupRepository.mjs'
 import {
   createHeartPost,
@@ -16,6 +16,7 @@ import {
   toggleHeartPostLike,
 } from './repositories/heartPostRepository.mjs'
 import { approveInviteCode, listInviteCodes } from './repositories/inviteRepository.mjs'
+import { createImportantEvent, listImportantEvents } from './repositories/importantEventRepository.mjs'
 import { listMembers } from './repositories/memberRepository.mjs'
 import { createMemoryEntry, listMemories, removeMemoryEntry } from './repositories/memoryRepository.mjs'
 import { listPermissionPolicies } from './repositories/permissionPolicyRepository.mjs'
@@ -518,6 +519,14 @@ app.get('/api/family-space', (request, response) => {
   response.json(getFamilySpaceById(getFamilySpaceIdFromRequest(request)))
 })
 
+app.patch('/api/family-space/elder-profile', (request, response) => {
+  try {
+    response.json(updateElderProfile(getFamilySpaceIdFromRequest(request), request.body ?? {}))
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : '长辈资料保存失败' })
+  }
+})
+
 registerAsrRoutes(app)
 
 registerAiIntentRoutes(app)
@@ -534,6 +543,18 @@ registerTtsRoutes(app)
 
 app.get('/api/members', (request, response) => {
   response.json(listMembers(getFamilySpaceIdFromRequest(request)))
+})
+
+app.get('/api/important-events', (request, response) => {
+  response.json(listImportantEvents(getFamilySpaceIdFromRequest(request)))
+})
+
+app.post('/api/important-events', (request, response) => {
+  try {
+    response.status(201).json(createImportantEvent(getFamilySpaceIdFromRequest(request), request.body ?? {}))
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : '重要事件保存失败' })
+  }
 })
 
 app.get('/api/heart-posts', (request, response) => {

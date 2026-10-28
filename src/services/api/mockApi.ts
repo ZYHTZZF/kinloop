@@ -4,6 +4,7 @@
   ConversationDetail,
   FamilySpace,
   FollowupRecord,
+  ImportantEvent,
   Member,
   MemoryEntry,
   Message,
@@ -21,6 +22,7 @@ type MockState = {
   followups: FollowupRecord[]
   alerts: Alert[]
   invites: InviteCode[]
+  importantEvents: ImportantEvent[]
   permissionPolicies: PermissionPolicy[]
 }
 
@@ -43,6 +45,7 @@ export async function mockApiGet<T>(path: string): Promise<T> {
   }
   if (path === '/permission-policies') return state.permissionPolicies as T
   if (path === '/invites') return [...state.invites].sort((a, b) => b.createdAt - a.createdAt) as T
+  if (path === '/important-events') return [...state.importantEvents].filter((event) => event.status === 'ACTIVE') as T
 
   const conversationMatch = path.match(/^\/conversations\/([^/]+)$/)
   if (conversationMatch) {
@@ -216,6 +219,27 @@ export async function mockApiPost<T>(path: string, body: unknown): Promise<T> {
     return clone(nextAlert) as T
   }
 
+  if (path === '/important-events') {
+    const payload = body as Partial<ImportantEvent>
+    const now = Date.now()
+    const nextEvent: ImportantEvent = {
+      id: `event_${now}`,
+      familySpaceId: state.familySpace.id,
+      title: String(payload.title ?? '').trim() || '重要事件',
+      eventType: payload.eventType === 'birthday' || payload.eventType === 'anniversary' ? payload.eventType : 'custom',
+      calendarType: payload.calendarType === 'lunar' ? 'lunar' : 'gregorian',
+      eventMonth: Number(payload.eventMonth ?? 1),
+      eventDay: Number(payload.eventDay ?? 1),
+      note: (payload.note as string | null) ?? null,
+      status: 'ACTIVE',
+      createdAt: now,
+      updatedAt: now,
+    }
+    state.importantEvents.unshift(nextEvent)
+    persist(state)
+    return clone(nextEvent) as T
+  }
+
   if (path === '/invites') {
     const payload = body as Partial<InviteCode>
     const now = Date.now()
@@ -241,6 +265,19 @@ export async function mockApiPost<T>(path: string, body: unknown): Promise<T> {
 
 export async function mockApiPatch<T>(path: string, body: unknown): Promise<T> {
   const state = getState()
+
+  if (path === '/family-space/elder-profile') {
+    const payload = body as Partial<FamilySpace>
+    state.familySpace.elderDisplayName = String(payload.elderDisplayName ?? state.familySpace.elderDisplayName).trim() || state.familySpace.elderDisplayName
+    state.familySpace.elderBirthMonth = normalizeNullableNumber(payload.elderBirthMonth)
+    state.familySpace.elderBirthDay = normalizeNullableNumber(payload.elderBirthDay)
+    state.familySpace.elderBirthCalendarType = payload.elderBirthCalendarType === 'gregorian' || payload.elderBirthCalendarType === 'lunar'
+      ? payload.elderBirthCalendarType
+      : null
+    state.familySpace.updatedAt = Date.now()
+    persist(state)
+    return clone(state.familySpace) as T
+  }
 
   const acknowledgeMatch = path.match(/^\/alerts\/([^/]+)\/acknowledge$/)
   if (acknowledgeMatch) {
@@ -355,6 +392,7 @@ function getState() {
 
   const stored = safeGetStorage()
   if (stored) {
+    stored.importantEvents = stored.importantEvents ?? []
     memoryState = stored
     return memoryState
   }
@@ -390,6 +428,9 @@ function buildInitialState(): MockState {
     id: 'fs_demo',
     name: '汤先生一家',
     elderDisplayName: '汤老先生',
+    elderBirthMonth: null,
+    elderBirthDay: null,
+    elderBirthCalendarType: null,
     primaryMemberId: 'member_daughter',
     createdAt: now - 30 * 24 * hour,
     updatedAt: now,
@@ -583,6 +624,8 @@ function buildInitialState(): MockState {
     },
   ]
 
+  const importantEvents: ImportantEvent[] = []
+
   const permissionPolicies: PermissionPolicy[] = [
     {
       id: 'policy_primary',
@@ -619,8 +662,15 @@ function buildInitialState(): MockState {
     followups,
     alerts,
     invites,
+    importantEvents,
     permissionPolicies,
   }
+}
+
+function normalizeNullableNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') return null
+  const nextValue = Number(value)
+  return Number.isFinite(nextValue) ? nextValue : null
 }
 function makeMessage(
   id: string,

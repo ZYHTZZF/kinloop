@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import {
   acknowledgeAlert,
@@ -133,28 +134,6 @@ export function FamilyCollaborationPage() {
           </div>
         </div>
 
-        <div className="collaboration-overview-strip">
-          <div className="today-overview-chip">
-            <span>核心成员</span>
-            <strong>{coreMembers.length}</strong>
-          </div>
-          <div className="today-overview-chip">
-            <span>待处理提醒</span>
-            <strong>{alerts.length}</strong>
-          </div>
-          <div className="today-overview-chip">
-            <span>家庭加入码</span>
-            <strong>{familySpace?.joinCode ?? '暂未生成'}</strong>
-          </div>
-        </div>
-
-        {!loading && !error ? (
-          <article className="note-card collaboration-relay-note">
-            <p className="surface-card__eyebrow">推荐接力</p>
-            <strong>{suggestedRelay ? `今天更适合由 ${suggestedRelay.displayName} 先接一下。` : '目前还没有合适的接力建议。'}</strong>
-          </article>
-        ) : null}
-
         <div className="collaboration-stack">
           {loading ? (
             <PageState title="正在整理家庭协作信息" description="稍等一下，我把成员、提醒和加入码整理出来。" />
@@ -164,61 +143,61 @@ export function FamilyCollaborationPage() {
 
           {feedback ? <p className="state-note">{feedback}</p> : null}
 
-          <article className="relay-card">
-            <p className="surface-card__eyebrow">接力建议</p>
-            <span className="status-pill">这次更适合谁先接手</span>
-            <strong>
-              最近联系：
-              {recentContact ? ` ${recentContact.displayName} · ${formatShortDateTime(recentContact.lastActivityAt)}` : ' 暂无记录'}
-            </strong>
-            <p>建议接力人：<strong>{suggestedRelay?.displayName ?? '暂时没有'}</strong></p>
-            <div className="inline-actions">
-              <button className="primary-action" type="button">
-                提醒接力
-              </button>
-              <button className="ghost-action" type="button">
-                重新看看分工
-              </button>
-            </div>
-          </article>
+          <Link className="members-card important-events-entry-card" to="/family/collaboration/events">
+            <p className="surface-card__eyebrow">重要事件</p>
+            <strong>生日、纪念日和家里的重要日子</strong>
+            <p className="members-card__meta">添加后，会在匹配日期出现在首页今日提醒里。</p>
+          </Link>
 
-          <article className="task-card">
-            <p className="surface-card__eyebrow">当前提醒</p>
+          <article className="task-card collaboration-today-card">
+            <p className="surface-card__eyebrow">今日协作</p>
+            <div className="collaboration-today-summary">
+              <div>
+                <span>建议接力</span>
+                <strong>{suggestedRelay ? suggestedRelay.displayName : '暂无'}</strong>
+              </div>
+              <div>
+                <span>最近联系</span>
+                <strong>{recentContact ? `${recentContact.displayName} · ${formatShortDateTime(recentContact.lastActivityAt)}` : '暂无记录'}</strong>
+              </div>
+            </div>
             {alerts.length === 0 ? (
               <p className="state-note">现在没有待处理的提醒，今天的协作状态比较平稳。</p>
             ) : (
-              alerts.map((alert) => (
-                <div className="list-row" key={alert.id}>
-                  <div className="list-row__main">
-                    <div>
-                      <strong>{toAlertSummary(alert)}</strong>
-                      <p>{toAlertStatus(alert)}</p>
+              <div className="list-stack">
+                {alerts.map((alert) => (
+                  <div className="list-row" key={alert.id}>
+                    <div className="list-row__main">
+                      <div>
+                        <strong>{toAlertSummary(alert)}</strong>
+                        <p>{toAlertStatus(alert)}</p>
+                      </div>
+                    </div>
+                    <div className="inline-actions">
+                      {alert.status !== 'HANDLING' ? (
+                        <button
+                          className="ghost-action"
+                          type="button"
+                          disabled={handlingAlertId === alert.id}
+                          onClick={() => void handleAcknowledgeAlert(alert.id)}
+                        >
+                          {handlingAlertId === alert.id ? '处理中...' : '我来跟进'}
+                        </button>
+                      ) : null}
+                      {alert.status === 'HANDLING' ? (
+                        <button
+                          className="ghost-action"
+                          type="button"
+                          disabled={resolvingAlertId === alert.id}
+                          onClick={() => void handleResolveAlert(alert.id)}
+                        >
+                          {resolvingAlertId === alert.id ? '关闭中...' : '完成处理'}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
-                  <div className="inline-actions">
-                    {alert.status !== 'HANDLING' ? (
-                      <button
-                        className="ghost-action"
-                        type="button"
-                        disabled={handlingAlertId === alert.id}
-                        onClick={() => void handleAcknowledgeAlert(alert.id)}
-                      >
-                        {handlingAlertId === alert.id ? '处理中...' : '我来跟进'}
-                      </button>
-                    ) : null}
-                    {alert.status === 'HANDLING' ? (
-                      <button
-                        className="ghost-action"
-                        type="button"
-                        disabled={resolvingAlertId === alert.id}
-                        onClick={() => void handleResolveAlert(alert.id)}
-                      >
-                        {resolvingAlertId === alert.id ? '关闭中...' : '完成处理'}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </article>
 
@@ -237,13 +216,8 @@ export function FamilyCollaborationPage() {
               ))}
             </div>
             <p className="members-card__meta">紧急通知顺序：{alertOrder || '暂未设置'}</p>
-          </article>
-
-          <article className="members-card">
-            <p className="surface-card__eyebrow">家庭加入码</p>
-            <strong>{familySpace?.joinCode ?? '暂未生成'}</strong>
-            <p className="members-card__meta">新成员注册时选择“加入家庭”，输入这个加入码就可以进入同一个家庭。</p>
-            <div className="inline-actions">
+            <div className="inline-actions collaboration-members-actions">
+              <span className="status-pill">加入码：{familySpace?.joinCode ?? '暂未生成'}</span>
               <button className="primary-action" type="button" onClick={() => void handleCopyJoinCode()} disabled={!familySpace?.joinCode}>
                 {copiedJoinCode ? '已复制' : '复制加入码'}
               </button>

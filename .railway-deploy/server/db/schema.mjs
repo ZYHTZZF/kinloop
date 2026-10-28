@@ -33,6 +33,9 @@ export const schemaSql = `
     name text not null,
     join_code text,
     elder_display_name text not null,
+    elder_birth_month integer,
+    elder_birth_day integer,
+    elder_birth_calendar_type text,
     primary_member_id text not null,
     created_by_user_id text,
     created_at integer not null,
@@ -230,6 +233,20 @@ export const schemaSql = `
     created_at integer not null,
     approved_at integer
   );
+
+  create table if not exists important_events (
+    id text primary key,
+    family_space_id text not null,
+    title text not null,
+    event_type text not null,
+    calendar_type text not null,
+    event_month integer not null,
+    event_day integer not null,
+    note text,
+    status text not null,
+    created_at integer not null,
+    updated_at integer not null
+  );
 `
 
 export function initializeSchema(db) {
@@ -242,6 +259,9 @@ export function initializeSchema(db) {
     'alter table pulses add column emotion_mode text',
     "alter table conversations add column conversation_type text not null default 'FAMILY_CHAT'",
     'alter table family_spaces add column join_code text',
+    'alter table family_spaces add column elder_birth_month integer',
+    'alter table family_spaces add column elder_birth_day integer',
+    'alter table family_spaces add column elder_birth_calendar_type text',
     'alter table family_spaces add column created_by_user_id text',
     'alter table members add column user_id text',
     'alter table members add column relation_label text',
@@ -268,6 +288,7 @@ export function initializeSchema(db) {
     'create unique index if not exists idx_heart_post_likes_post_member on heart_post_likes(heart_post_id, member_id)',
     'create index if not exists idx_heart_post_comments_post_id on heart_post_comments(heart_post_id, created_at asc)',
     'create index if not exists idx_memory_items_entry_id on memory_items(memory_entry_id, sort_order asc)',
+    'create index if not exists idx_important_events_family_space_id on important_events(family_space_id, status)',
   ]) {
     db.exec(statement)
   }
