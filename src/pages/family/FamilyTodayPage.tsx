@@ -68,7 +68,7 @@ export function FamilyTodayPage() {
         <div className="section-heading section-heading--family-social">
           <div>
             <p className="surface-card__eyebrow">今日</p>
-            <h2>先看有没有需要留意的异常情绪</h2>
+            <h2>情绪状态汇总</h2>
           </div>
         </div>
 

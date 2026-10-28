@@ -5,15 +5,17 @@ import {
   acknowledgeAlert,
   getCurrentFamilySpace,
   listActiveAlerts,
+  listImportantEvents,
   listMembers,
   resolveAlert,
 } from '../../services/api'
-import type { Alert, FamilySpace, Member } from '../../services/api'
+import type { Alert, FamilySpace, ImportantEvent, Member } from '../../services/api'
 import { formatShortDateTime } from '../../utils/dateTime'
 
 export function FamilyCollaborationPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
+  const [importantEvents, setImportantEvents] = useState<ImportantEvent[]>([])
   const [familySpace, setFamilySpace] = useState<FamilySpace | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -27,16 +29,18 @@ export function FamilyCollaborationPage() {
 
     async function load() {
       try {
-        const [nextMembers, nextAlerts, nextFamilySpace] = await Promise.all([
+        const [nextMembers, nextAlerts, nextFamilySpace, nextImportantEvents] = await Promise.all([
           listMembers(),
           listActiveAlerts(),
           getCurrentFamilySpace(),
+          listImportantEvents(),
         ])
 
         if (!cancelled) {
           setMembers(nextMembers)
           setAlerts(nextAlerts)
           setFamilySpace(nextFamilySpace)
+          setImportantEvents(nextImportantEvents)
           setError('')
         }
       } catch {
@@ -81,6 +85,10 @@ export function FamilyCollaborationPage() {
       .map((member) => `${member.alertPriority}. ${member.displayName}`)
       .join('  ')
   }, [members])
+
+  const upcomingEvents = useMemo(() => {
+    return getUpcomingImportantEvents(importantEvents, new Date(), 7).slice(0, 4)
+  }, [importantEvents])
 
   async function handleCopyJoinCode() {
     const joinCode = familySpace?.joinCode
@@ -130,9 +138,11 @@ export function FamilyCollaborationPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">协作</p>
-            <h2>把今天谁来接力、谁来处理，安排得更清楚。</h2>
+            <h2>协作安排</h2>
           </div>
         </div>
+
+        {feedback ? <p className="state-note collaboration-feedback">{feedback}</p> : null}
 
         <div className="collaboration-stack">
           {loading ? (
@@ -140,8 +150,6 @@ export function FamilyCollaborationPage() {
           ) : null}
 
           {error ? <PageState variant="error" title="暂时无法查看家庭协作" description={error} /> : null}
-
-          {feedback ? <p className="state-note">{feedback}</p> : null}
 
           <Link className="members-card important-events-entry-card" to="/family/collaboration/events">
             <p className="surface-card__eyebrow">重要事件</p>
@@ -201,7 +209,7 @@ export function FamilyCollaborationPage() {
             )}
           </article>
 
-          <article className="members-card">
+          <article className="members-card collaboration-members-card">
             <p className="surface-card__eyebrow">成员</p>
             <div className="list-stack">
               {members.map((member) => (
@@ -223,10 +231,110 @@ export function FamilyCollaborationPage() {
               </button>
             </div>
           </article>
+
+          <article className="members-card collaboration-upcoming-card">
+            <p className="surface-card__eyebrow">未来七天</p>
+            {upcomingEvents.length > 0 ? (
+              <div className="list-stack">
+                {upcomingEvents.map((item) => (
+                  <div className="list-row collaboration-upcoming-row" key={item.event.id}>
+                    <div className="list-row__main">
+                      <div>
+                        <strong>{item.event.title}</strong>
+                        <p>{formatUpcomingEventMeta(item)}</p>
+                      </div>
+                    </div>
+                    <span className="status-pill">{getEventTypeLabel(item.event.eventType)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="state-note">未来七天暂无已添加的重要事件。</p>
+            )}
+            <Link className="ghost-action ghost-action--link" to="/family/collaboration/events">
+              管理重要事件
+            </Link>
+          </article>
         </div>
       </section>
     </section>
   )
+}
+
+type UpcomingImportantEvent = {
+  event: ImportantEvent
+  date: Date
+  daysUntil: number
+}
+
+function getUpcomingImportantEvents(events: ImportantEvent[], fromDate: Date, daysAhead: number): UpcomingImportantEvent[] {
+  const start = startOfDay(fromDate)
+  return events
+    .filter((event) => event.status !== 'deleted')
+    .map((event) => {
+      const date = getNextImportantEventDate(event, start, daysAhead)
+      if (!date) return null
+      return {
+        event,
+        date,
+        daysUntil: Math.round((date.getTime() - start.getTime()) / 86400000),
+      }
+    })
+    .filter((item): item is UpcomingImportantEvent => Boolean(item))
+    .sort((left, right) => left.date.getTime() - right.date.getTime())
+}
+
+function getNextImportantEventDate(event: ImportantEvent, start: Date, daysAhead: number) {
+  if (event.calendarType === 'lunar') {
+    for (let offset = 0; offset <= daysAhead; offset += 1) {
+      const candidate = addDays(start, offset)
+      const lunarDate = getChineseLunarDateParts(candidate)
+      if (lunarDate?.month === event.eventMonth && lunarDate.day === event.eventDay) {
+        return candidate
+      }
+    }
+    return null
+  }
+
+  const candidate = new Date(start.getFullYear(), event.eventMonth - 1, event.eventDay)
+  const nextDate = candidate < start ? new Date(start.getFullYear() + 1, event.eventMonth - 1, event.eventDay) : candidate
+  return nextDate.getTime() - start.getTime() <= daysAhead * 86400000 ? nextDate : null
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function addDays(date: Date, days: number) {
+  const nextDate = new Date(date)
+  nextDate.setDate(date.getDate() + days)
+  return nextDate
+}
+
+function getChineseLunarDateParts(date: Date): { month: number; day: number } | null {
+  try {
+    const parts = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', {
+      month: 'numeric',
+      day: 'numeric',
+    }).formatToParts(date)
+    const month = Number(parts.find((part) => part.type === 'month')?.value)
+    const day = Number(parts.find((part) => part.type === 'day')?.value)
+    return Number.isFinite(month) && Number.isFinite(day) ? { month, day } : null
+  } catch {
+    return null
+  }
+}
+
+function formatUpcomingEventMeta(item: UpcomingImportantEvent) {
+  const calendarLabel = item.event.calendarType === 'lunar' ? '农历' : '公历'
+  const dayLabel = item.daysUntil === 0 ? '今天' : item.daysUntil === 1 ? '明天' : `${item.daysUntil}天后`
+  return `${dayLabel} · ${calendarLabel} ${item.event.eventMonth}月${item.event.eventDay}日`
+}
+
+function getEventTypeLabel(eventType: ImportantEvent['eventType']) {
+  if (eventType === 'birthday') return '生日'
+  if (eventType === 'anniversary') return '纪念日'
+  return '重要日子'
 }
 
 function toAlertSummary(alert: Alert) {

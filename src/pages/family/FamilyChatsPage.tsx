@@ -50,7 +50,7 @@ export function FamilyChatsPage() {
         <div className="section-heading">
           <div>
             <p className="surface-card__eyebrow">聊天</p>
-            <h2>最近的对话都在这里，先从最需要回复的开始。</h2>
+            <h2>联系人</h2>
           </div>
         </div>
 
