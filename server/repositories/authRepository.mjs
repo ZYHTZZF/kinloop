@@ -9,6 +9,8 @@ import {
   hashOpaqueToken,
 } from '../services/auth/tokenService.mjs'
 
+const ELDER_INVITE_EXPIRES_AT = Date.UTC(2100, 0, 1)
+
 function mapUser(row) {
   if (!row) return null
   return {
@@ -70,6 +72,13 @@ function toMemberRole(role) {
   if (role === 'elder') return 'Elder'
   if (role === 'caregiver') return 'Trusted'
   return 'Primary'
+}
+
+function normalizeInviteRequestedRole(role) {
+  const requestedRole = `${role ?? ''}`.trim()
+  if (requestedRole === 'Elder') return 'Elder'
+  if (requestedRole === 'Trusted') return 'Trusted'
+  return 'Family'
 }
 
 function ensureAiAssistantSeedForFamily(familySpaceId) {
@@ -486,31 +495,206 @@ export function deleteSession(token) {
   db.prepare('delete from auth_sessions where token_hash = ?').run(hashOpaqueToken(token))
 }
 
-export function createInviteCodeForFamily({ familySpaceId, requestedRole, createdByMemberId }) {
+function getInviteCodeById(inviteId) {
   const db = getDatabase()
-  const now = Date.now()
-  const id = createEntityId('invite')
-  const code = createFamilyJoinCode()
-  db.prepare(`
-    insert into invite_codes (
-      id, family_space_id, code, status, requested_role, created_by_member_id,
-      approved_member_id, expires_at, created_at, approved_at
-    ) values (?, ?, ?, 'ACTIVE', ?, ?, null, ?, ?, null)
-  `).run(id, familySpaceId, code, requestedRole, createdByMemberId, now + 7 * 24 * 60 * 60 * 1000, now)
+  return db.prepare(`
+    select
+      invite_codes.id,
+      invite_codes.family_space_id as familySpaceId,
+      invite_codes.code,
+      invite_codes.status,
+      invite_codes.requested_role as requestedRole,
+      invite_codes.target_member_id as targetMemberId,
+      members.display_name as targetDisplayName,
+      invite_codes.created_by_member_id as createdByMemberId,
+      invite_codes.approved_member_id as approvedMemberId,
+      invite_codes.expires_at as expiresAt,
+      invite_codes.created_at as createdAt,
+      invite_codes.approved_at as approvedAt
+    from invite_codes
+    left join members on members.id = invite_codes.target_member_id
+    where invite_codes.id = ?
+  `).get(inviteId)
+}
 
+function getElderMemberById(memberId) {
+  const db = getDatabase()
   return db.prepare(`
     select
       id,
       family_space_id as familySpaceId,
-      code,
-      status,
-      requested_role as requestedRole,
-      created_by_member_id as createdByMemberId,
-      approved_member_id as approvedMemberId,
-      expires_at as expiresAt,
-      created_at as createdAt,
-      approved_at as approvedAt
-    from invite_codes
+      user_id as userId,
+      display_name as displayName
+    from members
     where id = ?
-  `).get(id)
+      and role = 'Elder'
+    limit 1
+  `).get(memberId)
+}
+
+function getFirstElderMember(familySpaceId) {
+  const db = getDatabase()
+  return db.prepare(`
+    select
+      id,
+      family_space_id as familySpaceId,
+      user_id as userId,
+      display_name as displayName
+    from members
+    where family_space_id = ?
+      and role = 'Elder'
+    order by
+      case when user_id is not null then 1 else 2 end,
+      id asc
+    limit 1
+  `).get(familySpaceId)
+}
+
+function resolveElderDisplayName(familySpaceId, displayName) {
+  const db = getDatabase()
+  const safeDisplayName = `${displayName ?? ''}`.trim()
+  if (safeDisplayName) return safeDisplayName
+
+  const familySpace = db.prepare(`
+    select elder_display_name as elderDisplayName
+    from family_spaces
+    where id = ?
+    limit 1
+  `).get(familySpaceId)
+
+  const currentName = `${familySpace?.elderDisplayName ?? ''}`.trim()
+  return currentName && currentName !== '待绑定长辈' ? currentName : '长辈'
+}
+
+function ensureElderMemberForFamily({ familySpaceId, displayName }) {
+  const db = getDatabase()
+  const now = Date.now()
+  const safeDisplayName = resolveElderDisplayName(familySpaceId, displayName)
+  const existingElder = getFirstElderMember(familySpaceId)
+
+  if (existingElder?.id) {
+    db.prepare(`
+      update members
+      set display_name = ?, elder_alias = ?
+      where id = ?
+    `).run(safeDisplayName, safeDisplayName, existingElder.id)
+
+    db.prepare(`
+      update family_spaces
+      set elder_display_name = ?, updated_at = ?
+      where id = ?
+    `).run(safeDisplayName, now, familySpaceId)
+
+    return existingElder.id
+  }
+
+  const memberId = createEntityId('member')
+  db.prepare(`
+    insert into members (
+      id, family_space_id, user_id, role, display_name, relation_label, elder_alias, phone, last_activity_at, alert_priority, status
+    ) values (?, ?, null, 'Elder', ?, '长辈', ?, null, null, null, 'Active')
+  `).run(memberId, familySpaceId, safeDisplayName, safeDisplayName)
+
+  db.prepare(`
+    update family_spaces
+    set elder_display_name = ?, updated_at = ?
+    where id = ?
+  `).run(safeDisplayName, now, familySpaceId)
+
+  ensureAiAssistantSeedForFamily(familySpaceId)
+  return memberId
+}
+
+function createInternalUserForElder(memberId) {
+  const db = getDatabase()
+  const now = Date.now()
+  const userId = createEntityId('user')
+  const { hash, salt } = createPasswordHash(createOpaqueToken())
+
+  db.prepare(`
+    insert into users (id, email, password_hash, password_salt, email_verified_at, created_at, updated_at)
+    values (?, ?, ?, ?, ?, ?, ?)
+  `).run(userId, `elder+${memberId}@kinloop.local`.toLowerCase(), hash, salt, now, now, now)
+
+  return userId
+}
+
+export function loginWithElderInviteCode(inviteCode) {
+  const db = getDatabase()
+  const normalizedInviteCode = `${inviteCode ?? ''}`.trim().toUpperCase()
+
+  if (!normalizedInviteCode) {
+    throw new Error('请输入老人专属邀请码。')
+  }
+
+  const invite = db.prepare(`
+    select
+      id,
+      family_space_id as familySpaceId,
+      target_member_id as targetMemberId
+    from invite_codes
+    where upper(code) = ?
+      and requested_role = 'Elder'
+      and status = 'ACTIVE'
+    order by created_at desc
+    limit 1
+  `).get(normalizedInviteCode)
+
+  if (!invite) {
+    throw new Error('老人专属邀请码无效，请让家人重新生成。')
+  }
+
+  const userId = runInTransaction(() => {
+    const now = Date.now()
+    let elderMember = invite.targetMemberId ? getElderMemberById(invite.targetMemberId) : null
+
+    if (!elderMember) {
+      elderMember = getFirstElderMember(invite.familySpaceId)
+    }
+
+    if (!elderMember) {
+      const memberId = ensureElderMemberForFamily({ familySpaceId: invite.familySpaceId, displayName: '长辈' })
+      elderMember = getElderMemberById(memberId)
+    }
+
+    if (!elderMember || elderMember.familySpaceId !== invite.familySpaceId) {
+      throw new Error('老人身份暂时无法确认，请让家人重新生成邀请码。')
+    }
+
+    if (invite.targetMemberId !== elderMember.id) {
+      db.prepare('update invite_codes set target_member_id = ? where id = ?').run(elderMember.id, invite.id)
+    }
+
+    const nextUserId = elderMember.userId ?? createInternalUserForElder(elderMember.id)
+    db.prepare(`
+      update members
+      set user_id = ?, last_activity_at = ?
+      where id = ?
+    `).run(nextUserId, now, elderMember.id)
+
+    return nextUserId
+  })
+
+  return createSessionForUser(userId)
+}
+
+export function createInviteCodeForFamily({ familySpaceId, requestedRole, createdByMemberId, displayName }) {
+  const db = getDatabase()
+  const now = Date.now()
+  const id = createEntityId('invite')
+  const code = createFamilyJoinCode()
+  const inviteRole = normalizeInviteRequestedRole(requestedRole)
+  const targetMemberId = inviteRole === 'Elder'
+    ? ensureElderMemberForFamily({ familySpaceId, displayName })
+    : null
+  const expiresAt = inviteRole === 'Elder' ? ELDER_INVITE_EXPIRES_AT : now + 7 * 24 * 60 * 60 * 1000
+
+  db.prepare(`
+    insert into invite_codes (
+      id, family_space_id, code, status, requested_role, target_member_id, created_by_member_id,
+      approved_member_id, expires_at, created_at, approved_at
+    ) values (?, ?, ?, 'ACTIVE', ?, ?, ?, null, ?, ?, null)
+  `).run(id, familySpaceId, code, inviteRole, targetMemberId, createdByMemberId, expiresAt, now)
+
+  return getInviteCodeById(id)
 }

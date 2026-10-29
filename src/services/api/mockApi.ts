@@ -1,5 +1,6 @@
 ﻿import type {
   Alert,
+  AuthSession,
   ConversationCard,
   ConversationDetail,
   FamilySpace,
@@ -61,6 +62,48 @@ export async function mockApiGet<T>(path: string): Promise<T> {
 
 export async function mockApiPost<T>(path: string, body: unknown): Promise<T> {
   const state = getState()
+
+  if (path === '/auth/elder-invite-login') {
+    const payload = body as { inviteCode?: string }
+    const inviteCode = String(payload.inviteCode ?? '').trim().toUpperCase()
+    const invite = state.invites.find((item) => item.code === inviteCode && item.requestedRole === 'Elder' && item.status === 'ACTIVE')
+    const elderMember = state.members.find((member) => member.id === invite?.targetMemberId)
+      ?? state.members.find((member) => member.role === 'Elder')
+
+    if (!invite || !elderMember) {
+      throw new Error('老人专属邀请码无效，请让家人重新生成。')
+    }
+
+    const now = Date.now()
+    elderMember.lastActivityAt = now
+
+    const session: AuthSession = {
+      token: `mock_elder_${invite.code}`,
+      user: {
+        id: `user_${elderMember.id}`,
+        email: `elder+${elderMember.id}@kinloop.local`,
+        emailVerifiedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      },
+      membership: {
+        memberId: elderMember.id,
+        familySpaceId: state.familySpace.id,
+        familyName: state.familySpace.name,
+        familyJoinCode: state.familySpace.joinCode ?? '',
+        familyElderDisplayName: state.familySpace.elderDisplayName,
+        role: 'elder',
+        memberRole: 'Elder',
+        memberDisplayName: elderMember.displayName,
+        relationLabel: '长辈',
+        primaryMemberId: state.familySpace.primaryMemberId,
+      },
+      homePath: '/elder/home',
+    }
+
+    persist(state)
+    return session as T
+  }
 
   if (path === '/ai/generation-bridge/explain') {
     const payload = body as { messageText?: string; requesterRole?: 'elder' | 'family' }
@@ -243,15 +286,45 @@ export async function mockApiPost<T>(path: string, body: unknown): Promise<T> {
   if (path === '/invites') {
     const payload = body as Partial<InviteCode>
     const now = Date.now()
+    const requestedRole = String(payload.requestedRole ?? 'Family')
+    const elderDisplayName = String((payload as { displayName?: string }).displayName ?? '').trim() || state.familySpace.elderDisplayName || '长辈'
+    let targetMemberId: string | null = null
+
+    if (requestedRole === 'Elder') {
+      let elderMember = state.members.find((member) => member.role === 'Elder')
+      if (!elderMember) {
+        elderMember = {
+          id: 'member_elder',
+          familySpaceId: state.familySpace.id,
+          role: 'Elder',
+          displayName: elderDisplayName,
+          elderAlias: elderDisplayName,
+          phone: null,
+          lastActivityAt: null,
+          alertPriority: null,
+          status: 'Active',
+        }
+        state.members.unshift(elderMember)
+      } else {
+        elderMember.displayName = elderDisplayName
+        elderMember.elderAlias = elderDisplayName
+      }
+
+      state.familySpace.elderDisplayName = elderDisplayName
+      targetMemberId = elderMember.id
+    }
+
     const nextInvite: InviteCode = {
       id: `invite_${now}`,
       familySpaceId: String(payload.familySpaceId ?? state.familySpace.id),
       code: `KIN${String(now).slice(-6)}`,
       status: 'ACTIVE',
-      requestedRole: String(payload.requestedRole ?? 'Family'),
+      requestedRole,
+      targetMemberId,
+      targetDisplayName: requestedRole === 'Elder' ? elderDisplayName : null,
       createdByMemberId: String(payload.createdByMemberId ?? 'member_daughter'),
       approvedMemberId: 'member_daughter',
-      expiresAt: now + 7 * 24 * 60 * 60 * 1000,
+      expiresAt: requestedRole === 'Elder' ? Date.UTC(2100, 0, 1) : now + 7 * 24 * 60 * 60 * 1000,
       createdAt: now,
       approvedAt: now,
     }
@@ -393,6 +466,21 @@ function getState() {
   const stored = safeGetStorage()
   if (stored) {
     stored.importantEvents = stored.importantEvents ?? []
+    stored.invites = stored.invites ?? []
+    stored.familySpace.joinCode = stored.familySpace.joinCode ?? 'KINFAMILY'
+    if (!stored.members.some((member) => member.role === 'Elder')) {
+      stored.members.unshift({
+        id: 'member_elder',
+        familySpaceId: stored.familySpace.id,
+        role: 'Elder',
+        displayName: stored.familySpace.elderDisplayName,
+        elderAlias: stored.familySpace.elderDisplayName,
+        phone: null,
+        lastActivityAt: null,
+        alertPriority: null,
+        status: 'Active',
+      })
+    }
     memoryState = stored
     return memoryState
   }
@@ -427,6 +515,7 @@ function buildInitialState(): MockState {
   const familySpace: FamilySpace = {
     id: 'fs_demo',
     name: '汤先生一家',
+    joinCode: 'KINFAMILY',
     elderDisplayName: '汤老先生',
     elderBirthMonth: null,
     elderBirthDay: null,
@@ -437,6 +526,17 @@ function buildInitialState(): MockState {
   }
 
   const members: Member[] = [
+    {
+      id: 'member_elder',
+      familySpaceId: familySpace.id,
+      role: 'Elder',
+      displayName: '汤老先生',
+      elderAlias: '汤老先生',
+      phone: null,
+      lastActivityAt: now - 4 * hour,
+      alertPriority: null,
+      status: 'Active',
+    },
     {
       id: 'member_daughter',
       familySpaceId: familySpace.id,
@@ -616,11 +716,27 @@ function buildInitialState(): MockState {
       code: 'KIN826531',
       status: 'PENDING',
       requestedRole: 'Family',
+      targetMemberId: null,
+      targetDisplayName: null,
       createdByMemberId: 'member_daughter',
       approvedMemberId: null,
       expiresAt: now + 5 * 24 * hour,
       createdAt: now - 6 * hour,
       approvedAt: null,
+    },
+    {
+      id: 'invite_elder_seed',
+      familySpaceId: familySpace.id,
+      code: 'KINELDER',
+      status: 'ACTIVE',
+      requestedRole: 'Elder',
+      targetMemberId: 'member_elder',
+      targetDisplayName: '汤老先生',
+      createdByMemberId: 'member_daughter',
+      approvedMemberId: 'member_daughter',
+      expiresAt: Date.UTC(2100, 0, 1),
+      createdAt: now - 2 * hour,
+      approvedAt: now - 2 * hour,
     },
   ]
 

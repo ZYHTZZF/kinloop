@@ -227,6 +227,7 @@ export const schemaSql = `
     code text not null,
     status text not null,
     requested_role text not null,
+    target_member_id text,
     created_by_member_id text not null,
     approved_member_id text,
     expires_at integer not null,
@@ -265,6 +266,7 @@ export function initializeSchema(db) {
     'alter table family_spaces add column created_by_user_id text',
     'alter table members add column user_id text',
     'alter table members add column relation_label text',
+    'alter table invite_codes add column target_member_id text',
     'alter table heart_posts add column image_url text',
   ]) {
     try {
@@ -280,6 +282,7 @@ export function initializeSchema(db) {
     'create index if not exists idx_members_user_id on members(user_id)',
     'create index if not exists idx_auth_codes_email_purpose on auth_codes(email, purpose)',
     'create index if not exists idx_auth_sessions_user_id on auth_sessions(user_id)',
+    'create index if not exists idx_invite_codes_code on invite_codes(code)',
     'create unique index if not exists idx_conversation_participants_unique on conversation_participants(conversation_id, member_id)',
     'create index if not exists idx_conversation_participants_member_id on conversation_participants(member_id)',
     'create unique index if not exists idx_message_receipts_unique on message_receipts(message_id, member_id)',

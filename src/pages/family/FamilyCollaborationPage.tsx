@@ -3,24 +3,30 @@ import { Link } from 'react-router-dom'
 import { PageState } from '../../components/common/PageState'
 import {
   acknowledgeAlert,
+  createInviteCode,
   getCurrentFamilySpace,
   listActiveAlerts,
+  listInviteCodes,
   listImportantEvents,
   listMembers,
   resolveAlert,
 } from '../../services/api'
-import type { Alert, FamilySpace, ImportantEvent, Member } from '../../services/api'
+import type { Alert, FamilySpace, ImportantEvent, InviteCode, Member } from '../../services/api'
 import { formatShortDateTime } from '../../utils/dateTime'
 
 export function FamilyCollaborationPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [importantEvents, setImportantEvents] = useState<ImportantEvent[]>([])
+  const [invites, setInvites] = useState<InviteCode[]>([])
   const [familySpace, setFamilySpace] = useState<FamilySpace | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
   const [copiedJoinCode, setCopiedJoinCode] = useState(false)
+  const [copiedElderInviteCode, setCopiedElderInviteCode] = useState(false)
+  const [creatingElderInvite, setCreatingElderInvite] = useState(false)
+  const [elderDisplayNameDraft, setElderDisplayNameDraft] = useState('')
   const [handlingAlertId, setHandlingAlertId] = useState<string | null>(null)
   const [resolvingAlertId, setResolvingAlertId] = useState<string | null>(null)
 
@@ -29,18 +35,22 @@ export function FamilyCollaborationPage() {
 
     async function load() {
       try {
-        const [nextMembers, nextAlerts, nextFamilySpace, nextImportantEvents] = await Promise.all([
+        const [nextMembers, nextAlerts, nextFamilySpace, nextImportantEvents, nextInvites] = await Promise.all([
           listMembers(),
           listActiveAlerts(),
           getCurrentFamilySpace(),
           listImportantEvents(),
+          listInviteCodes(),
         ])
 
         if (!cancelled) {
+          const elderMember = nextMembers.find((member) => member.role === 'Elder')
           setMembers(nextMembers)
           setAlerts(nextAlerts)
           setFamilySpace(nextFamilySpace)
           setImportantEvents(nextImportantEvents)
+          setInvites(nextInvites)
+          setElderDisplayNameDraft(elderMember?.displayName ?? getInitialElderDisplayName(nextFamilySpace))
           setError('')
         }
       } catch {
@@ -90,6 +100,10 @@ export function FamilyCollaborationPage() {
     return getUpcomingImportantEvents(importantEvents, new Date(), 7).slice(0, 4)
   }, [importantEvents])
 
+  const activeElderInvite = useMemo(() => {
+    return invites.find((invite) => invite.requestedRole === 'Elder' && invite.status === 'ACTIVE')
+  }, [invites])
+
   async function handleCopyJoinCode() {
     const joinCode = familySpace?.joinCode
     if (!joinCode) return
@@ -99,6 +113,47 @@ export function FamilyCollaborationPage() {
       setCopiedJoinCode(true)
       setFeedback(`已复制家庭加入码：${joinCode}`)
       window.setTimeout(() => setCopiedJoinCode(false), 2000)
+    } catch {
+      setError('复制失败了，请再试一次。')
+    }
+  }
+
+  async function handleCreateElderInvite() {
+    const displayName = elderDisplayNameDraft.trim()
+    if (!displayName) {
+      setError('请先填写老人在家庭里的称呼。')
+      return
+    }
+
+    try {
+      setCreatingElderInvite(true)
+      const invite = await createInviteCode({ requestedRole: 'Elder', displayName })
+      const [nextMembers, nextFamilySpace, nextInvites] = await Promise.all([
+        listMembers(),
+        getCurrentFamilySpace(),
+        listInviteCodes(),
+      ])
+      setMembers(nextMembers)
+      setFamilySpace(nextFamilySpace)
+      setInvites(nextInvites)
+      setFeedback(`已生成${displayName}的专属邀请码：${invite.code}`)
+      setError('')
+    } catch {
+      setError('老人专属邀请码暂时没有生成成功，请稍后再试。')
+    } finally {
+      setCreatingElderInvite(false)
+    }
+  }
+
+  async function handleCopyElderInviteCode() {
+    const inviteCode = activeElderInvite?.code
+    if (!inviteCode) return
+
+    try {
+      await navigator.clipboard.writeText(inviteCode)
+      setCopiedElderInviteCode(true)
+      setFeedback(`已复制老人专属邀请码：${inviteCode}`)
+      window.setTimeout(() => setCopiedElderInviteCode(false), 2000)
     } catch {
       setError('复制失败了，请再试一次。')
     }
@@ -224,6 +279,37 @@ export function FamilyCollaborationPage() {
               ))}
             </div>
             <p className="members-card__meta">紧急通知顺序：{alertOrder || '暂未设置'}</p>
+
+            <div className="list-row">
+              <div className="list-row__main">
+                <label className="welcome-field">
+                  <span>老人称呼</span>
+                  <input
+                    value={elderDisplayNameDraft}
+                    onChange={(event) => setElderDisplayNameDraft(event.target.value)}
+                    placeholder="例如 妈妈 / 爷爷"
+                  />
+                </label>
+              </div>
+              <div className="inline-actions">
+                <button className="primary-action" type="button" onClick={() => void handleCreateElderInvite()} disabled={creatingElderInvite}>
+                  {creatingElderInvite ? '生成中...' : activeElderInvite ? '重新生成老人邀请码' : '生成老人邀请码'}
+                </button>
+              </div>
+            </div>
+
+            <p className="members-card__meta">
+              {activeElderInvite
+                ? `${(activeElderInvite.targetDisplayName ?? elderDisplayNameDraft) || '长辈'}可用这个邀请码重复登录老人端。`
+                : '生成后发给老人，老人只需要复制粘贴这个码登录。'}
+            </p>
+            <div className="inline-actions collaboration-members-actions">
+              <span className="status-pill">老人专属邀请码：{activeElderInvite?.code ?? '暂未生成'}</span>
+              <button className="primary-action" type="button" onClick={() => void handleCopyElderInviteCode()} disabled={!activeElderInvite?.code}>
+                {copiedElderInviteCode ? '已复制' : '复制老人邀请码'}
+              </button>
+            </div>
+
             <div className="inline-actions collaboration-members-actions">
               <span className="status-pill">加入码：{familySpace?.joinCode ?? '暂未生成'}</span>
               <button className="primary-action" type="button" onClick={() => void handleCopyJoinCode()} disabled={!familySpace?.joinCode}>
@@ -265,6 +351,11 @@ type UpcomingImportantEvent = {
   event: ImportantEvent
   date: Date
   daysUntil: number
+}
+
+function getInitialElderDisplayName(familySpace: FamilySpace) {
+  const currentName = familySpace.elderDisplayName.trim()
+  return currentName && currentName !== '待绑定长辈' ? currentName : ''
 }
 
 function getUpcomingImportantEvents(events: ImportantEvent[], fromDate: Date, daysAhead: number): UpcomingImportantEvent[] {

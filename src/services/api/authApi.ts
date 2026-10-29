@@ -30,6 +30,10 @@ export function loginAccount(payload: { email: string; password: string }) {
   return apiPost<AuthSession>('/auth/login', payload)
 }
 
+export function loginWithElderInviteCode(inviteCode: string) {
+  return apiPost<AuthSession>('/auth/elder-invite-login', { inviteCode })
+}
+
 export function resetPassword(payload: { email: string; code: string; newPassword: string }) {
   return apiPost<AuthSession>('/auth/reset-password', payload)
 }

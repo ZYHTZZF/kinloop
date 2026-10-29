@@ -49,6 +49,7 @@ import {
   getCurrentSessionPayload,
   getMembershipForUserId,
   getSessionByToken,
+  loginWithElderInviteCode,
   loginUser,
   resetUserPassword,
 } from './repositories/authRepository.mjs'
@@ -415,6 +416,11 @@ app.post('/api/auth/register', (request, response) => {
     return
   }
 
+  if (request.body?.role === 'elder') {
+    response.status(400).json({ error: '老人端请使用家人生成的专属邀请码登录。' })
+    return
+  }
+
   try {
     consumeAuthCode(email, 'register', code)
     const session = createRegisteredUser({
@@ -453,6 +459,16 @@ app.post('/api/auth/login', (request, response) => {
   }
 })
 
+app.post('/api/auth/elder-invite-login', (request, response) => {
+  try {
+    response.json(loginWithElderInviteCode(request.body?.inviteCode))
+  } catch (error) {
+    response.status(401).json({
+      error: error instanceof Error ? error.message : '老人邀请码登录失败',
+    })
+  }
+})
+
 app.post('/api/auth/reset-password', (request, response) => {
   const email = `${request.body?.email ?? ''}`.trim().toLowerCase()
   const code = `${request.body?.code ?? ''}`.trim()
@@ -480,6 +496,7 @@ app.use('/api', (request, response, next) => {
     || request.path === '/auth/send-code'
     || request.path === '/auth/register'
     || request.path === '/auth/login'
+    || request.path === '/auth/elder-invite-login'
     || request.path === '/auth/reset-password'
   ) {
     next()
@@ -912,6 +929,7 @@ app.post('/api/invites', (request, response) => {
     familySpaceId: getFamilySpaceIdFromRequest(request),
     requestedRole: request.body?.requestedRole ?? 'Family',
     createdByMemberId: request.auth.membership.memberId,
+    displayName: request.body?.displayName,
   }))
 })
 

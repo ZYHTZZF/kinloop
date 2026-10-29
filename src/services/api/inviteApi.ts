@@ -6,6 +6,8 @@ export type InviteCode = {
   code: string
   status: string
   requestedRole: string
+  targetMemberId: string | null
+  targetDisplayName: string | null
   createdByMemberId: string
   approvedMemberId: string | null
   expiresAt: number

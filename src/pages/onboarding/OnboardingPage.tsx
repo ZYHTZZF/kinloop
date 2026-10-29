@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { getCurrentSession, loginAccount, registerAccount, resetPassword, sendAuthCode } from '../../services/api'
+import { getCurrentSession, loginAccount, loginWithElderInviteCode, registerAccount, resetPassword, sendAuthCode } from '../../services/api'
 import {
   type OnboardingAuthMode,
   type OnboardingFamilyMode,
@@ -10,7 +10,6 @@ import {
 } from '../../app/onboardingStorage'
 
 const roleCards: Array<{ id: OnboardingRole; title: string; tags: string[] }> = [
-  { id: 'elder', title: '我是长辈', tags: ['语音优先', '大字更清楚', '陪伴更简单'] },
   { id: 'family', title: '我是家人', tags: ['关注状态', '随时聊天', '日常跟进'] },
   { id: 'caregiver', title: '我是照护者', tags: ['协同照护', '任务分工', '成员协作'] },
 ]
@@ -52,6 +51,10 @@ function toFriendlyError(error: unknown, fallback: string) {
     return '网络有点不稳定，请稍后再试。'
   }
 
+  if (/邀请码|invite/i.test(message)) {
+    return '邀请码无效，请检查后重试。'
+  }
+
   if (/code|验证码/i.test(message)) {
     return '验证码有误或已过期，请重新获取。'
   }
@@ -87,6 +90,7 @@ export function OnboardingPage() {
   const [familyMode, setFamilyMode] = useState<OnboardingFamilyMode>('create')
   const [familyName, setFamilyName] = useState('')
   const [familyCode, setFamilyCode] = useState('')
+  const [elderInviteCode, setElderInviteCode] = useState('')
 
   useEffect(() => {
     const token = getStoredAuthToken()
@@ -143,6 +147,25 @@ export function OnboardingPage() {
       navigate(resolvePostAuthPath(nextPath, session.homePath, session.membership.role), { replace: true })
     } catch (loginError) {
       setNotice('', toFriendlyError(loginError, '登录失败，请检查后重试。'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleElderInviteLogin() {
+    if (!elderInviteCode.trim()) {
+      setNotice('', '请粘贴家人发来的老人专属邀请码。')
+      return
+    }
+
+    setLoading(true)
+    setNotice('', '')
+    try {
+      const session = await loginWithElderInviteCode(elderInviteCode.trim().toUpperCase())
+      saveAuthSession(session)
+      navigate(resolvePostAuthPath(nextPath, session.homePath, session.membership.role), { replace: true })
+    } catch (loginError) {
+      setNotice('', toFriendlyError(loginError, '邀请码登录失败，请检查后重试。'))
     } finally {
       setLoading(false)
     }
@@ -294,11 +317,11 @@ export function OnboardingPage() {
               <div className="welcome-form-grid">
                 <label className="welcome-field">
                   <span>称呼</span>
-                  <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="例如 王阿姨 / 大女儿" />
+                  <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="例如 大女儿 / 儿子" />
                 </label>
                 <label className="welcome-field">
                   <span>关系备注</span>
-                  <input value={relationLabel} onChange={(event) => setRelationLabel(event.target.value)} placeholder="例如 长辈 / 女儿 / 护工" />
+                  <input value={relationLabel} onChange={(event) => setRelationLabel(event.target.value)} placeholder="例如 女儿 / 儿子 / 护工" />
                 </label>
               </div>
 
@@ -355,11 +378,31 @@ export function OnboardingPage() {
                 <article className="family-binding-card family-binding-card--directory">
                   <span className="welcome-kicker">说明</span>
                   <strong>注册完成后，会自动进入适合你的首页。</strong>
-                  <p>长辈账号会进入长辈端，家人和照护者会进入家属端。</p>
+                  <p>家人和照护者会进入家属端，长辈端请使用家人生成的专属邀请码登录。</p>
                   <p>如果一时没收到验证码，可以稍等片刻后重新发送。</p>
                 </article>
               </div>
             </>
+          ) : null}
+
+          {mode === 'login' ? (
+            <article className="family-binding-card">
+              <strong>长辈端快捷登录</strong>
+              <p>粘贴家人发来的专属邀请码，就能直接进入长辈端。</p>
+              <label className="welcome-field">
+                <span>老人专属邀请码</span>
+                <div className="welcome-inline">
+                  <input
+                    value={elderInviteCode}
+                    onChange={(event) => setElderInviteCode(event.target.value)}
+                    placeholder="例如 KIN8A3P2"
+                  />
+                  <button className="welcome-secondary" type="button" onClick={() => void handleElderInviteLogin()} disabled={loading}>
+                    {loading ? '进入中...' : '进入长辈端'}
+                  </button>
+                </div>
+              </label>
+            </article>
           ) : null}
 
           <div className="welcome-actions">
