@@ -1,8 +1,8 @@
 import express from 'express'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { resolve } from 'node:path'
-import { API_HOST, API_PORT, AUTH_DEV_EXPOSE_CODES, DB_PATH, UPLOADS_DIR } from './config.mjs'
+import { join, resolve } from 'node:path'
+import { API_HOST, API_PORT, AUTH_DEV_EXPOSE_CODES, CLIENT_DIST_DIR, CORS_ORIGINS, DB_PATH, UPLOADS_DIR } from './config.mjs'
 import { WebSocketServer } from 'ws'
 import { getDatabase } from './db/index.mjs'
 import { acknowledgeAlert, createAlert, listActiveAlerts, resolveAlert } from './repositories/alertRepository.mjs'
@@ -64,6 +64,11 @@ app.use(express.json({ limit: '30mb' }))
 // Register new memory trigger route
 app.use('/api/memories', memoryTriggerRoutes)
 app.use('/uploads', express.static(UPLOADS_DIR))
+if (existsSync(CLIENT_DIST_DIR)) {
+  app.use(express.static(CLIENT_DIST_DIR))
+} else {
+  console.warn(`[static] client dist not found at ${CLIENT_DIST_DIR}; only API routes will be served.`)
+}
 const server = createServer(app)
 const wss = new WebSocketServer({ server })
 const realtimeClients = new Map()
@@ -329,10 +334,14 @@ wss.on('connection', (ws) => {
   })
 })
 
-app.use((_, response, next) => {
-  response.setHeader('Access-Control-Allow-Origin', '*')
+app.use((request, response, next) => {
+  const origin = request.headers.origin
+  const allowedOrigin = CORS_ORIGINS.length === 0 || !origin || CORS_ORIGINS.includes(origin)
+    ? (origin ?? '*')
+    : CORS_ORIGINS[0]
+  response.setHeader('Access-Control-Allow-Origin', allowedOrigin)
   response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS')
+  response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
   next()
 })
 
@@ -939,6 +948,15 @@ app.patch('/api/invites/:inviteId/approve', (request, response) => {
     request.body.approvedMemberId,
     getFamilySpaceIdFromRequest(request),
   ))
+})
+
+app.get(/^(?!\/api(?:\/|$)|\/uploads(?:\/|$)).*/, (_request, response, next) => {
+  if (!existsSync(CLIENT_DIST_DIR)) {
+    next()
+    return
+  }
+
+  response.sendFile(join(CLIENT_DIST_DIR, 'index.html'))
 })
 
 app.use((error, request, response, _next) => {

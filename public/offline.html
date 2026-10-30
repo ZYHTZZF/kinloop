@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kinloop 暂时无法连接</title>
+    <style>
+      :root {
+        color: #2f3a35;
+        background: #f7f3eb;
+        font-family:
+          Inter,
+          "PingFang SC",
+          "Microsoft YaHei",
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      main {
+        width: min(100%, 420px);
+        padding: 28px;
+        border: 1px solid rgba(63, 74, 68, 0.12);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.82);
+        box-shadow: 0 20px 48px rgba(71, 62, 48, 0.12);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 1.35rem;
+        line-height: 1.35;
+      }
+
+      p {
+        margin: 0 0 20px;
+        color: #6f776f;
+        line-height: 1.7;
+      }
+
+      button {
+        width: 100%;
+        min-height: 48px;
+        border: 0;
+        border-radius: 999px;
+        background: #46695d;
+        color: #fffdf8;
+        font: inherit;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>暂时连不上 Kinloop</h1>
+      <p>请检查手机网络，或稍后重新打开应用。服务器恢复后，App 会继续加载最新网页。</p>
+      <button type="button" onclick="window.location.reload()">重新连接</button>
+    </main>
+  </body>
+</html>

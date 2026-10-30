@@ -14,6 +14,35 @@ import {
 import type { Alert, FamilySpace, ImportantEvent, InviteCode, Member } from '../../services/api'
 import { formatShortDateTime } from '../../utils/dateTime'
 
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // Android WebView may reject Clipboard API even on HTTPS; fall through.
+    }
+  }
+
+  const textArea = document.createElement('textarea')
+  textArea.value = text
+  textArea.setAttribute('readonly', '')
+  textArea.style.position = 'fixed'
+  textArea.style.left = '-9999px'
+  textArea.style.top = '0'
+  document.body.appendChild(textArea)
+  textArea.focus()
+  textArea.select()
+
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    document.body.removeChild(textArea)
+  }
+}
+
 export function FamilyCollaborationPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
@@ -108,13 +137,13 @@ export function FamilyCollaborationPage() {
     const joinCode = familySpace?.joinCode
     if (!joinCode) return
 
-    try {
-      await navigator.clipboard.writeText(joinCode)
+    if (await copyText(joinCode)) {
       setCopiedJoinCode(true)
       setFeedback(`已复制家庭加入码：${joinCode}`)
+      setError('')
       window.setTimeout(() => setCopiedJoinCode(false), 2000)
-    } catch {
-      setError('复制失败了，请再试一次。')
+    } else {
+      setError(`系统没有开放自动复制，请长按加入码 ${joinCode} 手动复制。`)
     }
   }
 
@@ -149,13 +178,13 @@ export function FamilyCollaborationPage() {
     const inviteCode = activeElderInvite?.code
     if (!inviteCode) return
 
-    try {
-      await navigator.clipboard.writeText(inviteCode)
+    if (await copyText(inviteCode)) {
       setCopiedElderInviteCode(true)
       setFeedback(`已复制老人专属邀请码：${inviteCode}`)
+      setError('')
       window.setTimeout(() => setCopiedElderInviteCode(false), 2000)
-    } catch {
-      setError('复制失败了，请再试一次。')
+    } else {
+      setError(`系统没有开放自动复制，请长按老人邀请码 ${inviteCode} 手动复制。`)
     }
   }
 
@@ -280,9 +309,9 @@ export function FamilyCollaborationPage() {
             </div>
             <p className="members-card__meta">紧急通知顺序：{alertOrder || '暂未设置'}</p>
 
-            <div className="list-row">
-              <div className="list-row__main">
-                <label className="welcome-field">
+            <div className="collaboration-invite-generator">
+              <div className="collaboration-invite-generator__field">
+                <label className="welcome-field collaboration-elder-name-field">
                   <span>老人称呼</span>
                   <input
                     value={elderDisplayNameDraft}
@@ -291,7 +320,7 @@ export function FamilyCollaborationPage() {
                   />
                 </label>
               </div>
-              <div className="inline-actions">
+              <div className="inline-actions collaboration-invite-generator__actions">
                 <button className="primary-action" type="button" onClick={() => void handleCreateElderInvite()} disabled={creatingElderInvite}>
                   {creatingElderInvite ? '生成中...' : activeElderInvite ? '重新生成老人邀请码' : '生成老人邀请码'}
                 </button>
@@ -304,14 +333,14 @@ export function FamilyCollaborationPage() {
                 : '生成后发给老人，老人只需要复制粘贴这个码登录。'}
             </p>
             <div className="inline-actions collaboration-members-actions">
-              <span className="status-pill">老人专属邀请码：{activeElderInvite?.code ?? '暂未生成'}</span>
+              <span className="status-pill collaboration-code-pill">老人专属邀请码：{activeElderInvite?.code ?? '暂未生成'}</span>
               <button className="primary-action" type="button" onClick={() => void handleCopyElderInviteCode()} disabled={!activeElderInvite?.code}>
                 {copiedElderInviteCode ? '已复制' : '复制老人邀请码'}
               </button>
             </div>
 
             <div className="inline-actions collaboration-members-actions">
-              <span className="status-pill">加入码：{familySpace?.joinCode ?? '暂未生成'}</span>
+              <span className="status-pill collaboration-code-pill">加入码：{familySpace?.joinCode ?? '暂未生成'}</span>
               <button className="primary-action" type="button" onClick={() => void handleCopyJoinCode()} disabled={!familySpace?.joinCode}>
                 {copiedJoinCode ? '已复制' : '复制加入码'}
               </button>

@@ -10,10 +10,15 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.env
+.env.local
+.env.*.local
 *.local
-!.env
-!.env.local
-!.env.*.local
+app-debug.apk
+*.apk
+.tmp-*
+build_log.txt
+build_try*.txt
 
 # Editor directories and files
 .vscode/*

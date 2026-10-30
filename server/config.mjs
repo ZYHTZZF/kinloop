@@ -9,6 +9,13 @@ const DATA_DIR = process.env.KINLOOP_DATA_DIR
 
 export const API_PORT = Number(process.env.PORT ?? process.env.KINLOOP_API_PORT ?? 8787)
 export const API_HOST = process.env.KINLOOP_API_HOST ?? '0.0.0.0'
+export const CLIENT_DIST_DIR = process.env.KINLOOP_CLIENT_DIST_DIR
+  ? resolve(process.cwd(), process.env.KINLOOP_CLIENT_DIST_DIR)
+  : resolve(process.cwd(), 'dist')
+export const CORS_ORIGINS = `${process.env.KINLOOP_CORS_ORIGINS ?? ''}`
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
 export const DB_PATH = process.env.KINLOOP_DB_PATH
   ? resolve(process.cwd(), process.env.KINLOOP_DB_PATH)
   : resolve(DATA_DIR, 'kinloop.db')

@@ -14,16 +14,46 @@ function joinUrl(baseUrl: string, path: string) {
   return `${baseUrl}/${path}`
 }
 
+function getBrowserOrigin() {
+  if (typeof window === 'undefined') return null
+  if (!/^https?:$/i.test(window.location.protocol)) return null
+  return normalizeBaseUrl(window.location.origin, window.location.origin)
+}
+
+function getSameOriginWebSocketOrigin() {
+  if (typeof window === 'undefined') return null
+  if (!/^https?:$/i.test(window.location.protocol)) return null
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}`
+}
+
+function isCapacitorBundledOrigin() {
+  if (typeof window === 'undefined') return false
+  const hostname = window.location.hostname
+  return Capacitor.isNativePlatform() && (hostname === 'localhost' || hostname === '127.0.0.1')
+}
+
+function isViteDevOrigin() {
+  if (typeof window === 'undefined') return false
+  return window.location.port === '5173'
+}
+
 function getDefaultApiOrigin() {
   if (typeof window === 'undefined') {
     return DEFAULT_DEV_API_ORIGIN
   }
 
   if (Capacitor.isNativePlatform()) {
+    if (!isCapacitorBundledOrigin()) {
+      const remoteOrigin = getBrowserOrigin()
+      if (remoteOrigin) return remoteOrigin
+    }
+
     return normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL, DEFAULT_DEV_API_ORIGIN)
   }
 
-  return window.location.origin
+  return getBrowserOrigin() ?? DEFAULT_DEV_API_ORIGIN
 }
 
 function getDefaultWsOrigin() {
@@ -32,14 +62,22 @@ function getDefaultWsOrigin() {
   }
 
   if (Capacitor.isNativePlatform()) {
+    if (!isCapacitorBundledOrigin()) {
+      const remoteOrigin = getSameOriginWebSocketOrigin()
+      if (remoteOrigin) return remoteOrigin
+    }
+
     return normalizeBaseUrl(import.meta.env.VITE_WS_BASE_URL, DEFAULT_DEV_WS_ORIGIN)
   }
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const host = window.location.hostname || '127.0.0.1'
-  const port = window.location.port && window.location.port !== '5173' ? window.location.port : '8787'
+  if (isViteDevOrigin()) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.hostname || '127.0.0.1'
+    return `${protocol}//${host}:8787`
+  }
 
-  return `${protocol}//${host}:${port}`
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return getSameOriginWebSocketOrigin() ?? `${protocol}//127.0.0.1:8787`
 }
 
 export function buildApiUrl(path: string) {
