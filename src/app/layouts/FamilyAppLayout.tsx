@@ -119,7 +119,6 @@ export function FamilyAppLayout() {
 
   return (
     <div className={`app-shell app-shell--family${isConversationRoute ? ' app-shell--conversation' : ''}`}>
-      <span className="family-sync-dot" aria-hidden="true" />
       {!isConversationRoute ? (
         <header className="app-shell__header app-shell__header--with-reminders">
           <div className="app-shell__header-main">
