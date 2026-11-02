@@ -263,6 +263,48 @@ export class Store {
         keys.add(key(title));
         changed.add(id);
         result = { note_id: id };
+      } else if (method === 'note.import') {
+        const imported: { note_id: string; title: string; filename: string }[] = [];
+        if (
+          !Array.isArray(p.files) ||
+          !p.files.length ||
+          p.files.length > 50 ||
+          p.files.reduce((n: number, f: any) => n + bytes(f.content), 0) > 10 * 1048576
+        )
+          fail('E_INPUT', '每批最多50篇、正文总量10 MiB');
+        for (const file of p.files) {
+          const base = name(file.title),
+            content = body(file.content);
+          let title = base,
+            i = 1;
+          while (
+            this.db
+              .prepare('SELECT 1 FROM notes WHERE title_key=? AND deleted_at IS NULL')
+              .get(key(title))
+          ) {
+            const suffix = ` (${i++})`;
+            title = [...base].slice(0, 100 - [...suffix].length).join('') + suffix;
+          }
+          const id = randomUUID();
+          this.db
+            .prepare('INSERT INTO notes VALUES(?,?,?,?,?,?,?,?,?,NULL)')
+            .run(
+              id,
+              this.profile().user_id,
+              title,
+              key(title),
+              content,
+              bytes(content),
+              0,
+              now,
+              now,
+            );
+          this.updateRefs(id, content, true);
+          keys.add(key(title));
+          changed.add(id);
+          imported.push({ note_id: id, title, filename: file.filename });
+        }
+        result = { note_id: imported.at(-1)!.note_id, imported };
       } else if (method === 'note.save' || method === 'note.setTags') {
         const n = this.checked(p.note_id, p.expected_revision),
           content = method === 'note.save' ? body(p.content) : n.content;

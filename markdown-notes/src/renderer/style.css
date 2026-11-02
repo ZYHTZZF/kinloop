@@ -174,7 +174,7 @@ kbd {
   isolation: isolate;
   position: relative;
   display: grid;
-  grid-template: 56px minmax(0, 1fr) / var(--sidebar-width) minmax(0, 1fr);
+  grid-template: 56px minmax(0, 1fr) / var(--sidebar-width) minmax(0, 1fr) var(--ai-width, 0px);
   height: 100%;
   overflow: hidden;
 }
@@ -475,6 +475,49 @@ kbd {
   border-radius: var(--radius);
   background: white;
   box-shadow: 0 2px 8px #00000003;
+}
+.ai-docked .editor-toolbar {
+  flex-wrap: wrap;
+}
+.ai-docked .document-top {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ai-docked .document-label {
+  display: none;
+}
+.ai-docked .document-actions {
+  flex-wrap: wrap;
+}
+.ai-docked .format-tools {
+  flex-wrap: wrap;
+}
+.ai-docked .empty-features {
+  flex-wrap: wrap;
+}
+.ai-docked .empty-document {
+  padding: 24px 12px;
+}
+.ai-docked .document-heading {
+  padding-bottom: 8px;
+}
+.ai-docked .statusbar {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 26px;
+}
+.import-drop-hint {
+  position: absolute;
+  left: 24px;
+  top: 70px;
+  z-index: 12;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 14px 20px;
+  color: var(--accent);
+  background: var(--paper);
+  box-shadow: var(--glass-shadow);
 }
 .note-list {
   width: var(--list-width);

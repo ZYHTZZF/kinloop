@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-02T11:53:58.476Z",
+  "synthetic_only": true,
+  "original_config_unchanged": true,
+  "cases": [
+    {
+      "kind": "connection",
+      "pass": true
+    },
+    {
+      "kind": "image",
+      "pass": true
+    },
+    {
+      "kind": "pdf_local_text",
+      "pass": true
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { attachmentSchema, ATTACHMENT_COUNT } from './files';
 export const AI_INPUT_BYTES = 128 * 1024;
 export const AI_OUTPUT_BYTES = 256 * 1024;
 export function aiEndpoint(value: string) {
@@ -54,6 +55,7 @@ export const aiTaskSchema = z
     context_note_full: z.boolean().default(true),
     can_edit: z.boolean().default(false),
     agent: z.boolean().default(true),
+    attachments: z.array(attachmentSchema).max(ATTACHMENT_COUNT).default([]),
   })
   .strict();
 export type AiTask = z.infer<typeof aiTaskSchema>;

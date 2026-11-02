@@ -1,7 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { safeMarkdown } from './markdown';
 import type { AiSettingsView, AiResult } from '../shared/ai';
-import { prepareAiContext } from '../shared/ai-context';
+import { prepareChatContext } from '../shared/ai-context';
+import { Sparkles, X, Paperclip, Send, PanelRightClose } from 'lucide-react';
+import {
+  chatAttachments,
+  attachmentInfo,
+  FILE_ACCEPT,
+  ATTACHMENT_COUNT,
+  ATTACHMENT_TOTAL_BYTES,
+  type AiAttachment,
+  type AttachmentInfo,
+} from '../shared/files';
+import { readChatFile } from './file-input';
 import './ai.css';
 const api = window.notesApi;
 const message = (e: any) => e?.message || '操作未完成，请重试';
@@ -233,10 +244,14 @@ export type ChatTurn = {
   result?: AiResult;
   source?: AiSource;
   status?: 'pending' | 'applied' | 'dismissed';
+  attachments?: AttachmentInfo[];
 };
 export function AiAssistant({
   source,
-  initialAction,
+  command,
+  visible,
+  configurationVersion,
+  onClose,
   onConfigure,
   onAppend,
   onCreate,
@@ -244,7 +259,10 @@ export function AiAssistant({
   memory,
 }: {
   source: AiSource;
-  initialAction: 'summarize' | 'generate';
+  command: { id: number; action: 'summarize' | 'generate' };
+  visible: boolean;
+  configurationVersion: number;
+  onClose(): void;
   onConfigure(): void;
   onAppend(source: AiSource, text: string): Promise<void>;
   onCreate(source: AiSource, title: string, text: string): Promise<void>;
@@ -253,12 +271,19 @@ export function AiAssistant({
 }) {
   const [config, setConfig] = useState<AiSettingsView | null>(null),
     [turns, setTurns] = useState<ChatTurn[]>(memory.current),
-    [input, setInput] = useState(initialAction === 'summarize' ? '总结这篇笔记' : ''),
+    [input, setInput] = useState(''),
     [include, setInclude] = useState(!!source.note_id),
     [agent, setAgent] = useState(true),
     [busy, setBusy] = useState(false),
     [applying, setApplying] = useState(false),
     [error, setError] = useState('');
+  const [nativePdf, setNativePdf] = useState(false);
+  const [attachments, setAttachments] = useState<AiAttachment[]>([]),
+    [reading, setReading] = useState(false),
+    [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null),
+    composer = useRef<HTMLTextAreaElement>(null),
+    readingFlight = useRef(false);
   const request = useRef<string | null>(null),
     pending = useRef<string | null>(null),
     alive = useRef(true),
@@ -270,14 +295,6 @@ export function AiAssistant({
   };
   useEffect(() => {
     alive.current = true;
-    api
-      .call('ai.get')
-      .then((p) => {
-        if (alive.current) setConfig(p);
-      })
-      .catch((e) => {
-        if (alive.current) setError(message(e));
-      });
     return () => {
       alive.current = false;
       if (request.current)
@@ -286,28 +303,78 @@ export function AiAssistant({
     };
   }, []);
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'nearest' });
-  }, [turns.length, busy]);
+    if (!visible) return;
+    let current = true;
+    api
+      .call('ai.get')
+      .then((p) => {
+        if (current) setConfig(p);
+      })
+      .catch((e) => {
+        if (current) setError(message(e));
+      });
+    return () => {
+      current = false;
+    };
+  }, [visible, configurationVersion]);
+  useEffect(() => {
+    if (visible) bottom.current?.scrollIntoView({ block: 'nearest' });
+  }, [turns.length, busy, visible]);
   useEffect(() => {
     setInclude(!!source.note_id);
   }, [source.note_id]);
+  useEffect(() => {
+    if (command.action === 'summarize') setInput((text) => (text.trim() ? text : '总结这篇笔记'));
+    composer.current?.focus();
+  }, [command.id]);
+  const addFiles = async (files: File[]) => {
+    if (!files.length || flight.current || readingFlight.current) return;
+    readingFlight.current = true;
+    setReading(true);
+    setError('');
+    setDragging(false);
+    try {
+      if (
+        files.length + attachments.length > ATTACHMENT_COUNT ||
+        files.reduce((n, f) => n + f.size, 0) + attachments.reduce((n, f) => n + f.size, 0) >
+          ATTACHMENT_TOTAL_BYTES
+      )
+        throw new Error('每个会话最多5个活动附件、共20 MiB；请先移除不需要的附件');
+      const next: AiAttachment[] = [];
+      for (const file of files) next.push(await readChatFile(file));
+      if (alive.current) setAttachments((previous) => [...previous, ...next]);
+    } catch (e) {
+      if (alive.current) setError(message(e));
+    } finally {
+      readingFlight.current = false;
+      if (alive.current) setReading(false);
+    }
+  };
   const [contextInfo, setContextInfo] = useState('');
   const send = async () => {
-    const text = input.trim();
-    if (!text || flight.current) return;
+    const text =
+      input.trim() || (attachments.length ? '请分析这些附件，提炼主要内容与关键结论。' : '');
+    if (!text || flight.current || readingFlight.current) return;
     const history = turns.map((t) => ({
       ...t,
       ...(t.status === 'pending' ? { status: 'dismissed' as const } : {}),
     }));
     const lastDraft = turns.findLast((t) => t.status === 'pending' && t.result?.proposal);
-    let packed;
+    let packed, outgoing: AiAttachment[];
     try {
-      packed = prepareAiContext(
+      outgoing = chatAttachments(attachments, nativePdf);
+      packed = prepareChatContext(
         history.map((t) => ({
           role: t.role,
           content:
             (t.result?.proposal
               ? '操作状态：' + (t.status === 'applied' ? '已应用' : '未应用') + '\n'
+              : '') +
+            (t.source?.note_id ? '当时附带笔记：' + t.source.title + '\n' : '') +
+            (t.attachments?.length
+              ? '当时附件（历史记录，仅本轮附件列表中的文件实际发送）：' +
+                t.attachments.map((f) => f.name).join('、') +
+                '\n'
               : '') +
             t.text +
             (t.id === lastDraft?.id
@@ -318,6 +385,7 @@ export function AiAssistant({
         text,
         include ? source.title : '',
         config?.context_tokens ?? 16384,
+        outgoing,
       );
     } catch (e) {
       setError(message(e));
@@ -326,11 +394,17 @@ export function AiAssistant({
     setContextInfo(
       '约 ' +
         packed.estimated_input_tokens +
-        ' 输入tokens' +
+        ' 输入tokens（含附件预留）' +
         (packed.omitted_history ? ' · 已压缩 ' + packed.omitted_history + ' 条历史' : '') +
         (!packed.note_complete ? ' · 笔记已节选，全文修改已禁用' : ''),
     );
-    const user = { id: crypto.randomUUID(), role: 'user' as const, text };
+    const user: ChatTurn = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      text,
+      ...(include ? { source: { ...source } } : {}),
+      attachments: attachments.map(attachmentInfo),
+    };
     const snapshot = { ...source };
     flight.current = true;
     setBusy(true);
@@ -351,6 +425,7 @@ export function AiAssistant({
         agent,
         history: packed.history,
         context_note_full: packed.note_complete,
+        attachments: outgoing,
       });
       if (alive.current) {
         if (result.context?.note_excerpt)
@@ -404,7 +479,40 @@ export function AiAssistant({
     }
   };
   return (
-    <div className="ai-chat">
+    <div
+      className={'ai-chat' + (dragging ? ' attachment-hover' : '')}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragging(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
+      }}
+      onDrop={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragging(false);
+          void addFiles([...e.dataTransfer.files]);
+        }
+      }}
+    >
+      <div className="ai-panel-heading">
+        <h2>
+          <Sparkles size={17} /> AI助手
+        </h2>
+        <button
+          className="icon"
+          aria-label="收起AI聊天面板"
+          title="收起面板，保留对话和正在进行的请求"
+          onClick={onClose}
+        >
+          <PanelRightClose size={18} />
+        </button>
+      </div>
       <div className="ai-chat-top">
         <span>{config?.configured ? config.model : '尚未配置AI'}</span>
         <div>
@@ -413,9 +521,14 @@ export function AiAssistant({
           </button>
           <button
             className="button"
-            disabled={busy || applying || !turns.length}
+            disabled={
+              busy || applying || reading || (!turns.length && !input && !attachments.length)
+            }
             onClick={() => {
               change([]);
+              setInput('');
+              setAttachments([]);
+              setContextInfo('');
               setError('');
             }}
           >
@@ -430,7 +543,7 @@ export function AiAssistant({
         {!turns.length && (
           <div className="ai-chat-empty">
             <h3>今天想整理什么？</h3>
-            <p>直接聊天，让我总结、解释、润色或生成笔记。修改会先预览，确认后保存。</p>
+            <p>边写边聊，也可以拖入图片、PDF或文字资料。修改会先预览，确认后保存。</p>
             <div className="ai-chat-suggestions">
               {[
                 '总结这篇笔记',
@@ -452,7 +565,20 @@ export function AiAssistant({
         )}
         {turns.map((turn) => (
           <div className={'ai-chat-turn ' + turn.role} key={turn.id}>
-            <small>{turn.role === 'user' ? '你' : 'Mark It Down助手'}</small>
+            <small>
+              {turn.role === 'user' ? '你' : 'Mark It Down助手'}
+              {turn.role === 'user' && turn.source?.note_id ? ' · ' + turn.source.title : ''}
+            </small>
+            {!!turn.attachments?.length && (
+              <div className="ai-sent-files">
+                {turn.attachments.map((f) => (
+                  <span key={f.id}>
+                    <Paperclip size={12} />
+                    {f.name}
+                  </span>
+                ))}
+              </div>
+            )}
             {turn.role === 'user' ? (
               <p>{turn.text}</p>
             ) : (
@@ -585,6 +711,63 @@ export function AiAssistant({
         </p>
       )}
       <div className="ai-chat-composer">
+        <input
+          ref={fileInput}
+          type="file"
+          accept={FILE_ACCEPT}
+          multiple
+          hidden
+          aria-label="选择聊天附件"
+          onChange={(e) => {
+            void addFiles([...(e.currentTarget.files ?? [])]);
+            e.currentTarget.value = '';
+          }}
+        />
+        {!!attachments.length && (
+          <div className="ai-attachments" aria-label="会话附件">
+            <p>活动附件 · 后续消息继续附带，移除后不再发送</p>
+            {attachments.map((file) => (
+              <div className="ai-attachment" key={file.id}>
+                {file.kind === 'image' ? <img src={file.data} alt="" /> : <Paperclip size={16} />}
+                <span title={file.name}>
+                  {file.name}
+                  <small>
+                    {Math.ceil(file.size / 1024)} KiB ·{' '}
+                    {file.kind === 'pdf'
+                      ? nativePdf
+                        ? 'PDF原文件'
+                        : file.extracted_text
+                          ? 'PDF提取文字'
+                          : '无文字，需原文件模式'
+                      : file.kind === 'image'
+                        ? '图片原生输入'
+                        : '文字资料'}
+                  </small>
+                </span>
+                <button
+                  className="icon"
+                  aria-label={'移除附件：' + file.name}
+                  disabled={busy || applying || reading}
+                  onClick={() => setAttachments((files) => files.filter((f) => f.id !== file.id))}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {attachments.some((f) => f.kind === 'pdf') && (
+          <label className="ai-pdf-option">
+            <input
+              type="checkbox"
+              aria-label="PDF原文件"
+              checked={nativePdf}
+              disabled={busy || applying || reading}
+              onChange={(e) => setNativePdf(e.target.checked)}
+            />
+            PDF原文件（需模型支持；默认本地提取文字）
+          </label>
+        )}
         <div className="ai-chat-options">
           <label>
             <input
@@ -607,6 +790,13 @@ export function AiAssistant({
         </div>
         <textarea
           aria-label="发给AI的消息"
+          ref={composer}
+          onPaste={(e) => {
+            if (e.clipboardData.files.length) {
+              e.preventDefault();
+              void addFiles([...e.clipboardData.files]);
+            }
+          }}
           value={input}
           maxLength={8000}
           disabled={busy || applying}
@@ -625,7 +815,16 @@ export function AiAssistant({
           }}
         />
         <div className="ai-chat-send">
-          <small>发送当前会话历史；按勾选项附带笔记。Enter发送，Shift+Enter换行。</small>
+          <button
+            className="icon"
+            aria-label="添加聊天附件"
+            title="添加图片、PDF或文字资料（也可拖入／粘贴图片）"
+            disabled={busy || applying || reading}
+            onClick={() => fileInput.current?.click()}
+          >
+            <Paperclip size={18} />
+          </button>
+          <small>{reading ? '正在读取附件…' : 'Enter发送 · Shift+Enter换行'}</small>
           {busy ? (
             <button
               className="button"
@@ -641,14 +840,20 @@ export function AiAssistant({
           ) : (
             <button
               className="new-button"
-              disabled={!config?.configured || !input.trim() || applying}
+              disabled={
+                !config?.configured || (!input.trim() && !attachments.length) || applying || reading
+              }
               onClick={() => void send()}
             >
+              <Send size={14} />
               发送
             </button>
           )}
         </div>
       </div>
+      <p className="ai-attachment-hint">
+        附件随消息发给当前AI服务。图片／PDF需模型支持；用量为估算。收起保留会话，退出软件后清空。
+      </p>
     </div>
   );
 }

@@ -124,3 +124,48 @@ export function prepareAiContext(
     omitted_history: omitted + shortened,
   };
 }
+
+/** Binary tokens are a reserve only; actual image/PDF usage depends on provider and pages. */
+export function prepareChatContext(
+  history: HistoryMessage[],
+  note: string,
+  instructions: string,
+  title: string,
+  budget: number,
+  attachments: import('./files').AiAttachment[],
+) {
+  const binaryReserve = attachments.reduce(
+    (n, f) => n + (f.kind === 'image' ? 2048 : f.kind === 'pdf' ? 4096 : 0),
+    0,
+  );
+  const textFiles = attachments.filter((f) => f.kind === 'text');
+  const textBudget = textFiles.length
+    ? Math.min(4000, Math.floor((budget - binaryReserve) / 4))
+    : 0;
+  if (budget - binaryReserve - textBudget < 4096)
+    throw new Error('附件占用超过上下文预算，请移除附件或提高AI上下文预算');
+  const packed = prepareAiContext(
+    history,
+    note,
+    instructions,
+    title,
+    budget - binaryReserve - textBudget,
+  );
+  let attachmentText = '';
+  if (textFiles.length) {
+    const each = Math.floor((textBudget - 100) / textFiles.length);
+    attachmentText = textFiles
+      .map((f) => {
+        const full = estimateTokens(f.data) <= each - 100;
+        return `【附件：${f.name}，${full ? '全文' : '节选，有省略'}】\n${clip(f.data, each - 100)}`;
+      })
+      .join('\n\n');
+  }
+  return {
+    ...packed,
+    attachment_text: attachmentText,
+    binary_reserve: binaryReserve,
+    estimated_input_tokens:
+      packed.estimated_input_tokens + binaryReserve + estimateTokens(attachmentText),
+  };
+}

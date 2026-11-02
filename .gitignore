@@ -24,3 +24,9 @@ Thumbs.db
 /个人 Markdown 笔记与知识管理工具需求分析文档.md
 
 /SHA256SUMS.txt
+
+# Local API configuration and private runtime profiles must never be committed
+**/.host/
+**/ai/connection.json
+**/ai/connection.json.*
+**/private-profile/

@@ -1,1 +1,4 @@
 
+> mark-it-down@1.6.1 typecheck
+> tsc --noEmit
+

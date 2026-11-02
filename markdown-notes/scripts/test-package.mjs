@@ -14,7 +14,8 @@ const mockKey = 'packaged-fake-' + randomUUID();
 const mockAI = createServer(async (req, res) => {
   let raw = '';
   for await (const chunk of req) raw += chunk;
-  const edit = JSON.parse(raw).messages.at(-1).content.includes('润色');
+  const message = JSON.parse(raw).messages.at(-1).content;
+  const edit = JSON.stringify(message).includes('润色');
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(
     JSON.stringify({
@@ -163,7 +164,39 @@ try {
       .querySelector('textarea[aria-label="Markdown编辑器"]')
       ?.value.includes('成品AI润色正文'),
   );
-  await page.getByRole('button', { name: '关闭对话框' }).click();
+  await page.getByRole('button', { name: '收起AI聊天面板' }).click();
+  await page.getByRole('button', { name: 'AI助手', exact: true }).click();
+  assert(
+    (await page.getByRole('log', { name: 'AI聊天记录' }).textContent()).includes('润色这篇笔记'),
+  );
+  await page
+    .locator('input[aria-label="选择聊天附件"]')
+    .setInputFiles(resolve('reports/成品中文与公式验证.pdf'));
+  await page.locator('.ai-attachment').waitFor();
+  assert((await page.locator('.ai-attachment').textContent()).includes('PDF提取文字'));
+  await page.getByRole('textbox', { name: '发给AI的消息' }).fill('参考附件润色这篇笔记');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await page.getByRole('button', { name: '放弃建议', exact: true }).click();
+  await page.getByRole('textbox', { name: '发给AI的消息' }).fill('成品侧栏草稿');
+  await page.getByRole('button', { name: '收起AI聊天面板' }).click();
+  await page.getByRole('button', { name: 'AI助手', exact: true }).click();
+  assert.equal(
+    await page.getByRole('textbox', { name: '发给AI的消息' }).inputValue(),
+    '成品侧栏草稿',
+  );
+  assert.equal(await page.locator('.ai-attachment').count(), 1);
+  await page.getByRole('button', { name: '收起AI聊天面板' }).click();
+  await page
+    .locator('input[aria-label="选择Markdown文件"]')
+    .setInputFiles({
+      name: '成品导入.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# 成品导入\n\n中文与 $x^2$'),
+    });
+  await page.waitForFunction(
+    () => document.querySelector('.document-heading h1')?.textContent === '成品导入',
+  );
+  assert((await source.inputValue()).includes('中文与 $x^2$'));
   const masked = await page.evaluate(() => window.notesApi.call('ai.get'));
   assert(masked.has_key && !JSON.stringify(masked).includes(mockKey));
   assert(!readFileSync(join(root, '.host/ai/connection.json'), 'utf8').includes(mockKey));
@@ -197,6 +230,8 @@ try {
       '成品目录大纲、引用自动补全、自定义模板复用、收藏与置顶',
       '成品格式2完整备份生成',
       '成品AI聊天Agent工具调用、预览、编辑、新建与系统加密密钥',
+      '成品右侧聊天收起后草稿、会话和附件保留，PDF本地Worker提取与附件工具调用',
+      '成品Markdown文件导入与中文公式保留',
       '实际打包标志与版本',
     ],
   };

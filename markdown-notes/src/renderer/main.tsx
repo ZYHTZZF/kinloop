@@ -50,6 +50,7 @@ import {
   ListTree,
   LayoutTemplate,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 import { codepoints, key, matchRange, trim } from '../shared/rules';
 import type { NoteView, Tag } from '../shared/types';
@@ -61,6 +62,7 @@ import { usePaneLayout, PaneDivider } from './pane-layout';
 import { AppearanceSettings, applyAppearance } from './appearance';
 import { AiSettings, AiAssistant, type AiSource, type ChatTurn } from './ai';
 import { AI_OUTPUT_BYTES } from '../shared/ai';
+import { decodeText, importedTitle } from '../shared/files';
 import { DEFAULT_APPEARANCE, type AppearanceView } from '../shared/appearance';
 import type { LiveEditorHandle } from './live-editor';
 const LiveEditor = lazy(() =>
@@ -187,7 +189,17 @@ function App() {
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [cursor, setCursor] = useState<{ text: string; caret: number } | null>(null);
   const outlineButton = useRef<HTMLButtonElement>(null);
-  const layout = usePaneLayout();
+  const [aiOpen, setAiOpen] = useState(false),
+    [aiStarted, setAiStarted] = useState(false);
+  const [aiCommand, setAiCommand] = useState<{ id: number; action: 'summarize' | 'generate' }>({
+    id: 0,
+    action: 'generate',
+  });
+  const [importHover, setImportHover] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null),
+    aiButton = useRef<HTMLButtonElement>(null);
+  const importFlight = useRef(false);
+  const layout = usePaneLayout(aiOpen ? 380 : 0);
   const [status, setStatus] = useState<any>(null),
     [allTags, setAllTags] = useState<Tag[]>([]),
     [items, setItems] = useState<any[]>([]),
@@ -223,8 +235,7 @@ function App() {
     firstEdit = useRef(0),
     toastTimer = useRef<any>(null);
   const liveEditor = useRef<LiveEditorHandle>(null);
-  const aiMemory = useRef<ChatTurn[]>([]),
-    aiConversationKey = useRef('');
+  const aiMemory = useRef<ChatTurn[]>([]);
   const referencesButton = useRef<HTMLButtonElement>(null),
     referencesCloseButton = useRef<HTMLButtonElement>(null);
   const closeReferences = useCallback(() => {
@@ -373,6 +384,7 @@ function App() {
       setStatus(s);
       statusRef.current = s;
       if (changedEpoch) {
+        aiMemory.current = [];
         installNote(null);
         setQuery('');
         setFilters([]);
@@ -680,24 +692,52 @@ function App() {
         .catch((e) => notify(e.message, true));
   };
   const openAi = (action: 'summarize' | 'generate') => {
-    const key = epochRef.current + '/' + (note && !note.deleted_at ? note.note_id : 'new');
-    if (aiConversationKey.current !== key) {
-      aiMemory.current = [];
-      aiConversationKey.current = key;
+    setAiStarted(true);
+    setAiOpen(true);
+    setAiCommand((previous) => ({ id: previous.id + 1, action }));
+  };
+  const closeAi = () => {
+    setAiOpen(false);
+    aiButton.current?.focus();
+  };
+  const importMarkdown = async (files: File[]) => {
+    if (!files.length || importFlight.current) return;
+    importFlight.current = true;
+    setImportHover(false);
+    try {
+      if (!statusRef.current?.epoch || statusRef.current?.fault || busy)
+        throw new Error('当前资料库暂不可导入，请稍后重试');
+      if (files.length > 50 || files.some((f) => !/\.(md|markdown)$/i.test(f.name)))
+        throw new Error('每次仅支持导入最多50个Markdown文件（.md／.markdown）');
+      if (
+        files.some((f) => f.size > 1048576) ||
+        files.reduce((n, f) => n + f.size, 0) > 10 * 1048576
+      )
+        throw new Error('单篇文件最多1 MiB，每批最多10 MiB');
+      const inputs: { filename: string; title: string; content: string }[] = [];
+      for (const file of files) {
+        const content = decodeText(new Uint8Array(await file.arrayBuffer()));
+        inputs.push({
+          filename: [...file.name].slice(0, 240).join(''),
+          title: importedTitle(file.name),
+          content,
+        });
+      }
+      await act('正在导入Markdown', async () => {
+        const result = await api.call('note.import', { files: inputs });
+        installNote(result.note);
+        setView('all');
+        setQuery('');
+        setFilters([]);
+        setPage(1);
+        setRefresh((n) => n + 1);
+        notify(`已导入${result.imported.length}篇笔记；同名文件自动编号，不覆盖原笔记`);
+      });
+    } catch (e: any) {
+      notify(e.message || '导入失败，原笔记保留', true);
+    } finally {
+      importFlight.current = false;
     }
-    const d = draftRef.current;
-    setModal({
-      type: 'ai',
-      data: {
-        action,
-        source: {
-          epoch: epochRef.current!,
-          note_id: note && !note.deleted_at ? note.note_id : undefined,
-          title: note && !note.deleted_at ? note.title : '',
-          content: note && !note.deleted_at ? (d?.content ?? '') : '',
-        } satisfies AiSource,
-      },
-    });
   };
   const applyAi = async (source: AiSource, text: string, title?: string, replace = false) => {
     if (!text.trim() || new TextEncoder().encode(text).length > AI_OUTPUT_BYTES)
@@ -726,23 +766,6 @@ function App() {
       setQuery('');
       setFilters([]);
       setPage(1);
-      aiConversationKey.current = epochRef.current + '/' + result.note.note_id;
-      setModal((previous) =>
-        previous?.type === 'ai'
-          ? {
-              ...previous,
-              data: {
-                ...previous.data,
-                source: {
-                  epoch: epochRef.current!,
-                  note_id: result.note.note_id,
-                  title: result.note.title,
-                  content: result.note.content,
-                },
-              },
-            }
-          : previous,
-      );
       setRefresh((n) => n + 1);
       notify('AI结果已保存');
     } finally {
@@ -820,15 +843,45 @@ function App() {
       className={
         'app-shell' +
         (layout.resizing ? ' resizing' : '') +
-        (layout.hidden.sidebar ? ' sidebar-hidden' : '')
+        (layout.hidden.sidebar ? ' sidebar-hidden' : '') +
+        (aiOpen ? ' ai-docked' : '')
       }
       style={
         {
           '--sidebar-width': layout.widths.sidebar + 'px',
           '--list-width': layout.widths.list + 'px',
+          '--ai-width': aiOpen ? '380px' : '0px',
         } as React.CSSProperties
       }
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        if (!(e.target as HTMLElement).closest('#ai-panel')) setImportHover(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setImportHover(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        setImportHover(false);
+        if (!(e.target as HTMLElement).closest('#ai-panel'))
+          void importMarkdown([...e.dataTransfer.files]);
+      }}
     >
+      <input
+        ref={importInput}
+        type="file"
+        accept=".md,.markdown"
+        multiple
+        hidden
+        aria-label="选择Markdown文件"
+        onChange={(e) => {
+          void importMarkdown([...(e.currentTarget.files ?? [])]);
+          e.currentTarget.value = '';
+        }}
+      />
+      {importHover && <div className="import-drop-hint">松开导入Markdown笔记 · 同名自动编号</div>}
       <header className="topbar" aria-label="窗口工具栏">
         <div className="brand">
           <div className="brand-mark">
@@ -880,7 +933,10 @@ function App() {
         <button
           className="button subtle"
           aria-label="AI助手"
-          onClick={() => openAi('generate')}
+          ref={aiButton}
+          aria-controls="ai-panel"
+          aria-expanded={aiOpen}
+          onClick={() => (aiOpen ? closeAi() : openAi('generate'))}
           disabled={!status || !!busy || !!status?.fault}
         >
           <Sparkles size={16} />
@@ -1041,6 +1097,15 @@ function App() {
                     </h1>
                     <p>{total} 篇笔记</p>
                   </div>
+                  <button
+                    className="icon"
+                    aria-label="导入Markdown"
+                    title="导入Markdown（也可拖入文件）"
+                    disabled={!!busy}
+                    onClick={() => importInput.current?.click()}
+                  >
+                    <Upload size={16} />
+                  </button>
                   <button
                     className="icon"
                     title="刷新列表"
@@ -1695,6 +1760,34 @@ function App() {
           </span>
         </footer>
       </main>
+      {aiStarted && status?.epoch && !status?.fault && (
+        <aside
+          id="ai-panel"
+          className="ai-panel"
+          aria-label="AI聊天面板"
+          hidden={!aiOpen}
+          inert={!!modal}
+        >
+          <AiAssistant
+            key={status.epoch}
+            source={{
+              epoch: status.epoch,
+              note_id: note && !note.deleted_at ? note.note_id : undefined,
+              title: note && !note.deleted_at ? note.title : '',
+              content: note && !note.deleted_at ? (draft?.content ?? '') : '',
+            }}
+            command={aiCommand}
+            visible={aiOpen}
+            configurationVersion={modal?.type === 'settings' ? 1 : 0}
+            onClose={closeAi}
+            onConfigure={() => openSettings('ai')}
+            memory={aiMemory}
+            onAppend={(source, text) => applyAi(source, text)}
+            onReplace={(source, text) => applyAi(source, text, undefined, true)}
+            onCreate={(source, title, text) => applyAi(source, text, title)}
+          />
+        </aside>
+      )}
       {toast && (
         <div role="status" className={'toast ' + (toast.error ? 'error' : '')}>
           <span>{toast.error ? <AlertTriangle size={17} /> : <CheckCircle2 size={17} />}</span>
@@ -1719,24 +1812,12 @@ function App() {
               pdfExport: '导出PDF',
               templates: '笔记模板',
               newNote: '新建笔记',
-              ai: 'AI助手',
               saveTemplate: '保存为模板',
             }[modal.type] ?? '设置'
           }
           onClose={closeModal}
-          wide={['settings', 'restore', 'templates', 'newNote', 'ai'].includes(modal.type)}
+          wide={['settings', 'restore', 'templates', 'newNote'].includes(modal.type)}
         >
-          {modal.type === 'ai' && (
-            <AiAssistant
-              source={modal.data.source}
-              initialAction={modal.data.action}
-              onConfigure={() => openSettings('ai')}
-              memory={aiMemory}
-              onAppend={(source, text) => applyAi(source, text)}
-              onReplace={(source, text) => applyAi(source, text, undefined, true)}
-              onCreate={(source, title, text) => applyAi(source, text, title)}
-            />
-          )}
           {modal.type === 'newNote' && (
             <TemplatePicker onCreate={fromTemplate} onError={(message) => notify(message, true)} />
           )}

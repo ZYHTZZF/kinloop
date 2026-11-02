@@ -1,35 +1,35 @@
 {
-  "date": "2026-11-02T11:25:07.271Z",
+  "date": "2026-11-02T12:00:47.485Z",
   "observations": [
     {
       "mode": "close",
       "run": 0,
       "errors": [],
-      "stderr": "Debugger ending on ws://127.0.0.1:5149/553a18e2-40d6-4a64-a79d-afd8ac2df96c\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
+      "stderr": "Debugger ending on ws://127.0.0.1:9154/48d99fc2-8fdd-440c-b62c-9cd6b97a1d03\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
     },
     {
       "mode": "close",
       "run": 1,
       "errors": [],
-      "stderr": "Debugger ending on ws://127.0.0.1:5153/bc3438cf-5c93-49f7-982c-37bfb9d88022\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
+      "stderr": "Debugger ending on ws://127.0.0.1:9158/2fc115a7-ebaa-4b38-974a-9ce4eccc223a\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
     },
     {
       "mode": "close",
       "run": 2,
       "errors": [],
-      "stderr": "Debugger ending on ws://127.0.0.1:5157/e5580e18-eb80-48df-8a07-7d1340421197\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
+      "stderr": "Debugger ending on ws://127.0.0.1:9162/5fb7a2e4-cb1f-448d-9de1-3fe0c5dd8527\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
     },
     {
       "mode": "close",
       "run": 3,
       "errors": [],
-      "stderr": "Debugger ending on ws://127.0.0.1:5163/87b73959-7044-4188-8aef-39268cfd3f27\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
+      "stderr": "Debugger ending on ws://127.0.0.1:4522/b0dcc1f4-44c8-484e-bb15-766039a02d2b\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
     },
     {
       "mode": "close",
       "run": 4,
       "errors": [],
-      "stderr": "Debugger ending on ws://127.0.0.1:5167/a1e2c75d-9062-4901-b915-ea41dbef3aed\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
+      "stderr": "Debugger ending on ws://127.0.0.1:4526/971d0b6c-8ad0-4e1c-95ee-8be36f5e647f\r\nFor help, see: https://nodejs.org/learn/getting-started/debugging\r\n"
     },
     {
       "mode": "destroy",

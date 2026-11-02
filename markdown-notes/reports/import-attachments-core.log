@@ -1,0 +1,15 @@
+(node:32920) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Markdown文字编码：UTF8/BOM/UTF16、中英文与CRLF；错误编码和二进制拒绝 (2.897ms)
+✔ 批量导入：同名编号、不覆盖、一次事务、幂等、提交失败和引用超限整体回滚 (81.6349ms)
+✔ 附件校验：仅内联数据，长度、签名、类型、重复与总容量校验 (5.4902ms)
+✔ 附件上下文：文字显式节选、二进制预留、低预算拒绝而不悄悄丢附件 (1.694ms)
+✔ 真实请求结构：图片image_url、PDF file与文字节选，工具和原文保护保留 (42.4897ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 568.3327

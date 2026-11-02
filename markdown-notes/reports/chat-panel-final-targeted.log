@@ -1,0 +1,11 @@
+
+Running 4 tests using 1 worker
+
+(node:20892) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 tests\e2e\ai.spec.ts:120:5 › 聊天Agent：密钥加密、对话总结、编辑预览应用、新建工具、多轮历史和备份排除密钥 (3.7s)
+  ok 2 tests\e2e\ai.spec.ts:213:5 › 聊天错误、取消、重定向与超限不改原文，建议可放弃并继续对话 (1.8s)
+  ok 3 tests\e2e\ai.spec.ts:271:5 › 右侧持续聊天：并行编辑、跨笔记、收起保留草稿和在途请求，附件选择／移除与小窗口 (2.5s)
+  ok 4 tests\e2e\import.spec.ts:6:5 › 文件拖入与选择导入Markdown：草稿保存、中文编码、同名编号、批量失败无部分写入、重启保留 (3.0s)
+
+  4 passed (11.7s)

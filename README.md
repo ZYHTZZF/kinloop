@@ -1,6 +1,6 @@
 # Mark It Down · Markdown Notes
 
-面向学生与知识工作者的本地个人 Markdown 笔记与知识管理工具，Windows 桌面版 1.6.0。采用 Electron、React、TypeScript 与 SQLite。
+面向学生与知识工作者的本地个人 Markdown 笔记与知识管理工具，Windows 桌面版 1.6.1。采用 Electron、React、TypeScript 与 SQLite。
 
 ## 功能
 
@@ -56,6 +56,9 @@ npm start
 | [测试与验收记录](markdown-notes/docs/02-测试与验收记录.md) | 实际执行结果、性能口径及尚未执行的正式验收项 |
 | [测试原始记录](markdown-notes/reports) | 自动化日志、性能样本、成品验证及界面截图 |
 
-已执行 56 项核心／集成／容量／安全测试、21 项 Electron 桌面流程测试、10 轮退出并发诊断及成品独立启动验证，均通过。断电、真实新用户任务及部分完整运行预算验证仍待实际执行，详见测试与验收记录。
+已执行 62 项核心／集成／容量／安全测试、23 项 Electron 桌面流程测试、10 轮退出并发诊断及成品独立启动验证，均通过。断电、真实新用户任务及部分完整运行预算验证仍待实际执行，详见测试与验收记录。
 
 ![编辑与预览界面](markdown-notes/reports/screenshots/知页-编辑与预览.png)
+
+
+1.6.1将AI改为右侧持续聊天面板，收起保留会话与请求，切换笔记继续对话；新增拖入Markdown批量导入、图片／PDF／文字聊天附件。PDF默认本地提取文字，也可选择原文件发送。详见[本轮使用与边界说明](markdown-notes/docs/13-右侧聊天与文件导入附件说明.md)。

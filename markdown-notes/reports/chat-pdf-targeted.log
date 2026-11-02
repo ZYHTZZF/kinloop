@@ -1,0 +1,8 @@
+
+Running 1 test using 1 worker
+
+(node:53132) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 tests\e2e\ai.spec.ts:271:5 › 右侧持续聊天：并行编辑、跨笔记、收起保留草稿和在途请求，附件选择／移除与小窗口 (2.3s)
+
+  1 passed (2.9s)

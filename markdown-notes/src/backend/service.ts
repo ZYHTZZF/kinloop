@@ -28,6 +28,22 @@ const id = z.string().uuid(),
   ids = z.array(id).max(20),
   empty = z.object({}).strict();
 const schemas: Record<string, z.ZodType<any>> = {
+  'note.import': z
+    .object({
+      files: z
+        .array(
+          z
+            .object({
+              title: z.string(),
+              content: z.string().max(1048576),
+              filename: z.string().max(240),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(50),
+    })
+    .strict(),
   'note.create': z
     .object({
       title: z.string().optional(),
@@ -550,6 +566,11 @@ export class Backend extends EventEmitter {
       };
     }
     if (method === 'restore.execute') return this.restore(p, request.request_id);
+    if (
+      method === 'note.import' &&
+      new TextEncoder().encode(JSON.stringify(p)).length > 12 * 1048576
+    )
+      fail('E_INPUT', '每次导入的文字总量最多10 MiB，请分批导入');
     if (!this.store || this.fault) fail('E_STORAGE', '主数据不可用，请执行故障恢复');
     if (method === 'note.get') return this.store.note(p.note_id, p.trash);
     if (method === 'note.list')

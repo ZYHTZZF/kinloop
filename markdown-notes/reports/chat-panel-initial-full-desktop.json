@@ -1,0 +1,1025 @@
+{
+  "config": {
+    "argv": [
+      "D:\\Nodejs\\node.exe",
+      "I:\\软件工程\\markdown-notes\\node_modules\\@playwright\\test\\cli.js",
+      "test"
+    ],
+    "configFile": "I:\\软件工程\\markdown-notes\\playwright.config.ts",
+    "rootDir": "I:/软件工程/markdown-notes/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "I:/软件工程/markdown-notes/test-results/playwright",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "I:/软件工程/markdown-notes/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "I:\\软件工程\\markdown-notes\\test-results\\playwright",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "name": "",
+        "testDir": "I:\\软件工程\\markdown-notes\\tests\\e2e",
+        "snapshotDir": "I:\\软件工程\\markdown-notes\\tests\\e2e",
+        "testIgnore": [],
+        "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "timeout": 60000,
+        "use": {
+          "trace": "retain-on-failure"
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": ""
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/e2e-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.64.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "ai.spec.ts",
+      "file": "ai.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "聊天Agent：密钥加密、对话总结、编辑预览应用、新建工具、多轮历史和备份排除密钥",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3523,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:55:18.073Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "f4c16ad2df3b1859900b-c06e61a5702c21121783",
+          "file": "ai.spec.ts",
+          "line": 120,
+          "column": 5
+        },
+        {
+          "title": "聊天错误、取消、重定向与超限不改原文，建议可放弃并继续对话",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1676,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:55:21.619Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "f4c16ad2df3b1859900b-58fa4b6c2293185d8665",
+          "file": "ai.spec.ts",
+          "line": 213,
+          "column": 5
+        },
+        {
+          "title": "右侧持续聊天：并行编辑、跨笔记、收起保留草稿和在途请求，附件选择／移除与小窗口",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 6874,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeInViewport\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  getByRole('button', { name: '发送', exact: true })\nExpected: in viewport\nReceived: viewport ratio 0\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeInViewport\" getByRole('button', { name: '发送', exact: true }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: '发送', exact: true })\u001b[22m\n\u001b[2m    14 × locator resolved to <button class=\"new-button\">…</button>\u001b[22m\n\u001b[2m       - unexpected value \"viewport ratio 0\"\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeInViewport\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  getByRole('button', { name: '发送', exact: true })\nExpected: in viewport\nReceived: viewport ratio 0\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeInViewport\" getByRole('button', { name: '发送', exact: true }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: '发送', exact: true })\u001b[22m\n\u001b[2m    14 × locator resolved to <button class=\"new-button\">…</button>\u001b[22m\n\u001b[2m       - unexpected value \"viewport ratio 0\"\u001b[22m\n\n    at I:\\软件工程\\markdown-notes\\tests\\e2e\\ai.spec.ts:369:75",
+                    "location": {
+                      "file": "I:\\软件工程\\markdown-notes\\tests\\e2e\\ai.spec.ts",
+                      "column": 75,
+                      "line": 369
+                    },
+                    "snippet": "  367 |         .toBe(true);\n  368 |       await expect(editor).toBeEditable();\n> 369 |       await expect(page.getByRole('button', { name: '发送', exact: true })).toBeInViewport();\n      |                                                                           ^\n  370 |       await page.screenshot({\n  371 |         animations: 'disabled',\n  372 |         path: `test-results/Mark-It-Down-AI侧栏-${width}.png`,"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "I:\\软件工程\\markdown-notes\\tests\\e2e\\ai.spec.ts",
+                        "column": 75,
+                        "line": 369
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeInViewport\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  getByRole('button', { name: '发送', exact: true })\nExpected: in viewport\nReceived: viewport ratio 0\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeInViewport\" getByRole('button', { name: '发送', exact: true }) with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: '发送', exact: true })\u001b[22m\n\u001b[2m    14 × locator resolved to <button class=\"new-button\">…</button>\u001b[22m\n\u001b[2m       - unexpected value \"viewport ratio 0\"\u001b[22m\n\n\n  367 |         .toBe(true);\n  368 |       await expect(editor).toBeEditable();\n> 369 |       await expect(page.getByRole('button', { name: '发送', exact: true })).toBeInViewport();\n      |                                                                           ^\n  370 |       await page.screenshot({\n  371 |         animations: 'disabled',\n  372 |         path: `test-results/Mark-It-Down-AI侧栏-${width}.png`,\n    at I:\\软件工程\\markdown-notes\\tests\\e2e\\ai.spec.ts:369:75"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:55:23.300Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "I:\\软件工程\\markdown-notes\\test-results\\playwright\\ai-右侧持续聊天：并行编辑、跨笔记、收起保留草稿和在途请求，附件选择／移除与小窗口\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "I:\\软件工程\\markdown-notes\\test-results\\playwright\\ai-右侧持续聊天：并行编辑、跨笔记、收起保留草稿和在途请求，附件选择／移除与小窗口\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "I:\\软件工程\\markdown-notes\\tests\\e2e\\ai.spec.ts",
+                    "column": 75,
+                    "line": 369
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "f4c16ad2df3b1859900b-d8a008410c854b4dcead",
+          "file": "ai.spec.ts",
+          "line": 271,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "app.spec.ts",
+      "file": "app.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "桌面端：离线编辑、自动保存、标签、引用、导出与完整恢复",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7621,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:55:30.509Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c31ff144dc4fee3acd0a-92e501800120ba7c292a",
+          "file": "app.spec.ts",
+          "line": 6,
+          "column": 5
+        },
+        {
+          "title": "关闭重启后正文保留，恶意HTML和远程图片不执行",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3709,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:55:38.159Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c31ff144dc4fee3acd0a-a88e72c7d515d4212cd9",
+          "file": "app.spec.ts",
+          "line": 106,
+          "column": 5
+        },
+        {
+          "title": "持续输入定期持久化，并对规范等价的原文高亮",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 15834,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:55:41.876Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "c31ff144dc4fee3acd0a-2063e25e3f37fa3c44df",
+          "file": "app.spec.ts",
+          "line": 136,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "appearance.spec.ts",
+      "file": "appearance.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "自定义颜色与图片背景：本机记忆、独立副本、带背景／无背景PDF、恢复默认",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5175,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:55:57.721Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "800c8f995c061dbbf429-e3230fc48bbda5e5752b",
+          "file": "appearance.spec.ts",
+          "line": 6,
+          "column": 5
+        },
+        {
+          "title": "无效图片、伪造路径与损坏设置：拒绝非法输入，保留原设置并回退默认",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1504,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:02.906Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "800c8f995c061dbbf429-8d93c76714cd01b5f008",
+          "file": "appearance.spec.ts",
+          "line": 122,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "import.spec.ts",
+      "file": "import.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "文件拖入与选择导入Markdown：草稿保存、中文编码、同名编号、批量失败无部分写入、重启保留",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2401,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:04.420Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "776bafb40ff21b6b6a7d-3d039ffd1d6a23eb57a0",
+          "file": "import.spec.ts",
+          "line": 6,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "live-editor.spec.ts",
+      "file": "live-editor.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "即时编辑：##空格生成二级标题、列表、粗体、撤销与源码往返",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2180,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:06.833Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7e7fba83fb3548e6d12d-4cde013cd4fc192259c6",
+          "file": "live-editor.spec.ts",
+          "line": 17,
+          "column": 5
+        },
+        {
+          "title": "原文保留、公式表格、中文组合输入、模式记忆与关闭前保存",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3062,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:09.018Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7e7fba83fb3548e6d12d-dc2ea481b9d012436de8",
+          "file": "live-editor.spec.ts",
+          "line": 75,
+          "column": 5
+        },
+        {
+          "title": "即时模式小窗口、原文粘贴、安全显示与回收站只读",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1876,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:12.090Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7e7fba83fb3548e6d12d-e64d0a32c032c5979060",
+          "file": "live-editor.spec.ts",
+          "line": 142,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "math-pdf.spec.ts",
+      "file": "math-pdf.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "离线公式预览与真实PDF：中文、四种定界符、矩阵、长文分页、安全隔离和取消",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2978,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:13.975Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "fff8f5a2fff00cec6c74-112b01fd66d149e29ad7",
+          "file": "math-pdf.spec.ts",
+          "line": 13,
+          "column": 5
+        },
+        {
+          "title": "错误公式与恶意命令不执行；打印失败保留旧PDF、清理隐藏窗口并允许重试",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2955,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:16.957Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "fff8f5a2fff00cec6c74-22b125acdfafc665fa73",
+          "file": "math-pdf.spec.ts",
+          "line": 113,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "productivity.spec.ts",
+      "file": "productivity.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "新建入口直接选模板：取消不创建、Ctrl+N、内置与自定义、草稿保护及空白新建",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1979,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:19.921Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "db75230824c68828c34b-edbd6855a778892026c6",
+          "file": "productivity.spec.ts",
+          "line": 21,
+          "column": 5
+        },
+        {
+          "title": "大纲：源码/阅读/即时跳转，重复标题与小窗口布局",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2418,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:21.905Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "db75230824c68828c34b-d405ab5e84ebf032ce6b",
+          "file": "productivity.spec.ts",
+          "line": 82,
+          "column": 5
+        },
+        {
+          "title": "引用补全：源码与即时输入、特殊字符、Esc、键盘选择、中文组合输入",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2970,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:24.327Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "db75230824c68828c34b-7c646f9cd74b2123e0f4",
+          "file": "productivity.spec.ts",
+          "line": 122,
+          "column": 5
+        },
+        {
+          "title": "模板、收藏、置顶：自定义复用、收藏搜索、回收恢复与重启持久化",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3946,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:27.302Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "db75230824c68828c34b-79f362d56a5625034cf7",
+          "file": "productivity.spec.ts",
+          "line": 176,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "title": "resizing.spec.ts",
+      "file": "resizing.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "1480宽窗口：三栏拖动、收起展开、边界、取消、键盘及记忆",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 26757,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:31.258Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8f8c0629a3bebf47035f-681dda3939a4f8754aca",
+          "file": "resizing.spec.ts",
+          "line": 35,
+          "column": 7
+        },
+        {
+          "title": "1080宽窗口：三栏拖动、收起展开、边界、取消、键盘及记忆",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 30806,
+                  "error": {
+                    "message": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: '创建空白笔记', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <button aria-label=\"创建空白笔记\" class=\"template-choice blank-choice\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m  - element was detached from the DOM, retrying\u001b[22m\n",
+                    "stack": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: '创建空白笔记', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <button aria-label=\"创建空白笔记\" class=\"template-choice blank-choice\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m  - element was detached from the DOM, retrying\u001b[22m\n\n    at I:\\软件工程\\markdown-notes\\tests\\e2e\\resizing.spec.ts:66:71",
+                    "location": {
+                      "file": "I:\\软件工程\\markdown-notes\\tests\\e2e\\resizing.spec.ts",
+                      "column": 71,
+                      "line": 66
+                    },
+                    "snippet": "  64 |       await resize(width);\n  65 |       await page.getByRole('button', { name: '新建笔记', exact: true }).click();\n> 66 |       await page.getByRole('button', { name: '创建空白笔记', exact: true }).click();\n     |                                                                       ^\n  67 |       const text = '# 自由调整工作区\\n\\n拖动或收起侧栏时，保留正在输入的内容。\\n\\n[[双向引用]]';\n  68 |       await page.getByRole('textbox', { name: 'Markdown编辑器' }).fill(text);\n  69 |       let sidebar = page.getByRole('separator', { name: '调整导航栏宽度' });"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "I:\\软件工程\\markdown-notes\\tests\\e2e\\resizing.spec.ts",
+                        "column": 71,
+                        "line": 66
+                      },
+                      "message": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: '创建空白笔记', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <button aria-label=\"创建空白笔记\" class=\"template-choice blank-choice\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m  - element was detached from the DOM, retrying\u001b[22m\n\n\n  64 |       await resize(width);\n  65 |       await page.getByRole('button', { name: '新建笔记', exact: true }).click();\n> 66 |       await page.getByRole('button', { name: '创建空白笔记', exact: true }).click();\n     |                                                                       ^\n  67 |       const text = '# 自由调整工作区\\n\\n拖动或收起侧栏时，保留正在输入的内容。\\n\\n[[双向引用]]';\n  68 |       await page.getByRole('textbox', { name: 'Markdown编辑器' }).fill(text);\n  69 |       let sidebar = page.getByRole('separator', { name: '调整导航栏宽度' });\n    at I:\\软件工程\\markdown-notes\\tests\\e2e\\resizing.spec.ts:66:71"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:56:58.019Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "I:\\软件工程\\markdown-notes\\test-results\\playwright\\resizing-1080宽窗口：三栏拖动、收起展开、边界、取消、键盘及记忆\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "I:\\软件工程\\markdown-notes\\test-results\\playwright\\resizing-1080宽窗口：三栏拖动、收起展开、边界、取消、键盘及记忆\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "I:\\软件工程\\markdown-notes\\tests\\e2e\\resizing.spec.ts",
+                    "column": 71,
+                    "line": 66
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "8f8c0629a3bebf47035f-2e5bc08e6f2dabc0118a",
+          "file": "resizing.spec.ts",
+          "line": 35,
+          "column": 7
+        }
+      ]
+    },
+    {
+      "title": "visual.spec.ts",
+      "file": "visual.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "清透界面1480×940：长内容、引用抽屉、搜索、设置与恢复布局",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7061,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:57:29.143Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8324bb52c49185e48ff4-239f8e6214392fccf4c1",
+          "file": "visual.spec.ts",
+          "line": 101,
+          "column": 7
+        },
+        {
+          "title": "清透界面1080×700：长内容、引用抽屉、搜索、设置与恢复布局",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6938,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:57:36.233Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8324bb52c49185e48ff4-87e96bbfcf8b66bf27cd",
+          "file": "visual.spec.ts",
+          "line": 101,
+          "column": 7
+        },
+        {
+          "title": "窗口控制、减少动态效果、模式偏好及关闭前保存兼容",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2488,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-02T11:57:43.176Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "8324bb52c49185e48ff4-0f3e3601c134efc49068",
+          "file": "visual.spec.ts",
+          "line": 248,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-02T11:55:17.479Z",
+    "duration": 148218.045,
+    "expected": 21,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

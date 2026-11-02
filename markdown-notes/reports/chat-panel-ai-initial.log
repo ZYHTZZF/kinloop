@@ -1,0 +1,9 @@
+
+Running 2 tests using 1 worker
+
+(node:34136) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 tests\e2e\ai.spec.ts:120:5 › 聊天Agent：密钥加密、对话总结、编辑预览应用、新建工具、多轮历史和备份排除密钥 (3.8s)
+  ok 2 tests\e2e\ai.spec.ts:213:5 › 聊天错误、取消、重定向与超限不改原文，建议可放弃并继续对话 (1.6s)
+
+  2 passed (5.9s)

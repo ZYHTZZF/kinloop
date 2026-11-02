@@ -27,7 +27,7 @@ for (const dir of directories) {
 }
 await writeFile(
   'THIRD-PARTY-NOTICES.txt',
-  '知页使用的第三方包许可证与声明（含构建／测试依赖）。\nElectron／Chromium的完整声明另随成品提供。\n\n' +
+  'Mark It Down使用的第三方包许可证与声明（含构建／测试依赖）。\nElectron／Chromium的完整声明另随成品提供。\n\n' +
     entries.sort().join('\n\n' + '='.repeat(78) + '\n\n'),
   'utf8',
 );

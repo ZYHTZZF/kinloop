@@ -1,6 +1,6 @@
 {
-  "date": "2026-11-02T11:27:15.048Z",
-  "version": "1.6.0",
+  "date": "2026-11-02T12:03:54.449Z",
+  "version": "1.6.1",
   "baseline": [
     {
       "path": "需求分析文档/01-需求分析文档.md",
@@ -14,11 +14,11 @@
   "compiled_files": [
     {
       "path": "dist/backend.cjs",
-      "sha256": "d755ce35687dfed3bae0feb8fbf0f271b8237e0e3f1eb9ccf98f45e8bb0c1616"
+      "sha256": "60a53243106da2323937a3afd6797652a736f3c33819203e5c9e1b3c91ca5e48"
     },
     {
       "path": "dist/backend.cjs.map",
-      "sha256": "6e4bbf7d1f64e32dbc501997b3f3aa1c83f72f0c68837266aabedd59218acd6f"
+      "sha256": "0616030eeeb13bec66c7dee732c2d221207c6b1576fcadc4d40a0f4918ab2f2b"
     },
     {
       "path": "dist/indexer.cjs",
@@ -30,19 +30,19 @@
     },
     {
       "path": "dist/main.cjs",
-      "sha256": "c0fb26c880ab96ba2dc17a888ac61e0b73dcc1d5d10666b8664acf93be276a9b"
+      "sha256": "73ca87010527c68533eea4d1cb6ed95d60a30870bb8492dd3286959d533445cd"
     },
     {
       "path": "dist/main.cjs.map",
-      "sha256": "7aee4711afa87c52350d1c311451884405f55a2bbc123fa121d1839ab7231c66"
+      "sha256": "0f89a71bd75f3c5bb661ceff12fc2990bfa73293d6c19899b71915e4c55bbfb9"
     },
     {
       "path": "dist/preload.cjs",
-      "sha256": "fbf26c1d11872659ce673a0fb0347bb2cf0c5cba831240bb2788e94e0aa73795"
+      "sha256": "2386f3afc385d023e237829eab76b7b14ef8153c30b89d538c4d55410f9ec1f4"
     },
     {
       "path": "dist/preload.cjs.map",
-      "sha256": "808da54f271f289339d37cd399ae8b3018a6c2ea4bc073936c27a05fa48d48d1"
+      "sha256": "e99719967dcd6d6c180617aec1bce06710ab6d4913b8e832c109724e8b36b028"
     },
     {
       "path": "dist/print-preload.cjs",
@@ -297,20 +297,28 @@
       "sha256": "e7ae48b9df8d0c28aeab05502bc2ec10c1e36f5abb434f71b87e332b158eb7cb"
     },
     {
-      "path": "dist/renderer/assets/index-Cj4jveqV.js",
-      "sha256": "4437bc89bc048ecb2b704d93d730bc96c06ae8fcf2cfdb20ae26bb3adbeec530"
+      "path": "dist/renderer/assets/index-BGnOeQSS.js",
+      "sha256": "ccf0028963d5a6f874e08f2929696d99a922994b46e558b3b46fa89c6af896d6"
     },
     {
-      "path": "dist/renderer/assets/index-nIy1FZEG.css",
-      "sha256": "9b50d46768a780d3b5612bbab955c49f6ab476506d237733c2fb0d71fcc4f7e9"
+      "path": "dist/renderer/assets/index-K0oj4uBv.css",
+      "sha256": "220163712bc84102a0269f44796e14b588c920036ca02cbc172a07967fdda6c7"
     },
     {
-      "path": "dist/renderer/assets/live-editor-C6glpBB7.js",
-      "sha256": "d8dbe4d1078add39acebfa62e19c4d33d8ed101e744419b2e3d0798b81a5a808"
+      "path": "dist/renderer/assets/live-editor-BNuMFkGt.js",
+      "sha256": "f0ff512e70277a04a48d72cabe13fd25e1c38549a25f39695d184c6327d8628b"
     },
     {
       "path": "dist/renderer/assets/live-editor-DvFXN6g4.css",
       "sha256": "2117c94ab616ee682525f6fe6a860c60c3d3b1dfc924e18de6c42b4aeb3a2a06"
+    },
+    {
+      "path": "dist/renderer/assets/pdf-input-B_Em34rJ.js",
+      "sha256": "8bf284cd87ccc09e4a6d686cff6c0fc291a8d82a69dfcdd5aaef30b62e43df6e"
+    },
+    {
+      "path": "dist/renderer/assets/pdf.worker.min-CIqJB0yW.mjs",
+      "sha256": "1e64c8240e54735ec5913b37acd5134747799cb8c6bb3777c70adbc01232d2aa"
     },
     {
       "path": "dist/renderer/assets/print-CLQfeM9A.js",
@@ -322,7 +330,7 @@
     },
     {
       "path": "dist/renderer/index.html",
-      "sha256": "92669edb9b0b73f7e2f686ca1329b048c9aa6a133bab894ee17b99902cfbd4a3"
+      "sha256": "d527cf524ac2ed91d970eec575b0fb9c62eb02ce41408d415f136a4f8afb14ca"
     },
     {
       "path": "dist/renderer/print.html",
@@ -330,14 +338,14 @@
     }
   ],
   "packaged": {
-    "date": "2026-11-02T11:26:56.370Z",
+    "date": "2026-11-02T12:01:33.354Z",
     "pass": true,
-    "executable": "I:\\软件工程\\markdown-notes\\release\\Mark-It-Down-v1.6.0-win-x64\\Mark It Down.exe",
+    "executable": "I:\\软件工程\\markdown-notes\\release\\Mark-It-Down-v1.6.1-win-x64\\Mark It Down.exe",
     "sha256": "1432afee01d6a788f11cb6649efd271923e1e490beef688c24d31f47965013aa",
     "runtime": {
       "packaged": true,
       "name": "Mark It Down",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "electron": "44.9.1",
       "node": "24.22.0"
     },
@@ -352,6 +360,8 @@
       "成品目录大纲、引用自动补全、自定义模板复用、收藏与置顶",
       "成品格式2完整备份生成",
       "成品AI聊天Agent工具调用、预览、编辑、新建与系统加密密钥",
+      "成品右侧聊天收起后草稿、会话和附件保留，PDF本地Worker提取与附件工具调用",
+      "成品Markdown文件导入与中文公式保留",
       "实际打包标志与版本"
     ]
   }

@@ -11,6 +11,7 @@ type Drag = {
   start: Preferred;
   capture: HTMLElement;
   collapse: boolean;
+  hidden: Preferred['hidden'];
 };
 const STORAGE_KEY = 'zhiye.pane-widths.v1';
 const MIN: Widths = { sidebar: 176, list: 220 };
@@ -19,13 +20,13 @@ const COLLAPSE_DISTANCE = 48;
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(n, max));
 const defaults = (width: number): Widths =>
   width <= 1250 ? { sidebar: 176, list: 232 } : { sidebar: 200, list: 260 };
-function budget(width: number, hidden: Preferred['hidden']) {
+function budget(width: number, hidden: Preferred['hidden'], editor = 560) {
   const inset = width <= 1250 ? 8 : 12;
-  return width - inset - (hidden?.sidebar ? inset : 0) - 2 - (hidden?.list ? 0 : 6) - 560;
+  return width - inset - (hidden?.sidebar ? inset : 0) - 2 - (hidden?.list ? 0 : 6) - editor;
 }
-function fit(preferred: Preferred, width: number): Widths {
+function fit(preferred: Preferred, width: number, editor = 560): Widths {
   const initial = defaults(width),
-    space = budget(width, preferred.hidden);
+    space = budget(width, preferred.hidden, editor);
   const sidebar = preferred.hidden?.sidebar
     ? 0
     : clamp(
@@ -61,15 +62,22 @@ function persist(value: Preferred) {
   }
 }
 
-export function usePaneLayout() {
+export function usePaneLayout(reservedWidth = 0) {
   const [preferred, setPreferred] = useState<Preferred>(load);
   const [viewport, setViewport] = useState(() => window.innerWidth);
   const [resizing, setResizing] = useState(false);
   const [collapsePending, setCollapsePending] = useState<Pane | null>(null);
+  const [compactVisible, setCompactVisible] = useState<Pane>('list');
   const latest = useRef(preferred),
     drag = useRef<Drag | null>(null);
-  const widths = fit(preferred, viewport);
-  const hidden = { sidebar: !!preferred.hidden?.sidebar, list: !!preferred.hidden?.list };
+  const compact = reservedWidth > 0 && viewport - reservedWidth < 1000;
+  const hidden = {
+    sidebar: !!preferred.hidden?.sidebar || (compact && compactVisible !== 'sidebar'),
+    list: !!preferred.hidden?.list || (compact && compactVisible !== 'list'),
+  };
+  const available = viewport - reservedWidth,
+    editorMinimum = reservedWidth ? 420 : 560;
+  const widths = fit({ ...preferred, hidden }, available, editorMinimum);
   const apply = useCallback((next: Preferred, save = false) => {
     latest.current = next;
     setPreferred(next);
@@ -108,7 +116,8 @@ export function usePaneLayout() {
         MIN[pane],
         Math.min(
           MAX[pane],
-          budget(window.innerWidth, current.start.hidden) - current.widths[other],
+          budget(window.innerWidth - reservedWidth, current.hidden, editorMinimum) -
+            current.widths[other],
         ),
       );
       current.collapse = wanted <= MIN[pane] - COLLAPSE_DISTANCE;
@@ -116,11 +125,14 @@ export function usePaneLayout() {
       apply({
         ...current.start,
         [pane]: Math.round(clamp(wanted, MIN[pane], max)),
-        ...(!current.start.hidden?.[other] ? { [other]: current.widths[other] } : {}),
+        ...(!current.hidden?.[other] ? { [other]: current.widths[other] } : {}),
       });
     },
-    [apply],
+    [apply, reservedWidth, editorMinimum],
   );
+  useEffect(() => {
+    finish(false);
+  }, [reservedWidth, finish]);
   useEffect(() => {
     const end = () => finish(false);
     const resize = () => {
@@ -165,6 +177,12 @@ export function usePaneLayout() {
   }, [finish, move]);
   const toggle = (pane: Pane) => {
     finish(false);
+    if (compact && compactVisible !== pane) {
+      setCompactVisible(pane);
+      if (latest.current.hidden?.[pane])
+        apply({ ...latest.current, hidden: { ...latest.current.hidden, [pane]: false } }, true);
+      return;
+    }
     const next = {
       ...latest.current,
       hidden: { ...latest.current.hidden, [pane]: !latest.current.hidden?.[pane] },
@@ -176,7 +194,7 @@ export function usePaneLayout() {
     const other = pane === 'sidebar' ? 'list' : 'sidebar';
     const maximum = Math.max(
       MIN[pane],
-      Math.min(MAX[pane], budget(viewport, preferred.hidden) - widths[other]),
+      Math.min(MAX[pane], budget(available, hidden, editorMinimum) - widths[other]),
     );
     const reset = () => {
       finish(false);
@@ -203,6 +221,7 @@ export function usePaneLayout() {
           widths,
           capture,
           start: latest.current,
+          hidden,
           collapse: false,
         };
         setResizing(true);
