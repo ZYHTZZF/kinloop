@@ -79,7 +79,6 @@ const sourceNames = [
   '.prettierrc.json',
   '.gitignore',
   'THIRD-PARTY-NOTICES.txt',
-  '启动知页.cmd',
 ];
 let sourceFiles = sourceNames.map((file) => resolve(file));
 for (const folder of ['src', 'tests', 'scripts', 'docs', 'reports'])
