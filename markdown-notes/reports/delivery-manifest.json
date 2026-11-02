@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-02T11:17:24.560Z",
+  "date": "2026-11-02T11:27:15.048Z",
   "version": "1.6.0",
   "baseline": [
     {
@@ -14,11 +14,11 @@
   "compiled_files": [
     {
       "path": "dist/backend.cjs",
-      "sha256": "570e7e63eefc0fd29bbf80ee49ac72432386ded2de1e828dead3c9581369a918"
+      "sha256": "d755ce35687dfed3bae0feb8fbf0f271b8237e0e3f1eb9ccf98f45e8bb0c1616"
     },
     {
       "path": "dist/backend.cjs.map",
-      "sha256": "1102ffb5e2fb9da8fde47863904cf7d410d10e576cdb338226a0e9a7c1d5a9d9"
+      "sha256": "6e4bbf7d1f64e32dbc501997b3f3aa1c83f72f0c68837266aabedd59218acd6f"
     },
     {
       "path": "dist/indexer.cjs",
@@ -30,11 +30,11 @@
     },
     {
       "path": "dist/main.cjs",
-      "sha256": "1326efca7d4dbc60343da308edcca4e602259d906df75ddff570013c5e3a997a"
+      "sha256": "c0fb26c880ab96ba2dc17a888ac61e0b73dcc1d5d10666b8664acf93be276a9b"
     },
     {
       "path": "dist/main.cjs.map",
-      "sha256": "608a9d763e8bc3f4409ed5d1843c7ae628d7df4426563090f4683fe09cf141ee"
+      "sha256": "7aee4711afa87c52350d1c311451884405f55a2bbc123fa121d1839ab7231c66"
     },
     {
       "path": "dist/preload.cjs",
@@ -297,16 +297,16 @@
       "sha256": "e7ae48b9df8d0c28aeab05502bc2ec10c1e36f5abb434f71b87e332b158eb7cb"
     },
     {
-      "path": "dist/renderer/assets/index-DQm9J2ZX.js",
-      "sha256": "e02b1c4bff0f990430da6baaa53010d42233e7787f9cef45c5554f0b13d543a6"
+      "path": "dist/renderer/assets/index-Cj4jveqV.js",
+      "sha256": "4437bc89bc048ecb2b704d93d730bc96c06ae8fcf2cfdb20ae26bb3adbeec530"
     },
     {
       "path": "dist/renderer/assets/index-nIy1FZEG.css",
       "sha256": "9b50d46768a780d3b5612bbab955c49f6ab476506d237733c2fb0d71fcc4f7e9"
     },
     {
-      "path": "dist/renderer/assets/live-editor-CGxs4BJj.js",
-      "sha256": "d066c897f4a1ca1e5b32413a97e66cbb48284f198a6c852944ce9efa87fda8fb"
+      "path": "dist/renderer/assets/live-editor-C6glpBB7.js",
+      "sha256": "d8dbe4d1078add39acebfa62e19c4d33d8ed101e744419b2e3d0798b81a5a808"
     },
     {
       "path": "dist/renderer/assets/live-editor-DvFXN6g4.css",
@@ -322,20 +322,21 @@
     },
     {
       "path": "dist/renderer/index.html",
-      "sha256": "c09d392b003e7c5ee9cc26f9953715e78d82cf0b7301683358416f1c032fe36c"
+      "sha256": "92669edb9b0b73f7e2f686ca1329b048c9aa6a133bab894ee17b99902cfbd4a3"
     },
     {
       "path": "dist/renderer/print.html",
-      "sha256": "6010f009b18fd9e85575d8d86d97823e31f48a9329fad24aa4c4d47f5c1f47ca"
+      "sha256": "7f3f91b780816d5a61bbbc673988f2bbb762fe4129ad0d51173323ce6817d1c7"
     }
   ],
   "packaged": {
-    "date": "2026-11-02T11:13:53.754Z",
+    "date": "2026-11-02T11:26:56.370Z",
     "pass": true,
-    "executable": "I:\\软件工程\\markdown-notes\\release\\知页-v1.6.0-win-x64\\知页.exe",
+    "executable": "I:\\软件工程\\markdown-notes\\release\\Mark-It-Down-v1.6.0-win-x64\\Mark It Down.exe",
     "sha256": "1432afee01d6a788f11cb6649efd271923e1e490beef688c24d31f47965013aa",
     "runtime": {
       "packaged": true,
+      "name": "Mark It Down",
       "version": "1.6.0",
       "electron": "44.9.1",
       "node": "24.22.0"

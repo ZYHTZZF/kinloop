@@ -9,7 +9,7 @@ test('桌面端：离线编辑、自动保存、标签、引用、导出与完�
   mkdirSync(backupDir);
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    ZHIYE_DATA_DIR: root,
+    MARKITDOWN_DATA_DIR: root,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env });
@@ -107,7 +107,7 @@ test('关闭重启后正文保留，恶意HTML和远程图片不执行', async (
   const root = mkdtempSync(join(tmpdir(), 'zhiye-persist-ui-'));
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    ZHIYE_DATA_DIR: root,
+    MARKITDOWN_DATA_DIR: root,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   let app = await electron.launch({ args: ['.'], cwd: process.cwd(), env });
@@ -137,7 +137,7 @@ test('持续输入定期持久化，并对规范等价的原文高亮', async ()
   const root = mkdtempSync(join(tmpdir(), 'zhiye-continuous-ui-'));
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    ZHIYE_DATA_DIR: root,
+    MARKITDOWN_DATA_DIR: root,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env });

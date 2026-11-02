@@ -312,7 +312,7 @@ export async function writeBackup(s: Snapshot, directory: string) {
     snapshot_at = new Date().toISOString(),
     target = join(
       directory,
-      `知页备份-${snapshot_at.replace(/[:.]/g, '-')}-${backup_id.slice(0, 8)}.zip`,
+      `Mark It Down备份-${snapshot_at.replace(/[:.]/g, '-')}-${backup_id.slice(0, 8)}.zip`,
     ),
     temp = target + '.partial';
   const hash = createHash('sha256');

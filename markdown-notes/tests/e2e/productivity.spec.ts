@@ -5,7 +5,7 @@ import { join } from 'node:path';
 async function launch(root = mkdtempSync(join(tmpdir(), 'zhiye-workflow-'))) {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    ZHIYE_DATA_DIR: root,
+    MARKITDOWN_DATA_DIR: root,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env });

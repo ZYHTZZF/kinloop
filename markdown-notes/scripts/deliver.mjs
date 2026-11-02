@@ -65,7 +65,7 @@ await writeFile('reports/delivery-manifest.json', JSON.stringify(manifest, null,
 
 const binaryEntries = (await files(packaged)).map((file) => ({
   file,
-  name: `知页-win-x64/${slash(relative(packaged, file))}`,
+  name: `Mark-It-Down-win-x64/${slash(relative(packaged, file))}`,
 }));
 const sourceNames = [
   'README.md',
@@ -95,10 +95,10 @@ for (const folder of ['需求分析文档', '软件设计文档']) {
 }
 sourceEntries.push({ file: join(workspace, '开发交付说明.md'), name: '开发交付说明.md' });
 const results = [];
-results.push(await zip(join(workspace, '知页-Windows成品.zip'), binaryEntries));
-results.push(await zip(join(workspace, '知页-源码与测试记录.zip'), sourceEntries));
+results.push(await zip(join(workspace, 'Mark-It-Down-Windows.zip'), binaryEntries));
+results.push(await zip(join(workspace, 'Mark-It-Down-Source.zip'), sourceEntries));
 await writeFile(
-  join(workspace, '交付校验SHA256.txt'),
+  join(workspace, 'SHA256SUMS.txt'),
   results.map((item) => `${item.sha256}  ${relative(workspace, item.file)}`).join('\r\n') + '\r\n',
 );
 console.log(JSON.stringify(results, null, 2));

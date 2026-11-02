@@ -9,7 +9,7 @@ for (const mode of ['close', 'destroy']) {
   for (let run = 0; run < 5; run++) {
     const root = mkdtempSync(join(tmpdir(), 'zhiye-lifecycle-'));
     const errors = join(root, 'errors.json');
-    const env = { ...process.env, ZHIYE_DATA_DIR: root };
+    const env = { ...process.env, MARKITDOWN_DATA_DIR: root };
     delete env.ELECTRON_RUN_AS_NODE;
     const app = await _electron.launch({ args: ['.'], cwd: process.cwd(), env });
     const child = app.process();

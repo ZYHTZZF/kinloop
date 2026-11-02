@@ -14,7 +14,7 @@ test('离线公式预览与真实PDF：中文、四种定界符、矩阵、长�
   const root = mkdtempSync(join(tmpdir(), 'zhiye-pdf-'));
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    ZHIYE_DATA_DIR: root,
+    MARKITDOWN_DATA_DIR: root,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env });
@@ -114,7 +114,7 @@ test('错误公式与恶意命令不执行；打印失败保留旧PDF、清理�
   const root = mkdtempSync(join(tmpdir(), 'zhiye-pdf-fail-'));
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    ZHIYE_DATA_DIR: root,
+    MARKITDOWN_DATA_DIR: root,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env });

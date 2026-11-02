@@ -1,4 +1,4 @@
-# 知页 · Markdown Notes
+# Mark It Down · Markdown Notes
 
 面向学生与知识工作者的本地个人 Markdown 笔记与知识管理工具，Windows 桌面版 1.6.0。采用 Electron、React、TypeScript 与 SQLite。
 
@@ -43,7 +43,7 @@ npm run build
 npm start
 ```
 
-执行 `npm run package` 后，可直接运行 `markdown-notes/release/知页-win-x64/知页.exe`。请保留整个成品目录。依赖、构建产物、个人资料库及 ZIP 交付包不纳入 Git 版本控制。
+执行 `npm run package` 后，可直接运行 `markdown-notes/release/Mark-It-Down-win-x64/Mark It Down.exe`。请保留整个成品目录。依赖、构建产物、个人资料库及 ZIP 交付包不纳入 Git 版本控制。
 
 ## 文档与验证
 
@@ -56,6 +56,6 @@ npm start
 | [测试与验收记录](markdown-notes/docs/02-测试与验收记录.md) | 实际执行结果、性能口径及尚未执行的正式验收项 |
 | [测试原始记录](markdown-notes/reports) | 自动化日志、性能样本、成品验证及界面截图 |
 
-已执行 55 项核心／集成／容量／安全测试、21 项 Electron 桌面流程测试、10 轮退出并发诊断及成品独立启动验证，均通过。断电、真实新用户任务及部分完整运行预算验证仍待实际执行，详见测试与验收记录。
+已执行 56 项核心／集成／容量／安全测试、21 项 Electron 桌面流程测试、10 轮退出并发诊断及成品独立启动验证，均通过。断电、真实新用户任务及部分完整运行预算验证仍待实际执行，详见测试与验收记录。
 
 ![编辑与预览界面](markdown-notes/reports/screenshots/知页-编辑与预览.png)

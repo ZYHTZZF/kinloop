@@ -6,9 +6,9 @@ import { resolve, join } from 'node:path';
 import { createServer } from 'node:http';
 import { randomUUID, createHash } from 'node:crypto';
 import { packageDirectory } from './package-directory.mjs';
-const exe = join(packageDirectory(), '知页.exe'),
+const exe = join(packageDirectory(), 'Mark It Down.exe'),
   root = mkdtempSync(join(tmpdir(), 'zhiye-packaged-'));
-const env = { ...process.env, ZHIYE_DATA_DIR: root };
+const env = { ...process.env, MARKITDOWN_DATA_DIR: root };
 delete env.ELECTRON_RUN_AS_NODE;
 const mockKey = 'packaged-fake-' + randomUUID();
 const mockAI = createServer(async (req, res) => {
@@ -169,11 +169,14 @@ try {
   assert(!readFileSync(join(root, '.host/ai/connection.json'), 'utf8').includes(mockKey));
   const runtime = await app.evaluate(({ app }) => ({
     packaged: app.isPackaged,
+    name: app.getName(),
     version: app.getVersion(),
     electron: process.versions.electron,
     node: process.versions.node,
   }));
   assert(runtime.packaged);
+  assert.equal(runtime.name, 'Mark It Down');
+  assert((await page.title()).includes('Mark It Down'));
   assert.equal(runtime.version, JSON.parse(readFileSync('package.json', 'utf8')).version);
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(exe)) hash.update(chunk);

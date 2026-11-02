@@ -22,3 +22,5 @@ Thumbs.db
 # Local delivery checksums and superseded draft (the versioned baseline is in 需求分析文档/)
 /交付校验SHA256.txt
 /个人 Markdown 笔记与知识管理工具需求分析文档.md
+
+/SHA256SUMS.txt

@@ -37,7 +37,7 @@ for (const width of [1480, 1080]) {
     const root = mkdtempSync(join(tmpdir(), 'zhiye-resize-ui-'));
     const env: Record<string, string> = {
       ...(process.env as Record<string, string>),
-      ZHIYE_DATA_DIR: root,
+      MARKITDOWN_DATA_DIR: root,
     };
     delete env.ELECTRON_RUN_AS_NODE;
     const launch = () =>

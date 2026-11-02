@@ -834,7 +834,7 @@ function App() {
           <div className="brand-mark">
             <BookOpen size={21} strokeWidth={1.7} />
           </div>
-          <strong>知页</strong>
+          <strong>Mark It Down</strong>
           <span>个人知识库</span>
         </div>
         <div className="pane-toggles" aria-label="工作区显示">
@@ -2200,7 +2200,7 @@ function App() {
                     “正文已保存”与“索引可用”分别显示。磁盘写入失败时请保留编辑窗口并重试；不要直接修改内部数据库文件。
                   </p>
                   <p className="muted">
-                    知页 {APP_VERSION} · 本地优先 · 备份格式2（兼容读取格式1）
+                    Mark It Down {APP_VERSION} · 本地优先 · 备份格式2（兼容读取格式1）
                   </p>
                 </div>
               )}

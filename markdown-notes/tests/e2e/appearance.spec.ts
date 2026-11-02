@@ -7,7 +7,7 @@ test('自定义颜色与图片背景：本机记忆、独立副本、带背景�
   const root = mkdtempSync(join(tmpdir(), 'zhiye-appearance-'));
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    ZHIYE_DATA_DIR: root,
+    MARKITDOWN_DATA_DIR: root,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   let app = await electron.launch({ args: ['.'], cwd: process.cwd(), env });
@@ -123,7 +123,7 @@ test('无效图片、伪造路径与损坏设置：拒绝非法输入，保留�
   const root = mkdtempSync(join(tmpdir(), 'zhiye-appearance-invalid-'));
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    ZHIYE_DATA_DIR: root,
+    MARKITDOWN_DATA_DIR: root,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   let app = await electron.launch({ args: ['.'], cwd: process.cwd(), env });

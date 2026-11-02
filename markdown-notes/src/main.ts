@@ -14,16 +14,22 @@ import { randomUUID } from 'node:crypto';
 import { join, resolve, sep, basename } from 'node:path';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
+import { userProfile, dataOverride } from './brand';
 import type { Rpc } from './shared/types';
 import { exportPdf, registerPdfExport } from './pdf-export';
 import { AiService } from './ai-service';
 import { AppearanceStore } from './appearance-store';
 import { appearanceSchema } from './shared/appearance';
 
-app.setName('知页');
-if (process.env.ZHIYE_DATA_DIR) {
-  mkdirSync(process.env.ZHIYE_DATA_DIR, { recursive: true });
-  app.setPath('userData', join(process.env.ZHIYE_DATA_DIR, '.host'));
+app.setName('Mark It Down');
+const override = dataOverride(process.env);
+if (override) {
+  mkdirSync(override, { recursive: true });
+  app.setPath('userData', join(override, '.host'));
+} else {
+  const profile = userProfile(app.getPath('appData'));
+  mkdirSync(profile, { recursive: true });
+  app.setPath('userData', profile);
 }
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
@@ -98,7 +104,7 @@ const safeName = (title: string, id: string) => {
 
 if (gotLock)
   app.whenReady().then(async () => {
-    const root = process.env.ZHIYE_DATA_DIR || join(app.getPath('userData'), 'library');
+    const root = override || join(app.getPath('userData'), 'library');
     mkdirSync(root, { recursive: true });
     registerPdfExport();
     const aiNetwork = session.fromPartition('ai-network', { cache: false });
@@ -313,7 +319,7 @@ if (gotLock)
             title: n ? '导出Markdown正文' : '导出全部有效笔记',
             defaultPath: join(
               app.getPath('documents'),
-              n ? safeName(n.title, n.note_id) : '知页-全部笔记.zip',
+              n ? safeName(n.title, n.note_id) : 'Mark It Down-全部笔记.zip',
             ),
             filters: [{ name: n ? 'Markdown' : 'ZIP归档', extensions: [n ? 'md' : 'zip'] }],
             properties: ['showOverwriteConfirmation', 'createDirectory'],
@@ -326,9 +332,9 @@ if (gotLock)
         if (method === 'restore.inspect') {
           if (Object.keys(payload).length) throw new Error('非法路径参数');
           const chosen = await dialog.showOpenDialog(win!, {
-            title: '选择知页完整备份（不是Markdown导出包）',
+            title: '选择Mark It Down完整备份（不是Markdown导出包）',
             properties: ['openFile'],
-            filters: [{ name: '知页完整备份', extensions: ['zip'] }],
+            filters: [{ name: 'Mark It Down完整备份', extensions: ['zip'] }],
           });
           if (chosen.canceled) return { ok: false, code: 'E_CANCELLED', message: '已取消选择' };
           request.payload = { path: chosen.filePaths[0] };
@@ -384,7 +390,7 @@ if (gotLock)
       backgroundColor: '#F5F5F7',
       titleBarStyle: 'hidden',
       titleBarOverlay: { color: '#F5F5F7', symbolColor: '#1D1D1F', height: 56 },
-      title: '知页 · 个人知识库',
+      title: 'Mark It Down · 个人知识库',
       show: false,
       autoHideMenuBar: true,
       webPreferences: {

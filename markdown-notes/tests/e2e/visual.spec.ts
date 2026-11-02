@@ -7,7 +7,7 @@ async function launch() {
   const root = mkdtempSync(join(tmpdir(), 'zhiye-glass-ui-'));
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    ZHIYE_DATA_DIR: root,
+    MARKITDOWN_DATA_DIR: root,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env });
@@ -291,7 +291,7 @@ test('窗口控制、减少动态效果、模式偏好及关闭前保存兼容',
     firstClosed = true;
     const env: Record<string, string> = {
       ...(process.env as Record<string, string>),
-      ZHIYE_DATA_DIR: root,
+      MARKITDOWN_DATA_DIR: root,
     };
     delete env.ELECTRON_RUN_AS_NODE;
     second = await electron.launch({ args: ['.'], cwd: process.cwd(), env });

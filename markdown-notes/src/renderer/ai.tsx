@@ -452,7 +452,7 @@ export function AiAssistant({
         )}
         {turns.map((turn) => (
           <div className={'ai-chat-turn ' + turn.role} key={turn.id}>
-            <small>{turn.role === 'user' ? '你' : '知页助手'}</small>
+            <small>{turn.role === 'user' ? '你' : 'Mark It Down助手'}</small>
             {turn.role === 'user' ? (
               <p>{turn.text}</p>
             ) : (
