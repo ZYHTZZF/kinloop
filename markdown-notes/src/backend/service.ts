@@ -29,7 +29,11 @@ const id = z.string().uuid(),
   empty = z.object({}).strict();
 const schemas: Record<string, z.ZodType<any>> = {
   'note.create': z
-    .object({ title: z.string().optional(), template_id: z.string().max(100).optional() })
+    .object({
+      title: z.string().optional(),
+      template_id: z.string().max(100).optional(),
+      content: z.string().optional(),
+    })
     .strict(),
   'note.flag': z
     .object({

@@ -44,6 +44,7 @@ test('100,000条引用边界：新建、恢复和重命名激活超限均整笔�
   for (const [method, payload] of [
     ['note.create', { template_id: template.template_id }],
     ['note.create', { title: 'X' }],
+    ['note.create', { title: 'X', content: '[[T0]]' }],
     ['trash.restore', { note_id: trash.note_id, expected_revision: 0 }],
     ['note.rename', { note_id: targets[0].note_id, expected_revision: 0, title: 'X' }],
   ] as const) {

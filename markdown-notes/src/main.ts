@@ -1,4 +1,14 @@
-import { app, BrowserWindow, ipcMain, protocol, dialog, shell, Menu } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  protocol,
+  dialog,
+  shell,
+  Menu,
+  safeStorage,
+  session,
+} from 'electron';
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
 import { join, resolve, sep, basename } from 'node:path';
@@ -6,6 +16,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { Rpc } from './shared/types';
 import { exportPdf, registerPdfExport } from './pdf-export';
+import { AiService } from './ai-service';
 import { AppearanceStore } from './appearance-store';
 import { appearanceSchema } from './shared/appearance';
 
@@ -90,6 +101,16 @@ if (gotLock)
     const root = process.env.ZHIYE_DATA_DIR || join(app.getPath('userData'), 'library');
     mkdirSync(root, { recursive: true });
     registerPdfExport();
+    const aiNetwork = session.fromPartition('ai-network', { cache: false });
+    const ai = new AiService(
+      join(app.getPath('userData'), 'ai'),
+      {
+        available: () => safeStorage.isAsyncEncryptionAvailable(),
+        encrypt: (value) => safeStorage.encryptStringAsync(value),
+        decrypt: async (value) => (await safeStorage.decryptStringAsync(value)).result,
+      },
+      (input, init) => aiNetwork.fetch(String(input), init),
+    );
     const appearance = new AppearanceStore(join(app.getPath('userData'), 'appearance'));
     backend = new Worker(join(__dirname, 'backend.cjs'), {
       workerData: { root, indexWorker: join(__dirname, 'indexer.cjs') },
@@ -164,6 +185,35 @@ if (gotLock)
         if (!trusted(event)) throw Object.assign(new Error('来源不可用'), { code: 'E_INPUT' });
         const request = envelope.parse(input) as Rpc,
           { method, payload } = request;
+        if (method.startsWith('ai.')) {
+          try {
+            if (method === 'ai.set') return { ok: true, data: await ai.save(payload) };
+            if (method === 'ai.run') return { ok: true, data: await ai.run(payload) };
+            if (method === 'ai.cancel')
+              return {
+                ok: true,
+                data: ai.cancel(
+                  z.object({ request_id: z.string().uuid() }).strict().parse(payload).request_id,
+                ),
+              };
+            z.object({}).strict().parse(payload);
+            if (method === 'ai.get') return { ok: true, data: await ai.settings() };
+            if (method === 'ai.clear') return { ok: true, data: await ai.clear() };
+            throw new Error('unknown AI method');
+          } catch (error: any) {
+            return {
+              ok: false,
+              code:
+                typeof error.code === 'string' && error.code.startsWith('E_')
+                  ? error.code
+                  : 'E_AI_CONFIG',
+              message:
+                typeof error.code === 'string' && error.code.startsWith('E_')
+                  ? error.message
+                  : 'AI配置或请求无效，请检查地址、模型、密钥和系统加密服务',
+            };
+          }
+        }
         if (method === 'system.openLink') {
           const u = new URL(String(payload.url));
           if (!['http:', 'https:'].includes(u.protocol)) throw new Error('不支持的链接');
@@ -364,6 +414,7 @@ if (gotLock)
       }
     });
     win.once('closed', () => {
+      ai.dispose();
       // Worker messages can already be queued when window-all-closed terminates it.
       win = null;
     });

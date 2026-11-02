@@ -1,0 +1,9 @@
+
+Running 2 tests using 1 worker
+
+(node:46608) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 tests\e2e\ai.spec.ts:72:5 › AI实际IPC：设置与系统加密、测试连接、总结预览／追加、生成新笔记与备份排除密钥 (3.6s)
+  ok 2 tests\e2e\ai.spec.ts:155:5 › AI错误／取消／拒绝重定向与输入超限保持笔记；生成可取消后重试 (2.0s)
+
+  2 passed (6.1s)

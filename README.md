@@ -1,6 +1,6 @@
 # 知页 · Markdown Notes
 
-面向学生与知识工作者的本地个人 Markdown 笔记与知识管理工具，Windows 桌面版 1.5.1。采用 Electron、React、TypeScript 与 SQLite。
+面向学生与知识工作者的本地个人 Markdown 笔记与知识管理工具，Windows 桌面版 1.6.0。采用 Electron、React、TypeScript 与 SQLite。
 
 ## 功能
 
@@ -29,6 +29,8 @@
 
 1.5.1将模板选择直接放入“新建笔记”与Ctrl+N流程，可选空白、内置或自定义模板；取消不会创建笔记。
 
+1.6.0新增AI聊天Agent、自带API Key接入和上下文预算管理，可总结、提出正文修改与新建笔记，先预览后应用。见[AI使用说明](markdown-notes/docs/11-AI聊天Agent与上下文说明.md)。
+
 ## 从源码运行
 
 Windows 开发环境需要 Node.js 24 与 npm。首次安装依赖需要网络，构建后的桌面成品可离线使用。
@@ -54,6 +56,6 @@ npm start
 | [测试与验收记录](markdown-notes/docs/02-测试与验收记录.md) | 实际执行结果、性能口径及尚未执行的正式验收项 |
 | [测试原始记录](markdown-notes/reports) | 自动化日志、性能样本、成品验证及界面截图 |
 
-已执行 42 项核心／集成／容量／安全测试、19 项 Electron 桌面流程测试、10 轮退出并发诊断及成品独立启动验证，均通过。断电、真实新用户任务及部分完整运行预算验证仍待实际执行，详见测试与验收记录。
+已执行 55 项核心／集成／容量／安全测试、21 项 Electron 桌面流程测试、10 轮退出并发诊断及成品独立启动验证，均通过。断电、真实新用户任务及部分完整运行预算验证仍待实际执行，详见测试与验收记录。
 
 ![编辑与预览界面](markdown-notes/reports/screenshots/知页-编辑与预览.png)

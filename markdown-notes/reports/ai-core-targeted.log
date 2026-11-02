@@ -1,0 +1,18 @@
+(node:34692) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ AI地址规范：完整地址、基础路径、HTTP仅本机、凭证／参数与协议拒绝 (0.6454ms)
+✔ 密钥加密落盘、不回传原值，重启可用、换地址不复用旧密钥，清除删除配置 (61.1416ms)
+✔ 加密不可用／解密失败不降级明文；损坏配置保全且不泄露异常原文 (36.7886ms)
+✔ 总结／生成按显式内容请求，认证仅在header，禁止重定向并解析结果用量 (20.6122ms)
+✔ 服务错误正文、无效JSON、空响应与超大输出均拒绝，不回显密钥或输入 (200.1963ms)
+✔ AI取消／超时、并发拒绝与随后重试；取消不误中其他请求 (60.1228ms)
+✔ 本机无鉴权接口、输入限额、错误动作和空总结拒绝；长度截止有明确提示 (21.4236ms)
+✔ AI新笔记正文原子写入、引用可建立，容量或模板冲突拒绝不留空笔记 (72.9386ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3247.9768

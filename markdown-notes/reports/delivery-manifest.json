@@ -1,6 +1,6 @@
 {
-  "date": "2026-10-20T12:51:46.333Z",
-  "version": "1.5.1",
+  "date": "2026-11-02T11:15:10.794Z",
+  "version": "1.6.0",
   "baseline": [
     {
       "path": "需求分析文档/01-需求分析文档.md",
@@ -14,11 +14,11 @@
   "compiled_files": [
     {
       "path": "dist/backend.cjs",
-      "sha256": "e80c6e6bcc5fe772e366c166d28381c8a3f8ea4cbbbed01442ac4beac8873497"
+      "sha256": "570e7e63eefc0fd29bbf80ee49ac72432386ded2de1e828dead3c9581369a918"
     },
     {
       "path": "dist/backend.cjs.map",
-      "sha256": "40d850b0a4ee7fe47fd40e1ec3e0ee36a6e7a76072764fbbcf8aaffde0a0d208"
+      "sha256": "1102ffb5e2fb9da8fde47863904cf7d410d10e576cdb338226a0e9a7c1d5a9d9"
     },
     {
       "path": "dist/indexer.cjs",
@@ -30,11 +30,11 @@
     },
     {
       "path": "dist/main.cjs",
-      "sha256": "0a17e8183984aa87d2a76df407f6df5d33dac84aad3cc04777a95a11a20f30cf"
+      "sha256": "1326efca7d4dbc60343da308edcca4e602259d906df75ddff570013c5e3a997a"
     },
     {
       "path": "dist/main.cjs.map",
-      "sha256": "6d7db598be1af0eca1b9d04cdf242538c467506a88ad1b42b85ce6a80385c37d"
+      "sha256": "608a9d763e8bc3f4409ed5d1843c7ae628d7df4426563090f4683fe09cf141ee"
     },
     {
       "path": "dist/preload.cjs",
@@ -289,32 +289,32 @@
       "sha256": "f01f3e87d9c6a61c0c081ceb577abd864eb00a612f7ac1620dd6915fad2ef5aa"
     },
     {
-      "path": "dist/renderer/assets/appearance-Vk4NNON_.js",
-      "sha256": "07f0fac002c5fbd96b671eeb37810b4377d126252a9b2fcd6a4b789f9d58f624"
+      "path": "dist/renderer/assets/appearance-Cin5OhCN.js",
+      "sha256": "b613e821d73a5bd1e7735300d706574575cc7451a309d8453adbb27344c716a7"
     },
     {
       "path": "dist/renderer/assets/appearance-tUqyOkrX.css",
       "sha256": "e7ae48b9df8d0c28aeab05502bc2ec10c1e36f5abb434f71b87e332b158eb7cb"
     },
     {
-      "path": "dist/renderer/assets/index-BGNdChSh.js",
-      "sha256": "3eebad78be221e6ea877c1dc89886c43b75598c9f7fba45573d5827bbae20a45"
+      "path": "dist/renderer/assets/index-DQm9J2ZX.js",
+      "sha256": "e02b1c4bff0f990430da6baaa53010d42233e7787f9cef45c5554f0b13d543a6"
     },
     {
-      "path": "dist/renderer/assets/index-DLiZsavs.css",
-      "sha256": "ab867532200dda87ea22f1ed990c2e4d64cef4d8044c9d3a046610c8d7881ea9"
+      "path": "dist/renderer/assets/index-nIy1FZEG.css",
+      "sha256": "9b50d46768a780d3b5612bbab955c49f6ab476506d237733c2fb0d71fcc4f7e9"
+    },
+    {
+      "path": "dist/renderer/assets/live-editor-CGxs4BJj.js",
+      "sha256": "d066c897f4a1ca1e5b32413a97e66cbb48284f198a6c852944ce9efa87fda8fb"
     },
     {
       "path": "dist/renderer/assets/live-editor-DvFXN6g4.css",
       "sha256": "2117c94ab616ee682525f6fe6a860c60c3d3b1dfc924e18de6c42b4aeb3a2a06"
     },
     {
-      "path": "dist/renderer/assets/live-editor-IO_-8ikk.js",
-      "sha256": "aef69d4116c9a011b8ab12f90b849f97b57fa6f2b4523dce1480fd40fc8ff2a7"
-    },
-    {
-      "path": "dist/renderer/assets/print-DO-XxSuu.js",
-      "sha256": "97a900d02eb8e9a54e1880caec57c65f91dbd487e1572d20b6a603380bc43dea"
+      "path": "dist/renderer/assets/print-CLQfeM9A.js",
+      "sha256": "54e2426f6f90858d4bacd031d737b053f1bc835507ddf18c7d1c8f802f83eaa3"
     },
     {
       "path": "dist/renderer/assets/print-D_ViP0wm.css",
@@ -322,21 +322,21 @@
     },
     {
       "path": "dist/renderer/index.html",
-      "sha256": "d719efc22828d33826ae4d02e11b589a145759385ece2b5092c5286a327dc443"
+      "sha256": "c09d392b003e7c5ee9cc26f9953715e78d82cf0b7301683358416f1c032fe36c"
     },
     {
       "path": "dist/renderer/print.html",
-      "sha256": "777e81ee76100b3053efec4a60b240941e18d0452bde8249f418465d03f4f8a0"
+      "sha256": "6010f009b18fd9e85575d8d86d97823e31f48a9329fad24aa4c4d47f5c1f47ca"
     }
   ],
   "packaged": {
-    "date": "2026-10-20T12:51:05.234Z",
+    "date": "2026-11-02T11:13:53.754Z",
     "pass": true,
-    "executable": "I:\\软件工程\\markdown-notes\\release\\知页-v1.5.1-win-x64\\知页.exe",
+    "executable": "I:\\软件工程\\markdown-notes\\release\\知页-v1.6.0-win-x64\\知页.exe",
     "sha256": "1432afee01d6a788f11cb6649efd271923e1e490beef688c24d31f47965013aa",
     "runtime": {
       "packaged": true,
-      "version": "1.5.1",
+      "version": "1.6.0",
       "electron": "44.9.1",
       "node": "24.22.0"
     },
@@ -350,6 +350,7 @@
       "成品即时编辑与Markdown标题转换",
       "成品目录大纲、引用自动补全、自定义模板复用、收藏与置顶",
       "成品格式2完整备份生成",
+      "成品AI聊天Agent工具调用、预览、编辑、新建与系统加密密钥",
       "实际打包标志与版本"
     ]
   }

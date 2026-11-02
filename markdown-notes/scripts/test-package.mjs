@@ -3,12 +3,52 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, createReadStream, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
-import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
+import { randomUUID, createHash } from 'node:crypto';
 import { packageDirectory } from './package-directory.mjs';
 const exe = join(packageDirectory(), '知页.exe'),
   root = mkdtempSync(join(tmpdir(), 'zhiye-packaged-'));
 const env = { ...process.env, ZHIYE_DATA_DIR: root };
 delete env.ELECTRON_RUN_AS_NODE;
+const mockKey = 'packaged-fake-' + randomUUID();
+const mockAI = createServer(async (req, res) => {
+  let raw = '';
+  for await (const chunk of req) raw += chunk;
+  const edit = JSON.parse(raw).messages.at(-1).content.includes('润色');
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(
+    JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: null,
+            tool_calls: [
+              {
+                id: 'call_package',
+                type: 'function',
+                function: {
+                  name: edit ? 'propose_note_edit' : 'create_note',
+                  arguments: JSON.stringify(
+                    edit
+                      ? { content: '## 成品AI润色正文\n\n内容更清晰。', summary: '建议润色正文' }
+                      : {
+                          title: '成品AI新笔记',
+                          content: '## 成品AI模拟总结\n\n- 关键知识点',
+                          summary: '建议创建笔记，等待确认',
+                        },
+                  ),
+                },
+              },
+            ],
+          },
+          finish_reason: 'tool_calls',
+        },
+      ],
+    }),
+  );
+});
+await new Promise((resolve) => mockAI.listen(0, '127.0.0.1', resolve));
+const mockUrl = `http://127.0.0.1:${mockAI.address().port}/v1`;
 const app = await _electron.launch({ executablePath: exe, args: [], env });
 try {
   const page = await app.firstWindow();
@@ -99,6 +139,34 @@ try {
   const backupRecord = await page.evaluate(() => window.notesApi.call('backup.create'));
   assert.equal(backupRecord.format_version, 2);
   assert(readFileSync(backupRecord.file_path).length > 0);
+  await page.evaluate(
+    async ({ url, key }) =>
+      window.notesApi.call('ai.set', { base_url: url, model: 'packaged-mock', api_key: key }),
+    { url: mockUrl, key: mockKey },
+  );
+  await page.getByRole('button', { name: 'AI总结当前笔记' }).click();
+  await page.getByRole('textbox', { name: '发给AI的消息' }).fill('生成一篇成品AI笔记');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await page
+    .getByRole('article', { name: 'AI建议正文' })
+    .getByRole('heading', { name: '成品AI模拟总结' })
+    .waitFor();
+  await page.getByRole('button', { name: '创建这篇笔记' }).click();
+  await page.waitForFunction(
+    () => document.querySelector('.document-heading h1')?.textContent === '成品AI新笔记',
+  );
+  await page.getByRole('textbox', { name: '发给AI的消息' }).fill('润色这篇笔记');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await page.getByRole('button', { name: '应用修改', exact: true }).click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector('textarea[aria-label="Markdown编辑器"]')
+      ?.value.includes('成品AI润色正文'),
+  );
+  await page.getByRole('button', { name: '关闭对话框' }).click();
+  const masked = await page.evaluate(() => window.notesApi.call('ai.get'));
+  assert(masked.has_key && !JSON.stringify(masked).includes(mockKey));
+  assert(!readFileSync(join(root, '.host/ai/connection.json'), 'utf8').includes(mockKey));
   const runtime = await app.evaluate(({ app }) => ({
     packaged: app.isPackaged,
     version: app.getVersion(),
@@ -125,6 +193,7 @@ try {
       '成品即时编辑与Markdown标题转换',
       '成品目录大纲、引用自动补全、自定义模板复用、收藏与置顶',
       '成品格式2完整备份生成',
+      '成品AI聊天Agent工具调用、预览、编辑、新建与系统加密密钥',
       '实际打包标志与版本',
     ],
   };
@@ -133,4 +202,6 @@ try {
   console.log(JSON.stringify(report, null, 2));
 } finally {
   await app.close();
+  mockAI.closeAllConnections();
+  await new Promise((resolve) => mockAI.close(resolve));
 }

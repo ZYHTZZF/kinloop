@@ -237,13 +237,14 @@ export class Store {
         changed.add(id);
       };
       if (method === 'note.create') {
+        if (p.template_id && p.content !== undefined) fail('E_INPUT', '不能同时指定模板和初始正文');
         const template = p.template_id
           ? [...BUILTIN_TEMPLATES, ...((this.profile().preferences.templates as any[]) ?? [])].find(
               (t) => t.template_id === p.template_id,
             )
           : null;
         if (p.template_id && !template) fail('E_NOT_FOUND', '模板已不存在');
-        const initial = body(template?.content ?? '');
+        const initial = body(p.content ?? template?.content ?? '');
         let title = p.title ? name(p.title) : (template?.title ?? '未命名笔记'),
           i = 1;
         while (

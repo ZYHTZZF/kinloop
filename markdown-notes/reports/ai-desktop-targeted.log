@@ -1,0 +1,82 @@
+
+Running 2 tests using 1 worker
+
+(node:15000) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  1 tests\e2e\ai.spec.ts:72:5 › AI实际IPC：设置与系统加密、测试连接、总结预览／追加、生成新笔记与备份排除密钥 (7.7s)
+(node:31044) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  2 tests\e2e\ai.spec.ts:155:5 › AI错误／取消／拒绝重定向与输入超限保持笔记；生成可取消后重试 (6.5s)
+
+
+  1) tests\e2e\ai.spec.ts:72:5 › AI实际IPC：设置与系统加密、测试连接、总结预览／追加、生成新笔记与备份排除密钥 ─────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('连接成功，服务已返回有效文本')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByText('连接成功，服务已返回有效文本') with timeout 5000ms
+      - waiting for getByText('连接成功，服务已返回有效文本')
+
+
+      87 |     expect(readFileSync(join(f.root, '.host/ai/connection.json'), 'utf8')).not.toContain(f.key);
+      88 |     await page.getByRole('button', { name: '测试AI连接' }).click();
+    > 89 |     await expect(page.getByText('连接成功，服务已返回有效文本')).toBeVisible();
+         |                                                    ^
+      90 |     expect(f.requests).toHaveLength(1);
+      91 |     expect(f.requests[0].body.messages).toHaveLength(1);
+      92 |     await page.getByRole('button', { name: '关闭对话框' }).click();
+        at I:\软件工程\markdown-notes\tests\e2e\ai.spec.ts:89:52
+
+    Error Context: test-results\playwright\ai-AI实际IPC：设置与系统加密、测试连接、总结预览／追加、生成新笔记与备份排除密钥\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\playwright\ai-AI实际IPC：设置与系统加密、测试连接、总结预览／追加、生成新笔记与备份排除密钥\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\playwright\ai-AI实际IPC：设置与系统加密、测试连接、总结预览／追加、生成新笔记与备份排除密钥\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) tests\e2e\ai.spec.ts:155:5 › AI错误／取消／拒绝重定向与输入超限保持笔记；生成可取消后重试 ──────────────────────────────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByRole('alert')
+    Expected substring: "API Key无效"
+    Received string:    "无法连接AI服务，请检查网络和API地址；重定向地址不受支持"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" getByRole('alert') with timeout 5000ms
+      - waiting for getByRole('alert')
+        14 × locator resolved to <p role="alert" class="ai-error">无法连接AI服务，请检查网络和API地址；重定向地址不受支持</p>
+           - unexpected value "无法连接AI服务，请检查网络和API地址；重定向地址不受支持"
+
+
+      174 |     f.setMode('error');
+      175 |     await start();
+    > 176 |     await expect(page.getByRole('alert')).toContainText('API Key无效');
+          |                                           ^
+      177 |     expect(await page.locator('body').textContent()).not.toContain(f.key);
+      178 |     await page.getByRole('button', { name: '关闭对话框' }).click();
+      179 |     await expect(page.getByRole('textbox', { name: 'Markdown编辑器' })).toHaveValue(
+        at I:\软件工程\markdown-notes\tests\e2e\ai.spec.ts:176:43
+
+    Error Context: test-results\playwright\ai-AI错误／取消／拒绝重定向与输入超限保持笔记；生成可取消后重试\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\playwright\ai-AI错误／取消／拒绝重定向与输入超限保持笔记；生成可取消后重试\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\playwright\ai-AI错误／取消／拒绝重定向与输入超限保持笔记；生成可取消后重试\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    tests\e2e\ai.spec.ts:72:5 › AI实际IPC：设置与系统加密、测试连接、总结预览／追加、生成新笔记与备份排除密钥 ──────────────────────────
+    tests\e2e\ai.spec.ts:155:5 › AI错误／取消／拒绝重定向与输入超限保持笔记；生成可取消后重试 ───────────────────────────────────

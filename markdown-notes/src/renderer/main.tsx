@@ -49,6 +49,7 @@ import {
   Pin,
   ListTree,
   LayoutTemplate,
+  Sparkles,
 } from 'lucide-react';
 import { codepoints, key, matchRange, trim } from '../shared/rules';
 import type { NoteView, Tag } from '../shared/types';
@@ -58,6 +59,8 @@ import { ReferenceSuggest, TemplateManager, TemplatePicker } from './productivit
 import { version as APP_VERSION } from '../../package.json';
 import { usePaneLayout, PaneDivider } from './pane-layout';
 import { AppearanceSettings, applyAppearance } from './appearance';
+import { AiSettings, AiAssistant, type AiSource, type ChatTurn } from './ai';
+import { AI_OUTPUT_BYTES } from '../shared/ai';
 import { DEFAULT_APPEARANCE, type AppearanceView } from '../shared/appearance';
 import type { LiveEditorHandle } from './live-editor';
 const LiveEditor = lazy(() =>
@@ -220,6 +223,8 @@ function App() {
     firstEdit = useRef(0),
     toastTimer = useRef<any>(null);
   const liveEditor = useRef<LiveEditorHandle>(null);
+  const aiMemory = useRef<ChatTurn[]>([]),
+    aiConversationKey = useRef('');
   const referencesButton = useRef<HTMLButtonElement>(null),
     referencesCloseButton = useRef<HTMLButtonElement>(null);
   const closeReferences = useCallback(() => {
@@ -674,6 +679,76 @@ function App() {
         .call('system.openLink', { url: anchor.getAttribute('href') })
         .catch((e) => notify(e.message, true));
   };
+  const openAi = (action: 'summarize' | 'generate') => {
+    const key = epochRef.current + '/' + (note && !note.deleted_at ? note.note_id : 'new');
+    if (aiConversationKey.current !== key) {
+      aiMemory.current = [];
+      aiConversationKey.current = key;
+    }
+    const d = draftRef.current;
+    setModal({
+      type: 'ai',
+      data: {
+        action,
+        source: {
+          epoch: epochRef.current!,
+          note_id: note && !note.deleted_at ? note.note_id : undefined,
+          title: note && !note.deleted_at ? note.title : '',
+          content: note && !note.deleted_at ? (d?.content ?? '') : '',
+        } satisfies AiSource,
+      },
+    });
+  };
+  const applyAi = async (source: AiSource, text: string, title?: string, replace = false) => {
+    if (!text.trim() || new TextEncoder().encode(text).length > AI_OUTPUT_BYTES)
+      throw new Error('AI结果须为非空文字，且不超过256 KiB');
+    setBusy('保存AI结果');
+    try {
+      await flush();
+      if (source.epoch !== epochRef.current)
+        throw new Error('资料库已切换，请重新打开AI助手后操作');
+      let result;
+      if (title !== undefined) result = await api.call('note.create', { title, content: text });
+      else {
+        const d = draftRef.current;
+        if (!d || !source.note_id || d.note_id !== source.note_id || d.content !== source.content)
+          throw new Error('原笔记已变化，请另存为新笔记或重新生成，避免覆盖修改');
+        result = await api.call('note.save', {
+          note_id: d.note_id,
+          expected_revision: d.revision,
+          content: replace ? text : d.content + (d.content ? '\n\n' : '') + text,
+          tag_ids: d.tag_ids,
+          edit_sequence: d.sequence + 1,
+        });
+      }
+      installNote(result.note);
+      setView('all');
+      setQuery('');
+      setFilters([]);
+      setPage(1);
+      aiConversationKey.current = epochRef.current + '/' + result.note.note_id;
+      setModal((previous) =>
+        previous?.type === 'ai'
+          ? {
+              ...previous,
+              data: {
+                ...previous.data,
+                source: {
+                  epoch: epochRef.current!,
+                  note_id: result.note.note_id,
+                  title: result.note.title,
+                  content: result.note.content,
+                },
+              },
+            }
+          : previous,
+      );
+      setRefresh((n) => n + 1);
+      notify('AI结果已保存');
+    } finally {
+      setBusy('');
+    }
+  };
   const openSettings = (tab = 'library') => {
     setSettingsTab(tab);
     setModal({ type: 'settings' });
@@ -802,6 +877,15 @@ function App() {
             </button>
           )}
         </div>
+        <button
+          className="button subtle"
+          aria-label="AI助手"
+          onClick={() => openAi('generate')}
+          disabled={!status || !!busy || !!status?.fault}
+        >
+          <Sparkles size={16} />
+          <span>AI助手</span>
+        </button>
         <button className="button subtle" onClick={() => openSettings('backup')}>
           <Archive size={16} />
           <span>备份与恢复</span>
@@ -1090,6 +1174,15 @@ function App() {
                   <div className="document-actions">
                     {!note.deleted_at ? (
                       <>
+                        <button
+                          className="icon"
+                          aria-label="AI总结当前笔记"
+                          title="AI总结当前笔记"
+                          disabled={!!busy}
+                          onClick={() => openAi('summarize')}
+                        >
+                          <Sparkles size={16} />
+                        </button>
                         <button
                           className={'icon ' + (note.favorite ? 'flag-active' : '')}
                           aria-label={note.favorite ? '取消收藏' : '收藏笔记'}
@@ -1626,12 +1719,24 @@ function App() {
               pdfExport: '导出PDF',
               templates: '笔记模板',
               newNote: '新建笔记',
+              ai: 'AI助手',
               saveTemplate: '保存为模板',
             }[modal.type] ?? '设置'
           }
           onClose={closeModal}
-          wide={['settings', 'restore', 'templates', 'newNote'].includes(modal.type)}
+          wide={['settings', 'restore', 'templates', 'newNote', 'ai'].includes(modal.type)}
         >
+          {modal.type === 'ai' && (
+            <AiAssistant
+              source={modal.data.source}
+              initialAction={modal.data.action}
+              onConfigure={() => openSettings('ai')}
+              memory={aiMemory}
+              onAppend={(source, text) => applyAi(source, text)}
+              onReplace={(source, text) => applyAi(source, text, undefined, true)}
+              onCreate={(source, title, text) => applyAi(source, text, title)}
+            />
+          )}
           {modal.type === 'newNote' && (
             <TemplatePicker onCreate={fromTemplate} onError={(message) => notify(message, true)} />
           )}
@@ -1877,6 +1982,7 @@ function App() {
                 {[
                   ['library', '资料库'],
                   ['appearance', '外观'],
+                  ['ai', 'AI设置'],
                   ['backup', '备份与恢复'],
                   ['help', '使用帮助'],
                 ].map(([tab, label]) => (
@@ -1963,6 +2069,7 @@ function App() {
                   </p>
                 </div>
               )}
+              {settingsTab === 'ai' && <AiSettings />}
               {settingsTab === 'appearance' && (
                 <AppearanceSettings value={appearance} onChange={setAppearance} notify={notify} />
               )}
